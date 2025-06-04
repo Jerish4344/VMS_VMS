@@ -1,0 +1,797 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Maintenance Report - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .report-stats-card {
+    transition: transform 0.2s;
+    height: 100%;
+  }
+  
+  .report-stats-card:hover {
+    transform: translateY(-5px);
+  }
+  
+  .stats-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  
+  .stats-label {
+    color: #858796;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  
+  .date-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .filter-divider {
+    font-weight: bold;
+  }
+  
+  .btn-export {
+    margin-right: 0.5rem;
+  }
+  
+  .status-badge {
+    font-size: 0.75rem;
+    padding: 0.35em 0.65em;
+  }
+  
+  .status-scheduled {
+    background-color: #f6c23e;
+    color: #212529;
+  }
+  
+  .status-in_progress {
+    background-color: #4e73df;
+    color: white;
+  }
+  
+  .status-completed {
+    background-color: #1cc88a;
+    color: white;
+  }
+  
+  .status-cancelled {
+    background-color: #858796;
+    color: white;
+  }
+  
+  .chart-container {
+    position: relative;
+    margin: auto;
+    height: 300px;
+    width: 100%;
+  }
+  
+  .breakdown-table th {
+    white-space: nowrap;
+  }
+  
+  .progress {
+    height: 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Maintenance Report</h1>
+    
+    <div class="d-flex">
+      <a href="{% url 'maintenance_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.maintenance_type %}maintenance_type={{ request.GET.maintenance_type }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}export=excel" class="btn btn-sm btn-success shadow-sm btn-export">
+        <i class="fas fa-file-excel fa-sm text-white-50"></i> Export to Excel
+      </a>
+      <a href="{% url 'maintenance_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.maintenance_type %}maintenance_type={{ request.GET.maintenance_type }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}export=csv" class="btn btn-sm btn-primary shadow-sm btn-export">
+        <i class="fas fa-file-csv fa-sm text-white-50"></i> Export to CSV
+      </a>
+    </div>
+  </div>
+  
+  <!-- Filters Card -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">Report Filters</h6>
+    </div>
+    <div class="card-body">
+      <form id="report-filters" method="get" class="mb-0">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="mb-3">
+              <label class="form-label">Date Range</label>
+              <div class="date-filter-row">
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}" placeholder="Start Date">
+                <span class="filter-divider">to</span>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}" placeholder="End Date">
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-3">
+            <div class="mb-3">
+              <label for="maintenance-type-filter" class="form-label">Maintenance Type</label>
+              <select name="maintenance_type" id="maintenance-type-filter" class="form-select">
+                <option value="">All Types</option>
+                {% for type in maintenance_types %}
+                  <option value="{{ type.maintenance_type__id }}" {% if request.GET.maintenance_type == type.maintenance_type__id|stringformat:"i" %}selected{% endif %}>
+                    {{ type.maintenance_type__name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          
+          <div class="col-md-3">
+            <div class="mb-3">
+              <label for="status-filter" class="form-label">Status</label>
+              <select name="status" id="status-filter" class="form-select">
+                <option value="">All Statuses</option>
+                {% for status_code, status_name in statuses.items %}
+                  <option value="{{ status_code }}" {% if request.GET.status == status_code %}selected{% endif %}>
+                    {{ status_name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          
+          <div class="col-md-2 d-flex align-items-end">
+            <div class="mb-3 d-flex w-100">
+              <button type="submit" class="btn btn-primary flex-grow-1 me-2">
+                <i class="fas fa-filter"></i> Apply
+              </button>
+              <a href="{% url 'maintenance_report' %}" class="btn btn-secondary">
+                <i class="fas fa-redo"></i> Reset
+              </a>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Summary Stats Cards -->
+  <div class="row mb-4">
+    <!-- Total Records -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-primary shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Records</div>
+              <div class="stats-value text-primary">
+                {{ summary.total_count }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-clipboard-list fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Total Cost -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-success shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Cost</div>
+              <div class="stats-value text-success">
+                {{ summary.total_cost|floatformat:2 }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Status Breakdown -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-info shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Status Breakdown</div>
+              <div class="mt-2">
+                <div class="mb-1 small">
+                  <span class="status-badge status-scheduled">Scheduled</span>
+                  <span class="float-end text-xs font-weight-bold">
+                    {% for status_item in summary.status_breakdown %}
+                      {% if status_item.status == 'scheduled' %}
+                        {{ status_item.count }}
+                      {% endif %}
+                    {% endfor %}
+                  </span>
+                </div>
+                <div class="mb-1 small">
+                  <span class="status-badge status-in_progress">In Progress</span>
+                  <span class="float-end text-xs font-weight-bold">
+                    {% for status_item in summary.status_breakdown %}
+                      {% if status_item.status == 'in_progress' %}
+                        {{ status_item.count }}
+                      {% endif %}
+                    {% endfor %}
+                  </span>
+                </div>
+                <div class="mb-1 small">
+                  <span class="status-badge status-completed">Completed</span>
+                  <span class="float-end text-xs font-weight-bold">
+                    {% for status_item in summary.status_breakdown %}
+                      {% if status_item.status == 'completed' %}
+                        {{ status_item.count }}
+                      {% endif %}
+                    {% endfor %}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-tasks fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Avg Cost per Record -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-warning shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Avg Cost per Record</div>
+              <div class="stats-value text-warning">
+                {% if summary.total_count > 0 %}
+                  {% widthratio summary.total_cost summary.total_count 1 as avg_cost %}
+                  {{ avg_cost|floatformat:2 }}
+                {% else %}
+                  0.00
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Charts Row -->
+  <div class="row mb-4">
+    <!-- Monthly Trend Chart -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Monthly Maintenance Trend</h6>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="monthlyTrendChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Cost by Type Chart -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Cost by Maintenance Type</h6>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="costByTypeChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Breakdown Tables Row -->
+  <div class="row mb-4">
+    <!-- Type Breakdown -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Maintenance Type Breakdown</h6>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-bordered breakdown-table" width="100%" cellspacing="0">
+              <thead>
+                <tr>
+                  <th>Maintenance Type</th>
+                  <th>Count</th>
+                  <th>Total Cost</th>
+                  <th>% of Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for type in summary.type_breakdown %}
+                  <tr>
+                    <td>{{ type.maintenance_type__name }}</td>
+                    <td>{{ type.count }}</td>
+                    <td>{{ type.total_cost|default:0|floatformat:2 }}</td>
+                    <td>
+                      <div class="d-flex align-items-center">
+                        {% if summary.total_count > 0 %}
+                          <div class="mr-2">{% widthratio type.count summary.total_count 100 %}%</div>
+                          <div class="progress w-100 ml-2">
+                            <div class="progress-bar bg-primary" role="progressbar" 
+                                 style="width: {% widthratio type.count summary.total_count 100 %}%" 
+                                 aria-valuenow="{% widthratio type.count summary.total_count 100 %}" 
+                                 aria-valuemin="0" aria-valuemax="100"></div>
+                          </div>
+                        {% else %}
+                          <div class="mr-2">0%</div>
+                          <div class="progress w-100 ml-2">
+                            <div class="progress-bar bg-primary" role="progressbar" style="width: 0%" 
+                                 aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                          </div>
+                        {% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Vehicle Breakdown -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Vehicle Breakdown</h6>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-bordered breakdown-table" width="100%" cellspacing="0">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Count</th>
+                  <th>Total Cost</th>
+                  <th>% of Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for vehicle in summary.vehicle_breakdown %}
+                  <tr>
+                    <td>{{ vehicle.vehicle__license_plate }} ({{ vehicle.vehicle__make }} {{ vehicle.vehicle__model }})</td>
+                    <td>{{ vehicle.count }}</td>
+                    <td>{{ vehicle.total_cost|default:0|floatformat:2 }}</td>
+                    <td>
+                      <div class="d-flex align-items-center">
+                        {% if summary.total_count > 0 %}
+                          <div class="mr-2">{% widthratio vehicle.count summary.total_count 100 %}%</div>
+                          <div class="progress w-100 ml-2">
+                            <div class="progress-bar bg-info" role="progressbar" 
+                                 style="width: {% widthratio vehicle.count summary.total_count 100 %}%" 
+                                 aria-valuenow="{% widthratio vehicle.count summary.total_count 100 %}" 
+                                 aria-valuemin="0" aria-valuemax="100"></div>
+                          </div>
+                        {% else %}
+                          <div class="mr-2">0%</div>
+                          <div class="progress w-100 ml-2">
+                            <div class="progress-bar bg-info" role="progressbar" style="width: 0%" 
+                                 aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                          </div>
+                        {% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Maintenance Records Table -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+      <h6 class="m-0 font-weight-bold text-primary">Maintenance Records</h6>
+      <span>Period: {{ start_date }} to {{ end_date }}</span>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Vehicle</th>
+              <th>Type</th>
+              <th>Provider</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Cost</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for record in maintenance_report %}
+              <tr>
+                <td>{{ record.id }}</td>
+                <td>{{ record.vehicle }}</td>
+                <td>{{ record.maintenance_type }}</td>
+                <td>{{ record.provider }}</td>
+                <td>{{ record.date_reported|date:"M d, Y" }}</td>
+                <td>
+                  <span class="badge status-{{ record.status|lower }} status-badge">
+                    {{ record.status }}
+                  </span>
+                  {% if record.completion_date %}
+                    <div class="small text-muted">Completed: {{ record.completion_date|date:"M d, Y" }}</div>
+                  {% endif %}
+                </td>
+                <td>{{ record.cost|default:"-"|floatformat:2 }}</td>
+                <td>
+                  <div class="btn-group">
+                    <a href="{% url 'maintenance_detail' record.id %}" class="btn btn-sm btn-info" title="View Details">
+                      <i class="fas fa-eye"></i>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="8" class="text-center">No maintenance records found for the selected period.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== MAINTENANCE CHARTS INITIALIZATION ===');
+    
+    // Initialize other components first
+    const today = new Date().toISOString().split('T')[0];
+    const startDateInput = document.querySelector('input[name="start_date"]');
+    const endDateInput = document.querySelector('input[name="end_date"]');
+    
+    if (startDateInput && endDateInput) {
+      endDateInput.max = today;
+      
+      startDateInput.addEventListener('change', function() {
+        endDateInput.min = this.value;
+        if (endDateInput.value && new Date(endDateInput.value) < new Date(this.value)) {
+          endDateInput.value = this.value;
+        }
+      });
+      
+      endDateInput.addEventListener('change', function() {
+        startDateInput.max = this.value;
+      });
+      
+      if (startDateInput.value) {
+        endDateInput.min = startDateInput.value;
+      }
+      if (endDateInput.value) {
+        startDateInput.max = endDateInput.value;
+      } else {
+        startDateInput.max = today;
+      }
+    }
+    
+    // Style form controls
+    document.querySelectorAll('select').forEach(function(element) {
+      element.classList.add('form-select');
+    });
+    
+    // Initialize DataTable
+    if (typeof $ !== 'undefined' && $.fn.DataTable) {
+      try {
+        $('#dataTable').DataTable({
+          order: [[4, 'desc']],
+          pageLength: 25
+        });
+      } catch (e) {
+        console.log('DataTable initialization failed:', e);
+      }
+    }
+    
+    // Check if Chart.js is loaded
+    if (typeof Chart === 'undefined') {
+      console.error('Chart.js is not loaded!');
+      return;
+    }
+    
+    // Prepare Monthly Data - Fixed template syntax
+    const monthlyData = [
+      {% for month_data in monthly_data %}
+      {
+        month: "{{ month_data.month|date:'M Y' }}",
+        count: {{ month_data.count }},
+        cost: {{ month_data.total_cost }}
+      }{% if not forloop.last %},{% endif %}
+      {% endfor %}
+    ];
+    
+    console.log('Monthly data:', monthlyData);
+    
+    // Prepare Type Data - Fixed template syntax
+    const typeData = [
+      {% for type in summary.type_breakdown %}
+      {
+        type: "{{ type.maintenance_type__name }}",
+        cost: {{ type.total_cost }},
+        count: {{ type.count }}
+      }{% if not forloop.last %},{% endif %}
+      {% endfor %}
+    ];
+    
+    console.log('Type data:', typeData);
+    
+    // Monthly Trend Chart
+    const monthlyCtx = document.getElementById('monthlyTrendChart');
+    if (monthlyCtx) {
+      try {
+        if (monthlyData.length > 0) {
+          new Chart(monthlyCtx, {
+            type: 'line',
+            data: {
+              labels: monthlyData.map(d => d.month),
+              datasets: [
+                {
+                  label: 'Maintenance Count',
+                  data: monthlyData.map(d => d.count),
+                  borderColor: 'rgba(78, 115, 223, 1)',
+                  backgroundColor: 'rgba(78, 115, 223, 0.1)',
+                  borderWidth: 3,
+                  fill: true,
+                  tension: 0.4,
+                  yAxisID: 'y',
+                  pointBackgroundColor: 'rgba(78, 115, 223, 1)',
+                  pointBorderColor: '#fff',
+                  pointBorderWidth: 2,
+                  pointRadius: 5
+                },
+                {
+                  label: 'Maintenance Cost (₹)',
+                  data: monthlyData.map(d => d.cost),
+                  borderColor: 'rgba(28, 200, 138, 1)',
+                  backgroundColor: 'rgba(28, 200, 138, 0.1)',
+                  borderWidth: 3,
+                  borderDash: [5, 5],
+                  tension: 0.4,
+                  yAxisID: 'y1',
+                  pointBackgroundColor: 'rgba(28, 200, 138, 1)',
+                  pointBorderColor: '#fff',
+                  pointBorderWidth: 2,
+                  pointRadius: 5
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: {
+                mode: 'index',
+                intersect: false,
+              },
+              plugins: {
+                legend: {
+                  display: true,
+                  position: 'top',
+                  labels: {
+                    padding: 20,
+                    usePointStyle: true
+                  }
+                },
+                tooltip: {
+                  backgroundColor: 'rgba(0,0,0,0.8)',
+                  titleColor: '#fff',
+                  bodyColor: '#fff',
+                  borderColor: 'rgba(255,255,255,0.2)',
+                  borderWidth: 1,
+                  callbacks: {
+                    label: function(context) {
+                      let label = context.dataset.label || '';
+                      if (label) {
+                        label += ': ';
+                      }
+                      if (context.datasetIndex === 1) {
+                        label += '₹' + context.parsed.y.toLocaleString();
+                      } else {
+                        label += context.parsed.y;
+                      }
+                      return label;
+                    }
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  grid: {
+                    display: false
+                  },
+                  ticks: {
+                    font: {
+                      size: 12
+                    }
+                  }
+                },
+                y: {
+                  position: 'left',
+                  title: {
+                    display: true,
+                    text: 'Count',
+                    font: {
+                      size: 14,
+                      weight: 'bold'
+                    }
+                  },
+                  beginAtZero: true,
+                  ticks: {
+                    stepSize: 1,
+                    font: {
+                      size: 11
+                    }
+                  }
+                },
+                y1: {
+                  position: 'right',
+                  title: {
+                    display: true,
+                    text: 'Cost (₹)',
+                    font: {
+                      size: 14,
+                      weight: 'bold'
+                    }
+                  },
+                  beginAtZero: true,
+                  grid: {
+                    display: false
+                  },
+                  ticks: {
+                    callback: function(value) {
+                      return '₹' + value.toLocaleString();
+                    },
+                    font: {
+                      size: 11
+                    }
+                  }
+                }
+              }
+            }
+          });
+          console.log('Monthly trend chart created successfully');
+        } else {
+          monthlyCtx.parentElement.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100"><p class="text-muted m-0">No monthly data available</p></div>';
+        }
+      } catch (error) {
+        console.error('Error creating monthly trend chart:', error);
+        monthlyCtx.parentElement.innerHTML = '<div class="alert alert-danger">Error loading monthly chart: ' + error.message + '</div>';
+      }
+    }
+    
+    // Cost by Type Chart
+    const typeCtx = document.getElementById('costByTypeChart');
+    if (typeCtx) {
+      try {
+        // Filter and sort type data
+        const validTypeData = typeData.filter(d => d.cost > 0);
+        
+        if (validTypeData.length > 0) {
+          validTypeData.sort((a, b) => b.cost - a.cost);
+          const topTypes = validTypeData.slice(0, 8);
+          
+          const colors = [
+            '#4e73df', '#1cc88a', '#f6c23e', '#e74a3b',
+            '#36b9cc', '#858796', '#ff6384', '#ff9f40',
+            '#4bc0c0', '#9966ff', '#ff6b6b', '#4dabf7'
+          ];
+          
+          const backgroundColors = colors.slice(0, topTypes.length);
+          
+          new Chart(typeCtx, {
+            type: 'doughnut',
+            data: {
+              labels: topTypes.map(d => d.type),
+              datasets: [{
+                data: topTypes.map(d => d.cost),
+                backgroundColor: backgroundColors,
+                borderColor: '#fff',
+                borderWidth: 2,
+                hoverOffset: 8,
+                hoverBorderWidth: 3
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: '50%',
+              plugins: {
+                legend: {
+                  position: 'right',
+                  labels: {
+                    padding: 15,
+                    usePointStyle: true,
+                    font: {
+                      size: 12
+                    },
+                    generateLabels: function(chart) {
+                      const data = chart.data;
+                      if (data.labels.length && data.datasets.length) {
+                        const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                        return data.labels.map((label, i) => {
+                          const value = data.datasets[0].data[i];
+                          const percentage = ((value / total) * 100).toFixed(1);
+                          return {
+                            text: `${label} (${percentage}%)`,
+                            fillStyle: data.datasets[0].backgroundColor[i],
+                            strokeStyle: '#fff',
+                            lineWidth: 2,
+                            hidden: isNaN(value),
+                            index: i
+                          };
+                        });
+                      }
+                      return [];
+                    }
+                  }
+                },
+                tooltip: {
+                  backgroundColor: 'rgba(0,0,0,0.8)',
+                  titleColor: '#fff',
+                  bodyColor: '#fff',
+                  borderColor: 'rgba(255,255,255,0.2)',
+                  borderWidth: 1,
+                  callbacks: {
+                    label: function(context) {
+                      const label = context.label || '';
+                      const value = context.parsed;
+                      const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                      const percentage = ((value / total) * 100).toFixed(1);
+                      return `${label}: ₹${value.toLocaleString()} (${percentage}%)`;
+                    }
+                  }
+                }
+              }
+            }
+          });
+          console.log('Cost by type chart created successfully');
+        } else {
+          typeCtx.parentElement.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100"><p class="text-muted m-0">No cost data available</p></div>';
+        }
+      } catch (error) {
+        console.error('Error creating cost by type chart:', error);
+        typeCtx.parentElement.innerHTML = '<div class="alert alert-danger">Error loading type chart: ' + error.message + '</div>';
+      }
+    }
+    
+    console.log('=== CHARTS INITIALIZATION COMPLETE ===');
+  });
+</script>
+{% endblock %}

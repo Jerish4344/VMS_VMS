@@ -1,0 +1,800 @@
+{% load static %}
+{% load approval_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Vehicle Management System{% endblock %}</title>
+  
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  
+  <!-- Google Fonts - Nunito -->
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Main CSS -->
+  <link href="{% static 'css/style.css' %}" rel="stylesheet">
+  
+  <style>
+    /* Enhanced Notification Styles */
+    .notification-bell {
+      position: relative;
+      color: #5a5c69;
+      font-size: 1.2rem;
+      transition: all 0.3s ease;
+      padding: 8px;
+      border-radius: 50%;
+    }
+    
+    .notification-bell:hover {
+      color: #4e73df;
+      background: rgba(78, 115, 223, 0.1);
+    }
+    
+    .notification-badge {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: linear-gradient(135deg, #e74a3b, #c0392b);
+      color: white;
+      border-radius: 50%;
+      padding: 2px 6px;
+      font-size: 0.7rem;
+      min-width: 18px;
+      text-align: center;
+      animation: pulse 2s infinite;
+      box-shadow: 0 2px 4px rgba(231, 74, 59, 0.3);
+    }
+    
+    .notification-badge.urgent {
+      background: linear-gradient(135deg, #dc3545, #a71e2a);
+      animation: urgentPulse 1s infinite;
+      box-shadow: 0 0 10px rgba(220, 53, 69, 0.5);
+    }
+    
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    
+    @keyframes urgentPulse {
+      0% { transform: scale(1); background: linear-gradient(135deg, #dc3545, #a71e2a); }
+      50% { transform: scale(1.2); background: linear-gradient(135deg, #ff6b6b, #dc3545); }
+      100% { transform: scale(1); background: linear-gradient(135deg, #dc3545, #a71e2a); }
+    }
+    
+    .notification-dropdown {
+      width: 380px;
+      max-height: 450px;
+      overflow-y: auto;
+      border: none;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      backdrop-filter: blur(10px);
+      background: rgba(255, 255, 255, 0.98);
+    }
+    
+    .notification-item {
+      padding: 15px 20px;
+      border-bottom: 1px solid rgba(227, 230, 240, 0.5);
+      transition: all 0.2s ease;
+      cursor: pointer;
+      position: relative;
+    }
+    
+    .notification-item:hover {
+      background: linear-gradient(135deg, #f8f9fc, #e3e6f0);
+      transform: translateX(5px);
+    }
+    
+    .notification-item.urgent {
+      border-left: 4px solid #dc3545;
+      background: linear-gradient(135deg, #fff5f5, #ffe6e6);
+    }
+    
+    .notification-item.urgent::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(220, 53, 69, 0.03);
+      pointer-events: none;
+    }
+    
+    .notification-avatar {
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #e3e6f0;
+    }
+    
+    .notification-avatar-placeholder {
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4e73df, #224abe);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 1.1rem;
+      border: 2px solid #e3e6f0;
+    }
+    
+    .notification-content {
+      flex: 1;
+      margin-left: 15px;
+    }
+    
+    .notification-name {
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 4px;
+      font-size: 0.95rem;
+    }
+    
+    .notification-role {
+      font-size: 0.85rem;
+      color: #6c757d;
+      margin-bottom: 4px;
+    }
+    
+    .notification-time {
+      font-size: 0.75rem;
+      color: #adb5bd;
+      display: flex;
+      align-items: center;
+    }
+    
+    .notification-time.urgent {
+      color: #dc3545;
+      font-weight: 600;
+    }
+    
+    .no-notifications {
+      padding: 50px 20px;
+      text-align: center;
+      color: #6c757d;
+    }
+    
+    .sidebar-notification-badge {
+      background: linear-gradient(135deg, #e74a3b, #c0392b);
+      color: white;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      margin-left: 8px;
+      min-width: 20px;
+      text-align: center;
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(231, 74, 59, 0.3);
+    }
+
+    /* Enhanced Dropdown Header */
+    .dropdown-header {
+      background: linear-gradient(135deg, #4e73df, #224abe);
+      color: white;
+      padding: 15px 20px;
+      margin: 0;
+      border-radius: 15px 15px 0 0;
+      font-weight: 600;
+    }
+
+    /* Enhanced Driver Access Styles */
+    .driver-access-indicator {
+      color: #28a745;
+      font-size: 0.8rem;
+      margin-left: 5px;
+    }
+
+    .menu-item-enhanced {
+      transition: all 0.2s ease;
+      border-radius: 8px;
+      margin: 2px 0;
+    }
+
+    .menu-item-enhanced:hover {
+      background: rgba(78, 115, 223, 0.1);
+      transform: translateX(5px);
+    }
+
+    /* Multi-role indicator */
+    .user-role-multi {
+      font-size: 0.75rem;
+      color: #28a745;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .role-badge {
+      background: linear-gradient(135deg, #28a745, #20c997);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+  </style>
+  
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  <div class="wrapper">
+    <!-- Sidebar -->
+    <nav id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <h3>Vehicle MS</h3>
+        <!-- Mobile sidebar close button - only visible inside sidebar -->
+        <button type="button" id="sidebarClose" class="btn btn-link d-md-none">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="sidebar-user">
+        {% if request.user.profile_picture %}
+          <img src="{{ request.user.profile_picture.url }}" alt="{% get_employee_display_name request.user %}" class="user-avatar">
+        {% else %}
+          <div class="user-avatar-placeholder">
+            {% get_employee_display_name request.user as display_name %}
+            {{ display_name|first|upper }}
+          </div>
+        {% endif %}
+        <div class="user-info">
+          <div class="user-name">{% get_employee_display_name request.user %}</div>
+          <div class="user-role">
+            {% if request.user.user_type == 'admin' %}
+              <div class="user-role-multi">
+                <i class="fas fa-crown" title="Full Access"></i>
+                <span class="role-badge">All Permissions</span>
+              </div>
+            {% elif request.user.user_type == 'manager' %}
+              <div class="user-role-multi">
+                <i class="fas fa-users-cog" title="Management Access"></i>
+                <span class="role-badge">Can Drive</span>
+              </div>
+            {% elif request.user.user_type == 'vehicle_manager' %}
+              <div class="user-role-multi">
+                <i class="fas fa-car-side" title="Vehicle Management"></i>
+                <span class="role-badge">Can Drive</span>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <ul class="list-unstyled components">
+        <li {% if request.resolver_match.url_name == 'dashboard' %}{% endif %}>
+          <a href="{% url 'dashboard' %}" class="menu-item-enhanced">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+          </a>
+        </li>
+        
+        <!-- Employee Approval Section for Managers -->
+        {% if request.user.has_approval_permissions %}
+        <li>
+          <a href="#employeeSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+            <i class="fas fa-user-check"></i> Employee Access
+            {% if pending_approvals_count > 0 %}
+              <span class="sidebar-notification-badge">{{ pending_approvals_count }}</span>
+            {% endif %}
+          </a>
+          <ul class="collapse list-unstyled {% if 'pending' in request.resolver_match.url_name or 'employee' in request.resolver_match.url_name %}show{% endif %}" id="employeeSubmenu">
+            <li>
+              <a href="{% url 'pending_employees' %}" class="menu-item-enhanced">
+                Pending Approvals
+                {% if pending_approvals_count > 0 %}
+                  <span class="sidebar-notification-badge">{{ pending_approvals_count }}</span>
+                {% endif %}
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'all_employees' %}" class="menu-item-enhanced">All Employees</a>
+            </li>
+          </ul>
+        </li>
+        {% endif %}
+        
+        <li>
+          <a href="#vehicleSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+            <i class="fas fa-car"></i> Vehicles
+          </a>
+          <ul class="collapse list-unstyled {% if 'vehicle' in request.resolver_match.url_name %}show{% endif %}" id="vehicleSubmenu">
+            <li>
+              <a href="{% url 'vehicle_list' %}" class="menu-item-enhanced">All Vehicles</a>
+            </li>
+            {% if request.user.user_type != 'driver' %}
+            <li>
+              <a href="{% url 'vehicle_create' %}" class="menu-item-enhanced">Add Vehicle</a>
+            </li>
+            <li>
+              <a href="{% url 'vehicle_type_list' %}" class="menu-item-enhanced">Vehicle Types</a>
+            </li>
+            {% endif %}
+          </ul>
+        </li>
+        
+        <li>
+          <a href="#tripSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+            <i class="fas fa-route"></i> Trips
+            {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+              <i class="fas fa-key driver-access-indicator" title="Management can also drive"></i>
+            {% endif %}
+          </a>
+          <ul class="collapse list-unstyled {% if 'trip' in request.resolver_match.url_name %}show{% endif %}" id="tripSubmenu">
+            <li>
+              <a href="{% url 'trip_list' %}" class="menu-item-enhanced"><i class="fas fa-list-alt me-2"></i>All Trips</a>
+            </li>
+            {% if request.user.user_type == 'driver' or request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+            <li>
+              <a href="{% url 'start_trip' %}" class="menu-item-enhanced">
+                <i class="fas fa-play me-2"></i>Start Trip
+              </a>
+            </li>
+            {% endif %}
+            
+            <!-- Manual Trip Management - Only for Admin, Manager, Vehicle Manager -->
+            {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+            <li>
+              <a href="{% url 'manual_trip_create' %}" class="menu-item-enhanced">
+                <i class="fas fa-plus-circle me-2"></i>Add Single Trip
+              </a>
+            </li>
+            {% endif %}
+          </ul>
+        </li>
+
+        <li>
+          <a href="#fuelSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+            <i class="fas fa-gas-pump"></i> Fuel
+          </a>
+          <ul class="collapse list-unstyled {% if 'fuel' in request.resolver_match.url_name %}show{% endif %}" id="fuelSubmenu">
+            <li>
+              <a href="{% url 'fuel_transaction_list' %}" class="menu-item-enhanced">Transactions</a>
+            </li>
+            <li>
+              <a href="{% url 'fuel_transaction_create' %}" class="menu-item-enhanced">Add Transaction</a>
+            </li>
+            {% if request.user.user_type != 'driver' %}
+            <li>
+              <a href="{% url 'fuel_station_list' %}" class="menu-item-enhanced">Fuel Stations</a>
+            </li>
+            {% endif %}
+          </ul>
+        </li>
+        
+        <li>
+          <a href="#maintenanceSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+            <i class="fas fa-tools"></i> Maintenance
+          </a>
+          <ul class="collapse list-unstyled {% if 'maintenance' in request.resolver_match.url_name %}show{% endif %}" id="maintenanceSubmenu">
+            <li>
+              <a href="{% url 'maintenance_list' %}" class="menu-item-enhanced">All Records</a>
+            </li>
+            {% if request.user.user_type != 'driver' %}
+            <li>
+              <a href="{% url 'maintenance_create' %}" class="menu-item-enhanced">Add Record</a>
+            </li>
+            <li>
+              <a href="{% url 'maintenance_type_list' %}" class="menu-item-enhanced">Maintenance Types</a>
+            </li>
+            <li>
+              <a href="{% url 'maintenance_provider_list' %}" class="menu-item-enhanced">Service Providers</a>
+            </li>
+            {% endif %}
+          </ul>
+        </li>
+        
+        {% if request.user.user_type != 'driver' %}
+        <li>
+          <a href="#documentSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+            <i class="fas fa-file-alt"></i> Documents
+          </a>
+          <ul class="collapse list-unstyled {% if 'document' in request.resolver_match.url_name %}show{% endif %}" id="documentSubmenu">
+            <li>
+              <a href="{% url 'document_list' %}" class="menu-item-enhanced">All Documents</a>
+            </li>
+            <li>
+              <a href="{% url 'document_create' %}" class="menu-item-enhanced">Add Document</a>
+            </li>
+            <li>
+              <a href="{% url 'document_type_list' %}" class="menu-item-enhanced">Document Types</a>
+            </li>
+          </ul>
+        </li>
+        {% endif %}
+        
+        <li>
+          <a href="#accidentSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+            <i class="fas fa-car-crash"></i> Accidents
+          </a>
+          <ul class="collapse list-unstyled {% if 'accident' in request.resolver_match.url_name %}show{% endif %}" id="accidentSubmenu">
+            <li>
+              <a href="{% url 'accident_list' %}" class="menu-item-enhanced">All Accidents</a>
+            </li>
+            <li>
+              <a href="{% url 'accident_create' %}" class="menu-item-enhanced">Report Accident</a>
+            </li>
+          </ul>
+        </li>
+        
+        {% if request.user.user_type == 'admin' %}
+        <li>
+          <a href="#userSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+            <i class="fas fa-users"></i> Users
+          </a>
+          <ul class="collapse list-unstyled {% if 'user' in request.resolver_match.url_name %}show{% endif %}" id="userSubmenu">
+            <li>
+              <a href="{% url 'user_list' %}" class="menu-item-enhanced">All Users</a>
+            </li>
+            <li>
+              <a href="{% url 'user_create' %}" class="menu-item-enhanced">Add User</a>
+            </li>
+          </ul>
+        </li>
+        
+        <li>
+          <a href="#reportSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+            <i class="fas fa-chart-bar"></i> Reports
+          </a>
+          <ul class="collapse list-unstyled {% if 'report' in request.resolver_match.url_name %}show{% endif %}" id="reportSubmenu">
+            <li>
+              <a href="{% url 'vehicle_report' %}" class="menu-item-enhanced">Vehicle Report</a>
+            </li>
+            <li>
+              <a href="{% url 'driver_report' %}" class="menu-item-enhanced">Driver Report</a>
+            </li>
+            <li>
+              <a href="{% url 'maintenance_report' %}" class="menu-item-enhanced">Maintenance Report</a>
+            </li>
+            <li>
+              <a href="{% url 'fuel_report' %}" class="menu-item-enhanced">Fuel Report</a>
+            </li>
+          </ul>
+        </li>
+        {% endif %}
+      </ul>
+      
+      <ul class="list-unstyled sidebar-footer">
+        <li>
+          <a href="{% url 'profile' %}" class="menu-item-enhanced">
+            <i class="fas fa-user-cog"></i> My Profile
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'logout' %}" class="menu-item-enhanced">
+            <i class="fas fa-sign-out-alt"></i> Logout
+          </a>
+        </li>
+      </ul>
+    </nav>
+    
+    <!-- Page Content -->
+    <div id="content">
+      <!-- Navbar -->
+      <nav class="navbar navbar-expand-lg navbar-light bg-white">
+        <div class="container-fluid">
+          <!-- Mobile Menu Button -->
+          <button type="button" id="sidebarCollapse" class="btn btn-link d-md-none">
+            <i class="fas fa-bars"></i>
+          </button>
+          
+          <!-- Desktop Menu Button -->
+          <button type="button" id="sidebarCollapseDesktop" class="btn btn-link d-none d-md-block">
+            <i class="fas fa-bars"></i>
+          </button>
+          
+          <div class="ms-auto d-flex align-items-center">
+            <!-- Notification Bell for Managers -->
+            {% if request.user.has_approval_permissions %}
+            <div class="dropdown me-3" id="notificationDropdown">
+              <button class="btn btn-link p-0 notification-bell" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="notificationButton">
+                <i class="fas fa-bell"></i>
+                {% if pending_approvals_count > 0 %}
+                  <span class="notification-badge {% if new_approval_requests_count > 0 %}urgent{% endif %}" id="notificationBadge">
+                    {{ pending_approvals_count }}
+                  </span>
+                {% endif %}
+              </button>
+              <div class="dropdown-menu dropdown-menu-end notification-dropdown" aria-labelledby="notificationButton">
+                <div class="dropdown-header d-flex justify-content-between align-items-center">
+                  <span><i class="fas fa-bell me-2"></i><strong>Pending Approvals</strong></span>
+                  {% if pending_approvals_count > 0 %}
+                    <a href="{% url 'pending_employees' %}" class="btn btn-sm btn-light">View All</a>
+                  {% endif %}
+                </div>
+                
+                <div id="notificationList">
+                  {% if recent_pending_employees %}
+                    {% for employee in recent_pending_employees %}
+                      <div class="notification-item d-flex {% if employee.hr_authenticated_at|is_urgent_request %}urgent{% endif %}" onclick="window.location.href='{% url 'employee_approval' employee.id %}'">
+                        {% if employee.profile_picture %}
+                          <img src="{{ employee.profile_picture.url }}" alt="{% get_employee_display_name employee %}" class="notification-avatar">
+                        {% else %}
+                          <div class="notification-avatar-placeholder">
+                            {% get_employee_display_name employee as display_name %}
+                            {{ display_name|first|upper }}
+                          </div>
+                        {% endif %}
+                        <div class="notification-content">
+                          <div class="notification-name">{% get_employee_display_name employee %}</div>
+                          <div class="notification-role">{% get_employee_hr_role employee %}</div>
+                          <div class="notification-time {% if employee.hr_authenticated_at|is_urgent_request %}urgent{% endif %}">
+                            <i class="fas fa-clock me-1"></i>
+                            {{ employee.hr_authenticated_at|time_since_request }}
+                            {% if employee.hr_authenticated_at|is_urgent_request %}
+                              <i class="fas fa-exclamation-triangle ms-1"></i>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  {% else %}
+                    <div class="notification-item">
+                      <div class="notification-content text-center text-muted">
+                        <i class="fas fa-check-circle fa-2x mb-2 text-success"></i>
+                        <div><strong>All caught up!</strong></div>
+                        <div>No pending approvals.</div>
+                      </div>
+                    </div>
+                  {% endif %}
+                </div>
+
+                {% if pending_approvals_count > 5 %}
+                <div class="dropdown-divider"></div>
+                <div class="text-center p-3">
+                  <a href="{% url 'pending_employees' %}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-list me-2"></i>View All {{ pending_approvals_count }} Requests
+                  </a>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+            
+            <!-- Profile Dropdown -->
+            <div class="dropdown profile">
+              <button class="btn btn-link p-0" type="button" id="profileDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                {% if request.user.profile_picture %}
+                  <img src="{{ request.user.profile_picture.url }}" alt="{% get_employee_display_name request.user %}" class="navbar-avatar">
+                {% else %}
+                  <div class="navbar-avatar-placeholder">
+                    {% get_employee_display_name request.user as display_name %}
+                    {{ display_name|first|upper }}
+                  </div>
+                {% endif %}
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileDropdown">
+                <li><h6 class="dropdown-header">
+                  {% get_employee_display_name request.user %}
+                  {% if request.user.user_type == 'admin' %}
+                    <small class="d-block text-success">
+                      <i class="fas fa-crown me-1"></i>Administrator
+                    </small>
+                  {% elif request.user.user_type == 'manager' %}
+                    <small class="d-block text-primary">
+                      <i class="fas fa-users-cog me-1"></i>Manager
+                    </small>
+                  {% elif request.user.user_type == 'vehicle_manager' %}
+                    <small class="d-block text-info">
+                      <i class="fas fa-car-side me-1"></i>Vehicle Manager
+                    </small>
+                  {% endif %}
+                </h6></li>
+                <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="fas fa-user-circle me-2"></i> My Profile</a></li>
+                {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+                  <li><hr class="dropdown-divider"></li>
+                  
+                  <li><a class="dropdown-item text-success" href="{% url 'start_trip' %}">
+                    <i class="fas fa-car me-2"></i> Drive Vehicles
+                    {% if request.user.user_type == 'admin' %}
+                      <span class="badge bg-success ms-2">Admin</span>
+                    {% elif request.user.user_type == 'manager' %}
+                      <span class="badge bg-primary ms-2">Manager</span>
+                    {% elif request.user.user_type == 'vehicle_manager' %}
+                      <span class="badge bg-info ms-2">V.Manager</span>
+                    {% endif %}
+                  </a></li>
+                {% endif %}
+                {% if request.user.has_approval_permissions and pending_approvals_count > 0 %}
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="{% url 'pending_employees' %}">
+                    <i class="fas fa-user-check me-2"></i> Pending Approvals 
+                    <span class="badge bg-danger ms-2">{{ pending_approvals_count }}</span>
+                  </a></li>
+                {% endif %}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="{% url 'logout' %}"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </nav>
+      
+      <!-- Alert Messages -->
+      {% if messages %}
+        <div class="container-fluid">
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              <i class="fas fa-info-circle me-2"></i>
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      
+      <!-- Main Content -->
+      <main>
+        {% block content %}{% endblock %}
+      </main>
+      
+      <!-- Footer -->
+      <footer class="footer">
+        <div class="container-fluid">
+          <div class="copyright">
+            &copy; {% now "Y" %} Vehicle Management System
+            {% if request.user.user_type == 'admin' %}
+              <span class="text-success ms-3">
+                <i class="fas fa-crown me-1"></i>Admin Panel Access
+              </span>
+            {% elif request.user.user_type == 'manager' %}
+              <span class="text-primary ms-3">
+                <i class="fas fa-users-cog me-1"></i>Management Access
+              </span>
+            {% elif request.user.user_type == 'vehicle_manager' %}
+              <span class="text-info ms-3">
+                <i class="fas fa-car-side me-1"></i>Vehicle Management
+              </span>
+            {% endif %}
+          </div>
+        </div>
+      </footer>
+    </div>
+  </div>
+  
+  <!-- Bootstrap 5 JS Bundle with Popper -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- jQuery (required for some plugins) -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  
+  <!-- Main JavaScript -->
+  <script src="{% static 'js/main.js' %}"></script>
+  
+  <!-- Enhanced Notification JavaScript -->
+  <script>
+    // Auto-refresh notifications every 30 seconds for managers
+    {% if request.user.has_approval_permissions %}
+    setInterval(function() {
+      fetch('/accounts/notifications/data/')
+        .then(response => response.json())
+        .then(data => {
+          const badge = document.getElementById('notificationBadge');
+          const sidebarBadges = document.querySelectorAll('.sidebar-notification-badge');
+          
+          if (data.total_count > 0) {
+            if (badge) {
+              badge.textContent = data.total_count;
+              badge.className = `notification-badge ${data.has_urgent ? 'urgent' : ''}`;
+            } else {
+              const button = document.getElementById('notificationButton');
+              const newBadge = document.createElement('span');
+              newBadge.id = 'notificationBadge';
+              newBadge.className = `notification-badge ${data.has_urgent ? 'urgent' : ''}`;
+              newBadge.textContent = data.total_count;
+              button.appendChild(newBadge);
+            }
+            
+            sidebarBadges.forEach(badge => {
+              badge.textContent = data.total_count;
+              badge.style.display = 'inline';
+            });
+          } else {
+            if (badge) badge.remove();
+            sidebarBadges.forEach(badge => badge.style.display = 'none');
+          }
+        })
+        .catch(error => console.log('Notification refresh failed:', error));
+    }, 30000); // 30 seconds
+    {% endif %}
+
+    // Enhanced menu interactions
+    document.addEventListener('DOMContentLoaded', function() {
+      // Add smooth transitions to menu items
+      const menuItems = document.querySelectorAll('.menu-item-enhanced');
+      menuItems.forEach(item => {
+        item.addEventListener('mouseenter', function() {
+          this.style.transform = 'translateX(5px)';
+        });
+        item.addEventListener('mouseleave', function() {
+          this.style.transform = 'translateX(0)';
+        });
+      });
+
+      // Highlight management driving privileges
+      {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+      console.log('%c🔑 Management Access Enabled - Driving Privileges Granted', 'color: #28a745; font-weight: bold; font-size: 14px;');
+      
+      // Add special indicator for management driving capability
+      const tripSubmenu = document.querySelector('#tripSubmenu');
+      if (tripSubmenu) {
+        const startTripLink = tripSubmenu.querySelector('a[href*="start_trip"]');
+        if (startTripLink && !startTripLink.querySelector('.management-drive-indicator')) {
+          const indicator = document.createElement('div');
+          indicator.className = 'management-drive-indicator';
+          {% if request.user.user_type == 'admin' %}
+          indicator.innerHTML = '<small class="text-success"><i class="fas fa-crown me-1"></i>Admin can drive</small>';
+          {% elif request.user.user_type == 'manager' %}
+          indicator.innerHTML = '<small class="text-primary"><i class="fas fa-users-cog me-1"></i>Manager can drive</small>';
+          {% elif request.user.user_type == 'vehicle_manager' %}
+          indicator.innerHTML = '<small class="text-info"><i class="fas fa-car-side me-1"></i>Vehicle Manager can drive</small>';
+          {% endif %}
+          startTripLink.appendChild(indicator);
+        }
+      }
+      {% endif %}
+      
+      // Enhanced notification handling
+      const notificationItems = document.querySelectorAll('.notification-item');
+      notificationItems.forEach(item => {
+        item.addEventListener('click', function() {
+          // Add loading state
+          this.style.opacity = '0.7';
+          this.style.transform = 'scale(0.98)';
+          
+          // Simulate navigation delay for smooth transition
+          setTimeout(() => {
+            window.location.href = this.getAttribute('onclick').match(/href='([^']+)'/)[1];
+          }, 150);
+        });
+      });
+      
+      // Auto-hide alerts after 5 seconds
+      const alerts = document.querySelectorAll('.alert');
+      alerts.forEach(alert => {
+        setTimeout(() => {
+          if (alert && alert.parentNode) {
+            alert.style.transition = 'opacity 0.5s ease-out';
+            alert.style.opacity = '0';
+            setTimeout(() => {
+              if (alert.parentNode) {
+                alert.remove();
+              }
+            }, 500);
+          }
+        }, 5000);
+      });
+      
+      // Add tooltips for enhanced user experience
+      const tooltipElements = document.querySelectorAll('[title]');
+      tooltipElements.forEach(element => {
+        new bootstrap.Tooltip(element, {
+          placement: 'top',
+          trigger: 'hover'
+        });
+      });
+      
+      // Enhanced sidebar collapse animations
+      const sidebarToggle = document.getElementById('sidebarCollapseDesktop');
+      const sidebar = document.getElementById('sidebar');
+      if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', function() {
+          sidebar.style.transition = 'all 0.3s ease';
+        });
+      }
+    });
+  </script>
+  
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

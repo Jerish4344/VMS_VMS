@@ -1,0 +1,219 @@
+/* static/css/dashboard.css */
+:root {
+  --primary-color: #4e73df;
+  --secondary-color: #1cc88a;
+  --accent-color: #36b9cc;
+  --warning-color: #f6c23e;
+  --danger-color: #e74a3b;
+  --success-color: #1cc88a;
+  --info-color: #36b9cc;
+  --dark-color: #5a5c69;
+  --light-color: #f8f9fc;
+  --border-color: #e3e6f0;
+}
+
+body {
+  background-color: #f8f9fc;
+  font-family: 'Nunito', sans-serif;
+}
+
+/* Dashboard Container */
+.dashboard-container {
+  padding: 1.5rem;
+}
+
+/* Welcome Card */
+.welcome-card {
+  background: linear-gradient(to right, var(--primary-color), #224abe);
+  color: white;
+  padding: 2rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+}
+
+.welcome-card h1 {
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+/* Stats Cards */
+.stats-card {
+  border: none;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.stats-card:hover {
+  transform: translateY(-5px);
+}
+
+.stats-title {
+  color: var(--dark-color);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.stats-number {
+  color: var(--dark-color);
+  font-weight: 700;
+  font-size: 1.8rem;
+  margin-bottom: 0;
+}
+
+.stats-icon {
+  color: #dddfeb;
+  font-size: 2rem;
+}
+
+/* Cards */
+.card {
+  border: none;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+  margin-bottom: 1.5rem;
+}
+
+.card-header {
+  background-color: white;
+  border-bottom: 1px solid var(--border-color);
+  padding: 1rem 1.25rem;
+}
+
+.card-title {
+  margin-bottom: 0;
+  color: var(--dark-color);
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+/* Tables */
+.table {
+  color: var(--dark-color);
+}
+
+.table th {
+  font-weight: 700;
+  color: var(--dark-color);
+  border-top: none;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+/* Active Trip Card */
+.active-trip-card {
+  background-color: white;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  border-left: 0.25rem solid var(--primary-color);
+  margin-bottom: 1rem;
+  box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+}
+
+.active-trip-card h4 {
+  color: var(--dark-color);
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+/* Badge Colors */
+.bg-ongoing {
+  background-color: var(--info-color);
+}
+
+.bg-completed {
+  background-color: var(--success-color);
+}
+
+.bg-cancelled {
+  background-color: var(--danger-color);
+}
+
+.bg-scheduled {
+  background-color: var(--warning-color);
+}
+
+.bg-in_progress {
+  background-color: var(--primary-color);
+}
+
+.bg-reported {
+  background-color: var(--warning-color);
+}
+
+.bg-under_investigation {
+  background-color: var(--info-color);
+}
+
+.bg-repair_scheduled, .bg-repair_in_progress {
+  background-color: var(--primary-color);
+}
+
+.bg-resolved {
+  background-color: var(--success-color);
+}
+
+.bg-available {
+  background-color: var(--success-color);
+}
+
+.bg-in_use {
+  background-color: var(--primary-color);
+}
+
+.bg-maintenance {
+  background-color: var(--warning-color);
+}
+
+.bg-retired {
+  background-color: var(--dark-color);
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.btn-success {
+  background-color: var(--success-color);
+  border-color: var(--success-color);
+}
+
+.btn-info {
+  background-color: var(--info-color);
+  border-color: var(--info-color);
+  color: white;
+}
+
+.btn-warning {
+  background-color: var(--warning-color);
+  border-color: var(--warning-color);
+}
+
+.btn-danger {
+  background-color: var(--danger-color);
+  border-color: var(--danger-color);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .active-trip-card .text-md-end {
+    text-align: left !important;
+    margin-top: 1rem;
+  }
+  
+  .welcome-card {
+    padding: 1.5rem;
+  }
+  
+  .welcome-card h1 {
+    font-size: 1.75rem;
+  }
+}

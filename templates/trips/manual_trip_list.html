@@ -1,0 +1,1098 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Manual Trip Management - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filter-section {
+    background-color: #f8f9fc;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .stats-card {
+    border: none;
+    border-radius: 0.75rem;
+    transition: transform 0.2s ease;
+  }
+  
+  .stats-card:hover {
+    transform: translateY(-2px);
+  }
+  
+  .trip-table th {
+    background-color: #f8f9fc;
+    color: #5a5c69;
+    font-weight: 600;
+    border-bottom: 2px solid #e3e6f0;
+    padding: 0.75rem;
+    font-size: 0.875rem;
+  }
+  
+  .trip-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #e3e6f0;
+    vertical-align: middle;
+    font-size: 0.875rem;
+  }
+  
+  .trip-table tbody tr:hover {
+    background-color: #f8f9fc;
+  }
+  
+  .status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  
+  .status-ongoing {
+    background-color: #1cc88a;
+    color: white;
+  }
+  
+  .status-completed {
+    background-color: #36b9cc;
+    color: white;
+  }
+  
+  .status-cancelled {
+    background-color: #e74a3b;
+    color: white;
+  }
+  
+  .vehicle-info {
+    font-weight: 600;
+    color: #4e73df;
+  }
+  
+  .driver-info {
+    font-weight: 600;
+    color: #1cc88a;
+  }
+  
+  .route-info {
+    font-size: 0.8rem;
+    color: #858796;
+  }
+  
+  .date-info {
+    font-size: 0.8rem;
+    color: #858796;
+  }
+
+  .quick-filter-section {
+    background-color: #fff;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+  }
+
+  .filter-active {
+    background-color: #4e73df !important;
+    color: white !important;
+    border-color: #4e73df !important;
+  }
+  
+  .distance-info {
+    color: #1cc88a;
+    font-weight: 600;
+  }
+  
+  .quick-actions {
+    background-color: #fff;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    background-color: #f8f9fc;
+    border-radius: 0.5rem;
+    color: #858796;
+  }
+  
+  .empty-state i {
+    font-size: 3rem;
+    color: #d1d3e2;
+    margin-bottom: 1rem;
+  }
+  
+  .export-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  
+  .manual-entry-indicator {
+    background: linear-gradient(135deg, #4e73df, #36b9cc);
+    color: white;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .stats-section {
+    background-color: #f8f9fc;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .stat-item {
+    text-align: center;
+    padding: 1rem;
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+  }
+  
+  .stat-number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #4e73df;
+  }
+  
+  .stat-label {
+    font-size: 0.8rem;
+    color: #858796;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .custom-date-container {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    align-items: center;
+  }
+
+  .custom-date-input {
+    max-width: 150px;
+  }
+
+  .date-separator {
+    color: #858796;
+    font-weight: 600;
+  }
+
+  @media (max-width: 768px) {
+    .export-buttons {
+      flex-direction: column;
+    }
+    
+    .export-buttons .btn {
+      width: 100%;
+    }
+
+    .custom-date-container {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .custom-date-input {
+      max-width: 100%;
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">Manual Trip Management</h1>
+      <p class="text-muted">Manage trips entered manually by administrators</p>
+    </div>
+    <div class="export-buttons">
+      <a href="{% url 'manual_trip_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus me-1"></i>Add Manual Trip
+      </a>
+      <button type="button" class="btn btn-info" onclick="exportTrips()">
+        <i class="fas fa-download me-1"></i>Export Data
+      </button>
+    </div>
+  </div>
+
+  <!-- Manual Entry Indicator -->
+  <div class="manual-entry-indicator">
+    <i class="fas fa-clipboard-list fa-lg"></i>
+    <div>
+      <strong>Manual Entry Mode</strong>
+      <div style="font-size: 0.9rem; opacity: 0.9;">
+        These trips have been manually entered by administrators for drivers without mobile access
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Filters Section -->
+  <div class="quick-filter-section">
+    <div class="row">
+      <div class="col-md-6">
+        <h6 class="mb-3">
+          <i class="fas fa-filter me-2"></i>Status Filters
+        </h6>
+        <div class="btn-group" role="group">
+          <button type="button" class="btn btn-sm {% if search_params.status == 'ongoing' %}filter-active{% else %}btn-outline-success{% endif %}" onclick="applyQuickFilter('status', 'ongoing')">
+            <i class="fas fa-play me-1"></i>Ongoing
+          </button>
+          <button type="button" class="btn btn-sm {% if search_params.status == 'completed' %}filter-active{% else %}btn-outline-info{% endif %}" onclick="applyQuickFilter('status', 'completed')">
+            <i class="fas fa-check me-1"></i>Completed
+          </button>
+          <button type="button" class="btn btn-sm {% if search_params.status == 'cancelled' %}filter-active{% else %}btn-outline-warning{% endif %}" onclick="applyQuickFilter('status', 'cancelled')">
+            <i class="fas fa-times me-1"></i>Cancelled
+          </button>
+          {% if search_params.status %}
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearStatusFilter()">
+            <i class="fas fa-times"></i>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-md-6">
+        <h6 class="mb-3">
+          <i class="fas fa-calendar me-2"></i>Date Filters
+        </h6>
+        <div class="btn-group" role="group">
+          <button type="button" class="btn btn-sm {% if search_params.date_filter == 'today' %}filter-active{% else %}btn-outline-primary{% endif %}" onclick="applyQuickFilter('date', 'today')">
+            <i class="fas fa-calendar-day me-1"></i>Today
+          </button>
+          <button type="button" class="btn btn-sm {% if search_params.date_filter == 'week' %}filter-active{% else %}btn-outline-primary{% endif %}" onclick="applyQuickFilter('date', 'week')">
+            <i class="fas fa-calendar-week me-1"></i>This Week
+          </button>
+          <button type="button" class="btn btn-sm {% if search_params.date_filter == 'month' %}filter-active{% else %}btn-outline-primary{% endif %}" onclick="applyQuickFilter('date', 'month')">
+            <i class="fas fa-calendar-alt me-1"></i>This Month
+          </button>
+          <button type="button" class="btn btn-sm {% if search_params.date_filter == 'custom' %}filter-active{% else %}btn-outline-primary{% endif %}" id="customDateBtn" onclick="toggleCustomDateInputs()">
+            <i class="fas fa-calendar-plus me-1"></i>Custom
+          </button>
+          {% if search_params.date_from or search_params.date_to %}
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearDateFilters()">
+            <i class="fas fa-calendar-times me-1"></i>Clear
+          </button>
+          {% endif %}
+        </div>
+        
+        <!-- Custom Date Range Inputs -->
+        <div class="custom-date-container" id="customDateContainer" {% if not search_params.date_filter == 'custom' %}style="display: none;"{% endif %}>
+          <div class="input-group custom-date-input">
+            <span class="input-group-text"><i class="fas fa-calendar-minus"></i></span>
+            <input type="text" class="form-control" id="customDateFrom" value="{{ search_params.date_from }}" placeholder="dd/mm/yyyy">
+          </div>
+          <span class="date-separator">to</span>
+          <div class="input-group custom-date-input">
+            <span class="input-group-text"><i class="fas fa-calendar-plus"></i></span>
+            <input type="text" class="form-control" id="customDateTo" value="{{ search_params.date_to }}" placeholder="dd/mm/yyyy">
+          </div>
+          <button type="button" class="btn btn-sm btn-primary" onclick="applyCustomDateFilter()">
+            <i class="fas fa-filter me-1"></i>Apply
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Section -->
+  <div class="stats-section">
+    <div class="row">
+      <div class="col-md-3 mb-3">
+        <div class="stat-item">
+          <div class="stat-number" id="totalTrips">{{ trips.count|default:0 }}</div>
+          <div class="stat-label">Total Manual Trips</div>
+        </div>
+      </div>
+      <div class="col-md-3 mb-3">
+        <div class="stat-item">
+          <div class="stat-number" id="thisMonthCount">0</div>
+          <div class="stat-label">This Month</div>
+        </div>
+      </div>
+      <div class="col-md-3 mb-3">
+        <div class="stat-item">
+          <div class="stat-number" id="totalDistance">0 km</div>
+          <div class="stat-label">Total Distance</div>
+        </div>
+      </div>
+      <div class="col-md-3 mb-3">
+        <div class="stat-item">
+          <div class="stat-number" id="pendingCount">0</div>
+          <div class="stat-label">Ongoing Trips</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Trips Table -->
+  {% if trips %}
+  <div class="card shadow mb-4">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table trip-table mb-0">
+          <thead>
+            <tr>
+              <th width="40">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="selectAllTrips">
+                </div>
+              </th>
+              <th>Driver</th>
+              <th>Vehicle</th>
+              <th>Route</th>
+              <th>Date & Time</th>
+              <th>Distance</th>
+              <th>Status</th>
+              <th>Purpose</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for trip in trips %}
+            <tr>
+              <td>
+                <div class="form-check">
+                  <input class="form-check-input trip-checkbox" type="checkbox" value="{{ trip.id }}">
+                </div>
+              </td>
+              <td>
+                <div class="driver-info">{{ trip.driver.get_full_name }}</div>
+                <div class="route-info">{{ trip.driver.email }}</div>
+              </td>
+              <td>
+                <div class="vehicle-info">{{ trip.vehicle.license_plate }}</div>
+                <div class="route-info">{{ trip.vehicle.make }} {{ trip.vehicle.model }}</div>
+              </td>
+              <td>
+                <div><i class="fas fa-map-marker-alt text-success me-1"></i>{{ trip.origin }}</div>
+                <div class="route-info"><i class="fas fa-arrow-down me-1"></i></div>
+                <div><i class="fas fa-map-marker-alt text-danger me-1"></i>{{ trip.destination }}</div>
+              </td>
+              <td>
+                <div>{{ trip.start_time|date:"M d, Y" }}</div>
+                <div class="date-info">
+                  {{ trip.start_time|date:"H:i" }}
+                  {% if trip.end_time %}
+                    - {{ trip.end_time|date:"H:i" }}
+                  {% else %}
+                    - Ongoing
+                  {% endif %}
+                </div>
+                {% if trip.duration %}
+                <div class="date-info">
+                  <i class="fas fa-clock me-1"></i>{{ trip.duration }}
+                </div>
+                {% endif %}
+              </td>
+              <td>
+                {% if trip.distance_traveled > 0 %}
+                  <span class="distance-info">
+                    <i class="fas fa-route me-1"></i>{{ trip.distance_traveled }} km
+                  </span>
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="status-badge status-{{ trip.status }}">
+                  {% if trip.status == 'ongoing' %}
+                    <i class="fas fa-play me-1"></i>Ongoing
+                  {% elif trip.status == 'completed' %}
+                    <i class="fas fa-check me-1"></i>Completed
+                  {% else %}
+                    <i class="fas fa-times me-1"></i>Cancelled
+                  {% endif %}
+                </span>
+              </td>
+              <td>
+                <div>{{ trip.purpose }}</div>
+                {% if trip.notes %}
+                <div class="route-info">
+                  <i class="fas fa-sticky-note me-1"></i>Has notes
+                </div>
+                {% endif %}
+              </td>
+              <td>
+                <div class="btn-group" role="group">
+                  <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-sm btn-outline-primary" title="View Details">
+                    <i class="fas fa-eye"></i>
+                  </a>
+                  <button type="button" class="btn btn-sm btn-outline-warning" onclick="editTrip({{ trip.id }})" title="Edit Trip">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  {% if trip.status == 'ongoing' %}
+                  <a href="{% url 'end_trip' trip.pk %}" class="btn btn-sm btn-outline-success" title="End Trip">
+                    <i class="fas fa-stop"></i>
+                  </a>
+                  {% endif %}
+                  <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteTrip({{ trip.id }})" title="Delete Trip">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  {% if is_paginated %}
+  <nav aria-label="Trip pagination">
+    <ul class="pagination justify-content-center">
+      {% if page_obj.has_previous %}
+      <li class="page-item">
+        <a class="page-link" href="?{% for key, value in search_params.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">
+          <i class="fas fa-chevron-left"></i>
+        </a>
+      </li>
+      {% endif %}
+      
+      {% for num in page_obj.paginator.page_range %}
+      {% if page_obj.number == num %}
+      <li class="page-item active">
+        <span class="page-link">{{ num }}</span>
+      </li>
+      {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+      <li class="page-item">
+        <a class="page-link" href="?{% for key, value in search_params.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+      </li>
+      {% endif %}
+      {% endfor %}
+      
+      {% if page_obj.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?{% for key, value in search_params.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">
+          <i class="fas fa-chevron-right"></i>
+        </a>
+      </li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <!-- Empty State -->
+  <div class="card shadow mb-4">
+    <div class="card-body">
+      <div class="empty-state">
+        <i class="fas fa-clipboard-list"></i>
+        <h5>No Manual Trips Found</h5>
+        <p>
+          {% if search_params.search or search_params.date_from or search_params.date_to or search_params.status %}
+            No trips match your current filters. Try adjusting your search criteria.
+          {% else %}
+            No manual trips have been added yet. Start by adding a single trip.
+          {% endif %}
+        </p>
+        <div class="mt-3">
+          <a href="{% url 'manual_trip_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>Add Your First Manual Trip
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Bulk Actions Modal -->
+<div class="modal fade" id="bulkActionsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Bulk Actions</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Select an action to perform on <span id="selectedCount">0</span> selected trips:</p>
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-outline-primary" onclick="bulkChangeStatus()">
+            <i class="fas fa-exchange-alt me-2"></i>Change Status
+          </button>
+          <button type="button" class="btn btn-outline-warning" onclick="bulkEdit()">
+            <i class="fas fa-edit me-2"></i>Edit Selected
+          </button>
+          <button type="button" class="btn btn-outline-success" onclick="bulkExport()">
+            <i class="fas fa-download me-2"></i>Export Selected
+          </button>
+          <button type="button" class="btn btn-outline-danger" onclick="confirmBulkDelete()">
+            <i class="fas fa-trash me-2"></i>Delete Selected
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Export Manual Trips</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="exportForm">
+          <div class="mb-3">
+            <label class="form-label">Export Format</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="format" value="csv" id="formatCSV" checked>
+              <label class="form-check-label" for="formatCSV">
+                <i class="fas fa-file-csv me-2"></i>CSV (Comma Separated Values)
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="format" value="excel" id="formatExcel">
+              <label class="form-check-label" for="formatExcel">
+                <i class="fas fa-file-excel me-2"></i>Excel (.xlsx)
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="format" value="pdf" id="formatPDF">
+              <label class="form-check-label" for="formatPDF">
+                <i class="fas fa-file-pdf me-2"></i>PDF Report
+              </label>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Include</label>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="includeNotes" checked>
+              <label class="form-check-label" for="includeNotes">Trip Notes</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="includeDriver" checked>
+              <label class="form-check-label" for="includeDriver">Driver Details</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="includeVehicle" checked>
+              <label class="form-check-label" for="includeVehicle">Vehicle Details</label>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="performExport()">
+          <i class="fas fa-download me-1"></i>Export
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters Modal -->
+<div class="modal fade" id="filtersModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Advanced Filters</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="filterForm">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Date From</label>
+              <input type="text" class="form-control" name="date_from" id="date_from" value="{{ search_params.date_from }}" placeholder="dd/mm/yyyy">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Date To</label>
+              <input type="text" class="form-control" name="date_to" id="date_to" value="{{ search_params.date_to }}" placeholder="dd/mm/yyyy">
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Search</label>
+            <input type="text" class="form-control" name="search" placeholder="Search trips..." value="{{ search_params.search }}">
+            <small class="form-text text-muted">Search by driver name, vehicle, origin, or destination</small>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Status</label>
+              <select class="form-select" name="status">
+                <option value="">All Status</option>
+                <option value="ongoing" {% if search_params.status == 'ongoing' %}selected{% endif %}>Ongoing</option>
+                <option value="completed" {% if search_params.status == 'completed' %}selected{% endif %}>Completed</option>
+                <option value="cancelled" {% if search_params.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+              </select>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Driver</label>
+              <select class="form-select" name="driver">
+                <option value="">All Drivers</option>
+                {% for driver in all_drivers %}
+                <option value="{{ driver.id }}" {% if search_params.driver == driver.id|stringformat:"s" %}selected{% endif %}>
+                  {{ driver.get_full_name }} ({{ driver.email }})
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Vehicle</label>
+            <select class="form-select" name="vehicle">
+              <option value="">All Vehicles</option>
+              {% for vehicle in all_vehicles %}
+              <option value="{{ vehicle.id }}" {% if search_params.vehicle == vehicle.id|stringformat:"s" %}selected{% endif %}>
+                {{ vehicle.license_plate }} - {{ vehicle.make }} {{ vehicle.model }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- Filter Summary -->
+          <div class="mt-3 p-3 bg-light rounded">
+            <h6 class="mb-2">Filter Summary</h6>
+            <div id="filterSummary" class="small text-muted">
+              <!-- Active Filters Indicator -->
+              {% if search_params.search or search_params.date_from or search_params.date_to or search_params.status or search_params.driver or search_params.vehicle %}
+              <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-filter me-2"></i>
+                  <div class="flex-grow-1">
+                    <strong>Active Filters:</strong>
+                    <div class="mt-1">
+                      {% if search_params.search %}
+                        <span class="badge bg-primary me-1">Search: "{{ search_params.search }}"</span>
+                      {% endif %}
+                      {% if search_params.date_from %}
+                        <span class="badge bg-info me-1">From: {{ search_params.date_from }}</span>
+                      {% endif %}
+                      {% if search_params.date_to %}
+                        <span class="badge bg-info me-1">To: {{ search_params.date_to }}</span>
+                      {% endif %}
+                      {% if search_params.status %}
+                        <span class="badge bg-success me-1">Status: {{ search_params.status|title }}</span>
+                      {% endif %}
+                      {% if search_params.driver %}
+                        {% for driver in all_drivers %}
+                          {% if driver.id|stringformat:"s" == search_params.driver %}
+                            <span class="badge bg-warning me-1">Driver: {{ driver.get_full_name }}</span>
+                          {% endif %}
+                        {% endfor %}
+                      {% endif %}
+                      {% if search_params.vehicle %}
+                        {% for vehicle in all_vehicles %}
+                          {% if vehicle.id|stringformat:"s" == search_params.vehicle %}
+                            <span class="badge bg-secondary me-1">Vehicle: {{ vehicle.license_plate }}</span>
+                          {% endif %}
+                        {% endfor %}
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="ms-2">
+                    <a href="{% url 'manual_trip_list' %}" class="btn btn-sm btn-outline-secondary">
+                      <i class="fas fa-times me-1"></i>Clear All
+                    </a>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="clearFilters()">Clear All</button>
+        <button type="button" class="btn btn-outline-info" onclick="resetToDefaults()">Reset to Defaults</button>
+        <button type="button" class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    calculateStats();
+    setupEventListeners();
+    updatePageTitle();
+    initializeCustomDateInputs();
+
+    setInterval(refreshData, 300000);
+  });
+
+  function setupEventListeners() {
+    const selectAllCheckbox = document.getElementById('selectAllTrips');
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener('change', function() {
+        document.querySelectorAll('.trip-checkbox').forEach(cb => cb.checked = this.checked);
+        updateBulkActionButton();
+      });
+    }
+    document.querySelectorAll('.trip-checkbox').forEach(cb => {
+      cb.addEventListener('change', updateBulkActionButton);
+    });
+
+    const dateFrom = document.getElementById('date_from');
+    const dateTo = document.getElementById('date_to');
+    if (dateFrom && dateTo) {
+      dateFrom.addEventListener('change', () => { 
+        if (dateTo.value && isDateGreaterThan(dateFrom.value, dateTo.value)) 
+          dateTo.value = dateFrom.value; 
+      });
+      dateTo.addEventListener('change', () => { 
+        if (dateFrom.value && isDateGreaterThan(dateFrom.value, dateTo.value)) 
+          dateFrom.value = dateTo.value; 
+      });
+    }
+
+    // Add event listeners for custom date inputs
+    const customDateFrom = document.getElementById('customDateFrom');
+    const customDateTo = document.getElementById('customDateTo');
+    if (customDateFrom && customDateTo) {
+      customDateFrom.addEventListener('change', () => { 
+        if (customDateTo.value && isDateGreaterThan(customDateFrom.value, customDateTo.value)) 
+          customDateTo.value = customDateFrom.value; 
+      });
+      customDateTo.addEventListener('change', () => { 
+        if (customDateFrom.value && isDateGreaterThan(customDateFrom.value, customDateTo.value)) 
+          customDateFrom.value = customDateTo.value; 
+      });
+    }
+  }
+
+  function isDateGreaterThan(date1, date2) {
+    // Compare dates in dd/mm/yyyy format
+    const parts1 = date1.split('/');
+    const parts2 = date2.split('/');
+    
+    if (parts1.length !== 3 || parts2.length !== 3) return false;
+    
+    const d1 = new Date(parts1[2], parts1[1] - 1, parts1[0]);
+    const d2 = new Date(parts2[2], parts2[1] - 1, parts2[0]);
+    
+    return d1 > d2;
+  }
+
+  function initializeCustomDateInputs() {
+    // Set default values for custom date inputs if they exist in URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const dateFrom = urlParams.get('date_from');
+    const dateTo = urlParams.get('date_to');
+    const dateFilter = urlParams.get('date_filter');
+    
+    const customDateFrom = document.getElementById('customDateFrom');
+    const customDateTo = document.getElementById('customDateTo');
+    
+    if (customDateFrom && dateFrom) {
+      customDateFrom.value = dateFrom;
+    }
+    
+    if (customDateTo && dateTo) {
+      customDateTo.value = dateTo;
+    }
+    
+    // Show custom date container if date_filter is 'custom'
+    if (dateFilter === 'custom') {
+      const customDateContainer = document.getElementById('customDateContainer');
+      if (customDateContainer) {
+        customDateContainer.style.display = 'flex';
+      }
+    }
+  }
+
+  function calculateStats() {
+    const trips = document.querySelectorAll('.trip-checkbox');
+    let thisMonthCount = 0;
+    let totalDistance = 0;
+    let pendingCount = 0;
+    const currentMonth = new Date().toLocaleDateString('en-US', { month: 'short' });
+
+    trips.forEach(cb => {
+      const row = cb.closest('tr');
+      const dateCell = row.querySelector('td:nth-child(5)');
+      const distanceCell = row.querySelector('td:nth-child(6)');
+      const statusCell = row.querySelector('td:nth-child(7)');
+
+      if (dateCell?.textContent.includes(currentMonth)) thisMonthCount++;
+      const distanceMatch = distanceCell?.textContent.match(/(\d+)\s*km/);
+      if (distanceMatch) totalDistance += parseInt(distanceMatch[1]);
+      if (statusCell?.textContent.includes('Ongoing')) pendingCount++;
+    });
+
+    document.getElementById('thisMonthCount').textContent = thisMonthCount;
+    document.getElementById('totalDistance').textContent = `${totalDistance} km`;
+    document.getElementById('pendingCount').textContent = pendingCount;
+
+    const totalTrips = document.getElementById('totalTrips');
+    const filters = new URLSearchParams(window.location.search);
+    totalTrips.innerHTML = filters.toString()
+      ? `${trips.length}<br><small class="text-muted">(filtered)</small>`
+      : trips.length;
+  }
+
+  function updateBulkActionButton() {
+    const selected = document.querySelectorAll('.trip-checkbox:checked').length;
+    const total = document.querySelectorAll('.trip-checkbox').length;
+    const selectAll = document.getElementById('selectAllTrips');
+
+    if (selectAll) {
+      selectAll.indeterminate = selected > 0 && selected < total;
+      selectAll.checked = selected === total;
+    }
+  }
+
+  function refreshData() {
+    window.location.reload();
+  }
+
+  function formatDateForInput(date) {
+    // Format date as dd/mm/yyyy
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const y = date.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+
+  function applyQuickFilter(type, value) {
+    const params = new URLSearchParams(window.location.search);
+
+    if (type === 'status') {
+      // Toggle status filter if already active
+      if (params.get('status') === value) {
+        params.delete('status');
+      } else {
+        params.set('status', value);
+      }
+    } else if (type === 'date') {
+      // Clear any existing date filters
+      params.delete('date_from');
+      params.delete('date_to');
+      
+      // Set date_filter parameter to track which quick filter is active
+      params.set('date_filter', value);
+      
+      const today = new Date();
+      let start = '', end = '';
+
+      if (value === 'today') {
+        start = end = formatDateForInput(today);
+      } else if (value === 'week') {
+        start = formatDateForInput(getStartOfWeek(today));
+        end = formatDateForInput(getEndOfWeek(today));
+      } else if (value === 'month') {
+        start = formatDateForInput(getStartOfMonth(today));
+        end = formatDateForInput(getEndOfMonth(today));
+      }
+
+      params.set('date_from', start);
+      params.set('date_to', end);
+    }
+
+    window.location.search = params.toString();
+  }
+
+  function toggleCustomDateInputs() {
+    const customDateContainer = document.getElementById('customDateContainer');
+    if (customDateContainer) {
+      const isVisible = customDateContainer.style.display === 'flex';
+      customDateContainer.style.display = isVisible ? 'none' : 'flex';
+      
+      if (!isVisible) {
+        // Set focus on the first date input
+        const customDateFrom = document.getElementById('customDateFrom');
+        if (customDateFrom) {
+          customDateFrom.focus();
+        }
+        
+        // Mark custom filter as active
+        const params = new URLSearchParams(window.location.search);
+        params.set('date_filter', 'custom');
+        
+        // Update the URL without reloading
+        const newUrl = window.location.pathname + '?' + params.toString();
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }
+
+  function applyCustomDateFilter() {
+    const customDateFrom = document.getElementById('customDateFrom');
+    const customDateTo = document.getElementById('customDateTo');
+    
+    if (!customDateFrom || !customDateTo) return;
+    
+    const params = new URLSearchParams(window.location.search);
+    
+    // Validate dates
+    if (!customDateFrom.value && !customDateTo.value) {
+      alert('Please select at least one date for the custom range');
+      return;
+    }
+    
+    // Clear any existing date filters
+    params.delete('date_from');
+    params.delete('date_to');
+    
+    // Set date_filter to custom
+    params.set('date_filter', 'custom');
+    
+    // Add the custom date range
+    if (customDateFrom.value) {
+      params.set('date_from', customDateFrom.value);
+    }
+    
+    if (customDateTo.value) {
+      params.set('date_to', customDateTo.value);
+    }
+    
+    window.location.search = params.toString();
+  }
+
+  function clearStatusFilter() {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('status');
+    window.location.search = params.toString();
+  }
+
+  function clearDateFilters() {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('date_from');
+    params.delete('date_to');
+    params.delete('date_filter');
+    window.location.search = params.toString();
+  }
+
+  function updatePageTitle() {
+    const filters = new URLSearchParams(window.location.search);
+    const count = Array.from(filters.values()).filter(v => v).length;
+    document.title = count
+      ? `Manual Trip Management (${count} filters) - Vehicle Management System`
+      : 'Manual Trip Management - Vehicle Management System';
+  }
+
+  function getStartOfWeek(date) {
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Sunday
+    return new Date(date.setDate(diff));
+  }
+
+  function getEndOfWeek(date) {
+    const startOfWeek = getStartOfWeek(new Date(date));
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    return endOfWeek;
+  }
+
+  function getStartOfMonth(date) {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  function getEndOfMonth(date) {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  }
+
+  function applyFilters() {
+    document.getElementById('filterForm').submit();
+  }
+
+  function clearFilters() {
+    window.location.href = "{% url 'manual_trip_list' %}";
+  }
+
+  function resetToDefaults() {
+    const form = document.getElementById('filterForm');
+    if (form) {
+      form.reset();
+    }
+  }
+
+  function exportTrips() {
+    const modal = new bootstrap.Modal(document.getElementById('exportModal'));
+    modal.show();
+  }
+
+  function performExport() {
+    // Implementation for export functionality
+    // This would typically gather form data and redirect to export URL
+    const format = document.querySelector('input[name="format"]:checked').value;
+    const includeNotes = document.getElementById('includeNotes').checked;
+    const includeDriver = document.getElementById('includeDriver').checked;
+    const includeVehicle = document.getElementById('includeVehicle').checked;
+    
+    // Build export URL with current filters
+    const currentParams = new URLSearchParams(window.location.search);
+    const exportParams = new URLSearchParams();
+    
+    // Copy existing filters
+    for (const [key, value] of currentParams.entries()) {
+      if (key !== 'page') {
+        exportParams.append(key, value);
+      }
+    }
+    
+    // Add export-specific parameters
+    exportParams.append('format', format);
+    exportParams.append('include_notes', includeNotes);
+    exportParams.append('include_driver', includeDriver);
+    exportParams.append('include_vehicle', includeVehicle);
+    
+    // Redirect to export URL
+    window.location.href = "{% url 'export_manual_trips' %}?" + exportParams.toString();
+  }
+
+  function editTrip(tripId) {
+    window.location.href = `/trips/${tripId}/edit/`;
+  }
+
+  function deleteTrip(tripId) {
+    if (confirm('Are you sure you want to delete this trip? This action cannot be undone.')) {
+      fetch(`/trips/${tripId}/delete/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          window.location.reload();
+        } else {
+          alert('Error deleting trip');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Error deleting trip');
+      });
+    }
+  }
+
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,516 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Fuel & Charging Transactions - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .summary-card {
+    transition: transform 0.2s;
+  }
+  
+  .summary-card:hover {
+    transform: translateY(-5px);
+  }
+  
+  .summary-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .summary-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  
+  .summary-label {
+    color: #858796;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  
+  .date-filter-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  
+  .receipt-thumbnail {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 0.25rem;
+    border: 1px solid #e3e6f0;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  
+  .receipt-thumbnail:hover {
+    transform: scale(1.1);
+  }
+  
+  .filter-card {
+    margin-bottom: 1.5rem;
+  }
+  
+  .transaction-type-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .electric-badge {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  
+  .fuel-badge {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+  }
+  
+  /* Modal styles for receipt viewer */
+  .receipt-modal-content {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+  }
+  
+  .receipt-modal-img {
+    max-width: 100%;
+    max-height: 70vh;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Fuel & Charging Transactions</h1>
+    <a href="{% url 'fuel_transaction_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+      <i class="fas fa-plus fa-sm text-white-50"></i> Add New Transaction
+    </a>
+  </div>
+  
+  <!-- Summary Cards -->
+  <div class="row">
+    <!-- Total Transactions -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-primary shadow h-100 py-3 summary-card">
+        <div class="card-body">
+          <div class="text-center">
+            <div class="summary-icon text-primary">
+              <i class="fas fa-list"></i>
+            </div>
+            <div class="summary-value">
+              {{ paginator.count|default:"0" }}
+            </div>
+            <div class="summary-label">Total Transactions</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Total Fuel -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-info shadow h-100 py-3 summary-card">
+        <div class="card-body">
+          <div class="text-center">
+            <div class="summary-icon text-info">
+              <i class="fas fa-gas-pump"></i>
+            </div>
+            <div class="summary-value">
+              {{ summary.total_quantity|default:"0"|floatformat:1 }} L
+            </div>
+            <div class="summary-label">Total Fuel</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Total Energy -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-success shadow h-100 py-3 summary-card">
+        <div class="card-body">
+          <div class="text-center">
+            <div class="summary-icon text-success">
+              <i class="fas fa-bolt"></i>
+            </div>
+            <div class="summary-value">
+              {{ summary.total_energy|default:"0"|floatformat:1 }} kWh
+            </div>
+            <div class="summary-label">Total Energy</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Total Cost -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-warning shadow h-100 py-3 summary-card">
+        <div class="card-body">
+          <div class="text-center">
+            <div class="summary-icon text-warning">
+              <i class="fas fa-rupee-sign"></i>
+            </div>
+            <div class="summary-value">
+              ₹{{ summary.total_cost|default:"0"|floatformat:2 }}
+            </div>
+            <div class="summary-label">Total Cost</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <!-- Filters Column -->
+    <div class="col-xl-3 col-lg-4">
+      <!-- Search & Filters Card -->
+      <div class="card shadow filter-card">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Search & Filters</h6>
+        </div>
+        <div class="card-body">
+          <form id="filter-form" method="get" action="{% url 'fuel_transaction_list' %}">
+            <!-- Search -->
+            <div class="mb-3">
+              <label for="search" class="form-label">Search</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="search" name="search" 
+                       placeholder="Vehicle, driver, station..." value="{{ request.GET.search|default:'' }}">
+                <button class="btn btn-primary" type="submit">
+                  <i class="fas fa-search"></i>
+                </button>
+              </div>
+            </div>
+            
+            <!-- Vehicle Filter -->
+            <div class="mb-3">
+              <label for="vehicle-filter" class="form-label">Vehicle</label>
+              <select name="vehicle" id="vehicle-filter" class="form-select">
+                <option value="">All Vehicles</option>
+                {% for vehicle in vehicles %}
+                  <option value="{{ vehicle.id }}" {% if request.GET.vehicle == vehicle.id|stringformat:"i" %}selected{% endif %}>
+                    {{ vehicle.license_plate }} 
+                    {% if vehicle.is_electric %}(Electric){% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <!-- Transaction Type Filter -->
+            <div class="mb-3">
+              <label for="transaction-type-filter" class="form-label">Transaction Type</label>
+              <select name="transaction_type" id="transaction-type-filter" class="form-select">
+                <option value="">All Types</option>
+                <option value="fuel" {% if request.GET.transaction_type == 'fuel' %}selected{% endif %}>Fuel Only</option>
+                <option value="electric" {% if request.GET.transaction_type == 'electric' %}selected{% endif %}>Charging Only</option>
+              </select>
+            </div>
+            
+            <!-- Fuel Type Filter -->
+            <div class="mb-3">
+              <label for="fuel-type-filter" class="form-label">Fuel/Energy Type</label>
+              <select name="fuel_type" id="fuel-type-filter" class="form-select">
+                <option value="">All Types</option>
+                {% for fuel_type in fuel_types %}
+                  <option value="{{ fuel_type }}" {% if request.GET.fuel_type == fuel_type %}selected{% endif %}>
+                    {{ fuel_type }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <!-- Date Range Filter -->
+            <div class="mb-3">
+              <label class="form-label">Date Range</label>
+              <div class="date-filter-group">
+                <input type="date" id="start-date" name="start_date" class="form-control" 
+                       value="{{ request.GET.start_date|default:'' }}" placeholder="From date">
+              </div>
+              
+              <div class="date-filter-group mt-2">
+                <input type="date" id="end-date" name="end_date" class="form-control" 
+                       value="{{ request.GET.end_date|default:'' }}" placeholder="To date">
+              </div>
+            </div>
+            
+            <!-- Filter Buttons -->
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-filter"></i> Apply Filters
+              </button>
+              {% if request.GET %}
+                <a href="{% url 'fuel_transaction_list' %}" class="btn btn-secondary">
+                  <i class="fas fa-redo"></i> Clear Filters
+                </a>
+              {% endif %}
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Transactions List Column -->
+    <div class="col-xl-9 col-lg-8">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">Fuel & Charging Transactions</h6>
+          {% if transactions %}
+            <span>Showing {{ transactions|length }} of {{ paginator.count }} transactions</span>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          {% if transactions %}
+            <div class="table-responsive">
+              <table class="table table-hover" id="transactions-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Vehicle</th>
+                    <th>Driver</th>
+                    <th>Type</th>
+                    <th>Quantity/Energy</th>
+                    <th>Cost</th>
+                    <th>Receipt</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for transaction in transactions %}
+                    <tr>
+                      <td>{{ transaction.date|date:"M d, Y" }}</td>
+                      <td>
+                        <a href="{% url 'vehicle_detail' transaction.vehicle.id %}">
+                          {{ transaction.vehicle.license_plate }}
+                        </a>
+                        <br>
+                        <small class="text-muted">{{ transaction.vehicle.make }} {{ transaction.vehicle.model }}</small>
+                      </td>
+                      <td>{{ transaction.driver.get_full_name }}</td>
+                      <td>
+                        {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+                          <span class="badge transaction-type-badge electric-badge">
+                            <i class="fas fa-bolt"></i> Charging
+                          </span>
+                          <br>
+                          <small class="text-muted">
+                            {% if transaction.fuel_station %}
+                              {{ transaction.fuel_station.name }}
+                            {% else %}
+                              Unknown Station
+                            {% endif %}
+                          </small>
+                        {% else %}
+                          <span class="badge transaction-type-badge fuel-badge">
+                            <i class="fas fa-gas-pump"></i> {{ transaction.fuel_type|default:"Fuel" }}
+                          </span>
+                          <br>
+                          <small class="text-muted">
+                            {% if transaction.fuel_station %}
+                              {{ transaction.fuel_station.name }}
+                            {% else %}
+                              Unknown Station
+                            {% endif %}
+                          </small>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+                          {% if transaction.energy_consumed %}
+                            {{ transaction.energy_consumed|floatformat:2 }} kWh
+                          {% else %}
+                            0 kWh
+                          {% endif %}
+                          {% if transaction.charging_duration_minutes %}
+                            <br><small class="text-muted">{{ transaction.charging_duration_minutes }} min</small>
+                          {% endif %}
+                        {% else %}
+                          {% if transaction.quantity %}
+                            {{ transaction.quantity|floatformat:2 }} L
+                          {% else %}
+                            0 L
+                          {% endif %}
+                        {% endif %}
+                        <br>
+                        <small class="text-muted">{{ transaction.odometer_reading }} km</small>
+                      </td>
+                      <td>
+                        ₹{{ transaction.total_cost|floatformat:2 }}<br>
+                        <small class="text-muted">
+                          {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+                            {% if transaction.cost_per_kwh %}₹{{ transaction.cost_per_kwh|floatformat:2 }} per kWh{% endif %}
+                          {% else %}
+                            {% if transaction.cost_per_liter %}₹{{ transaction.cost_per_liter|floatformat:2 }} per L{% endif %}
+                          {% endif %}
+                        </small>
+                      </td>
+                      <td>
+                        {% if transaction.receipt_image %}
+                          <img src="{{ transaction.receipt_image.url }}" class="receipt-thumbnail" 
+                               alt="Receipt" data-bs-toggle="modal" data-bs-target="#receiptModal"
+                               data-receipt-url="{{ transaction.receipt_image.url }}"
+                               data-transaction-id="{{ transaction.id }}">
+                        {% else %}
+                          <span class="text-muted">No receipt</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <div class="btn-group">
+                          <a href="{% url 'fuel_transaction_detail' transaction.id %}" class="btn btn-sm btn-info" title="View Details">
+                            <i class="fas fa-eye"></i>
+                          </a>
+                          {% if request.user.user_type != 'driver' %}
+                          <a href="{% url 'fuel_transaction_update' transaction.id %}" class="btn btn-sm btn-primary" title="Edit Transaction">
+                            <i class="fas fa-edit"></i>
+                          </a>
+                          {% if request.user.user_type == 'admin' %}
+                          <a href="{% url 'fuel_transaction_delete' transaction.id %}" class="btn btn-sm btn-danger" title="Delete Transaction">
+                            <i class="fas fa-trash"></i>
+                          </a>
+                          {% endif %}
+                          {% endif %}
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if is_paginated %}
+              <div class="mt-4">
+                <nav aria-label="Page navigation">
+                  <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                      <li class="page-item">
+                        <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.paginator.num_pages }}" aria-label="Last">
+                          <span aria-hidden="true">&raquo;&raquo;</span>
+                        </a>
+                      </li>
+                    {% endif %}
+                  </ul>
+                </nav>
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="alert alert-info text-center">
+              <i class="fas fa-info-circle me-2"></i> No fuel or charging transactions found.
+              {% if request.GET %}
+                <a href="{% url 'fuel_transaction_list' %}" class="alert-link">Clear all filters</a> to see all transactions.
+              {% else %}
+                <a href="{% url 'fuel_transaction_create' %}" class="alert-link">Add a new transaction</a> to get started.
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Receipt Modal -->
+<div class="modal fade" id="receiptModal" tabindex="-1" aria-labelledby="receiptModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="receiptModalLabel">Receipt Image</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="receipt-modal-content">
+          <img src="" id="receipt-modal-img" class="receipt-modal-img" alt="Receipt Image">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <a href="#" id="download-receipt" class="btn btn-primary" download>
+          <i class="fas fa-download"></i> Download
+        </a>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Style form controls
+    document.querySelectorAll('select').forEach(function(element) {
+      element.classList.add('form-select');
+    });
+    
+    // Auto-submit on select changes
+    const vehicleFilter = document.getElementById('vehicle-filter');
+    const transactionTypeFilter = document.getElementById('transaction-type-filter');
+    const fuelTypeFilter = document.getElementById('fuel-type-filter');
+    
+    if (vehicleFilter) {
+      vehicleFilter.addEventListener('change', function() {
+        document.getElementById('filter-form').submit();
+      });
+    }
+    
+    if (transactionTypeFilter) {
+      transactionTypeFilter.addEventListener('change', function() {
+        document.getElementById('filter-form').submit();
+      });
+    }
+    
+    if (fuelTypeFilter) {
+      fuelTypeFilter.addEventListener('change', function() {
+        document.getElementById('filter-form').submit();
+      });
+    }
+    
+    // Set date range defaults and validation
+    const startDateInput = document.getElementById('start-date');
+    const endDateInput = document.getElementById('end-date');
+    
+    if (startDateInput && endDateInput) {
+      // Max date is today
+      const today = new Date().toISOString().split('T')[0];
+      startDateInput.setAttribute('max', today);
+      endDateInput.setAttribute('max', today);
+      
+      // Ensure start_date <= end_date
+      startDateInput.addEventListener('change', function() {
+        if (endDateInput.value && this.value > endDateInput.value) {
+          endDateInput.value = this.value;
+        }
+      });
+      
+      endDateInput.addEventListener('change', function() {
+        if (startDateInput.value && this.value < startDateInput.value) {
+          startDateInput.value = this.value;
+        }
+      });
+    }
+    
+    // Handle receipt modal
+    const receiptModal = document.getElementById('receiptModal');
+    if (receiptModal) {
+      receiptModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const receiptUrl = button.getAttribute('data-receipt-url');
+        const transactionId = button.getAttribute('data-transaction-id');
+        
+        const modalImage = document.getElementById('receipt-modal-img');
+        const downloadLink = document.getElementById('download-receipt');
+        
+        modalImage.src = receiptUrl;
+        downloadLink.href = receiptUrl;
+        downloadLink.setAttribute('download', `receipt-${transactionId}.jpg`);
+      });
+    }
+  });
+</script>
+{% endblock %}

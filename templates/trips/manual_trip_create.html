@@ -1,0 +1,660 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Manual Trip Entry - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-section {
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.375rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .form-section-title {
+    font-weight: 700;
+    color: #5a5c69;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #4e73df;
+  }
+  
+  .required-label::after {
+    content: " *";
+    color: #e74a3b;
+  }
+  
+  .vehicle-preview, .driver-preview {
+    background-color: #e7f1ff;
+    border: 1px solid #b8daff;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-top: 0.5rem;
+    display: none;
+  }
+  
+  .preview-info {
+    margin-bottom: 0.5rem;
+  }
+  
+  .preview-info strong {
+    color: #495057;
+  }
+  
+  .odometer-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .route-display {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 1rem 0;
+    padding: 1rem;
+    background-color: #f8f9fc;
+    border-radius: 0.25rem;
+    border-left: 4px solid #4e73df;
+  }
+  
+  .location-point {
+    flex: 1;
+    text-align: center;
+  }
+  
+  .route-arrow {
+    font-size: 1.5rem;
+    color: #4e73df;
+  }
+  
+  .quick-fill-buttons {
+    margin-bottom: 1rem;
+  }
+  
+  .quick-fill-buttons .btn {
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .manual-entry-header {
+    background: linear-gradient(135deg, #4e73df, #36b9cc);
+    color: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{% url 'manual_trip_list' %}">Manual Trips</a></li>
+          <li class="breadcrumb-item active">Add New Trip</li>
+        </ol>
+      </nav>
+      <h1 class="h3 mb-0 text-gray-800">Manual Trip Entry</h1>
+      <p class="text-muted">Add trip data for drivers without mobile access</p>
+    </div>
+    <div>
+      <a href="{% url 'manual_trip_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Back to List
+      </a>
+    </div>
+  </div>
+
+  <!-- Manual Entry Header -->
+  <div class="manual-entry-header">
+    <i class="fas fa-clipboard-list fa-2x mb-2"></i>
+    <h4 class="mb-1">Manual Trip Entry Mode</h4>
+    <p class="mb-0 opacity-75">Fill in the trip details for drivers without mobile access</p>
+  </div>
+
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      <form method="post" id="manualTripForm">
+        {% csrf_token %}
+        
+        <!-- Form Errors -->
+        {% if form.errors %}
+        <div class="alert alert-danger">
+          <h5>Please correct the following errors:</h5>
+          {% for field, errors in form.errors.items %}
+            <p><strong>{{ field }}:</strong> {{ errors|join:", " }}</p>
+          {% endfor %}
+        </div>
+        {% endif %}
+        
+        <!-- Driver & Vehicle Selection -->
+        <div class="form-section">
+          <h5 class="form-section-title">
+            <i class="fas fa-users me-2"></i>Driver & Vehicle Selection
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="id_driver" class="form-label required-label">Driver</label>
+              <select class="form-select" id="id_driver" name="driver" required>
+                <option value="">Select a driver...</option>
+                {% for driver in drivers %}
+                <option value="{{ driver.id }}" 
+                        data-full-name="{{ driver.get_full_name }}"
+                        data-email="{{ driver.email }}"
+                        data-license="{{ driver.license_number|default:'' }}"
+                        data-license-expiry="{{ driver.license_expiry|default:'' }}">
+                  {{ driver.get_full_name }} ({{ driver.email }})
+                </option>
+                {% endfor %}
+              </select>
+              <div class="driver-preview" id="driverPreview">
+                <div class="preview-info">
+                  <strong>Full Name:</strong> <span id="driverFullName"></span>
+                </div>
+                <div class="preview-info">
+                  <strong>Email:</strong> <span id="driverEmail"></span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="id_vehicle" class="form-label required-label">Vehicle</label>
+              <select class="form-select" id="id_vehicle" name="vehicle" required>
+                <option value="">Select a vehicle...</option>
+                {% for vehicle in vehicles %}
+                <option value="{{ vehicle.id }}"
+                        data-license-plate="{{ vehicle.license_plate }}"
+                        data-make="{{ vehicle.make }}"
+                        data-model="{{ vehicle.model }}"
+                        data-odometer="{{ vehicle.current_odometer }}"
+                        data-fuel="{{ vehicle.fuel_type }}"
+                        data-type="{{ vehicle.vehicle_type.name|default:'' }}">
+                  {{ vehicle.license_plate }} - {{ vehicle.make }} {{ vehicle.model }}
+                </option>
+                {% endfor %}
+              </select>
+              <div class="vehicle-preview" id="vehiclePreview">
+                <div class="preview-info">
+                  <strong>License Plate:</strong> <span id="vehicleLicensePlate"></span>
+                </div>
+                <div class="preview-info">
+                  <strong>Make & Model:</strong> <span id="vehicleMakeModel"></span>
+                </div>
+                <div class="preview-info">
+                  <strong>Current Odometer:</strong> <span id="vehicleOdometer"></span> km
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Route Information -->
+        <div class="form-section">
+          <h5 class="form-section-title">
+            <i class="fas fa-route me-2"></i>Route Information
+          </h5>
+          
+          <!-- Quick Fill Buttons -->
+          <div class="quick-fill-buttons">
+            <small class="text-muted">Quick locations:</small><br>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-location="Main Office">
+              <i class="fas fa-building me-1"></i>Main Office
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-location="Warehouse">
+              <i class="fas fa-warehouse me-1"></i>Warehouse
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-location="Airport">
+              <i class="fas fa-plane me-1"></i>Airport
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-location="City Center">
+              <i class="fas fa-city me-1"></i>City Center
+            </button>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="id_origin" class="form-label required-label">
+                <i class="fas fa-map-marker-alt text-success me-1"></i>Origin (From)
+              </label>
+              <input type="text" class="form-control" id="id_origin" name="origin" 
+                     placeholder="Starting location" required>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="id_destination" class="form-label required-label">
+                <i class="fas fa-map-marker-alt text-danger me-1"></i>Destination (To)
+              </label>
+              <input type="text" class="form-control" id="id_destination" name="destination" 
+                     placeholder="Destination location" required>
+            </div>
+          </div>
+          
+          <!-- Route Preview -->
+          <div class="route-display" id="routeDisplay" style="display: none;">
+            <div class="location-point">
+              <i class="fas fa-map-marker-alt text-success fa-lg"></i>
+              <div class="mt-1">
+                <strong id="previewOrigin">Origin</strong>
+              </div>
+            </div>
+            <div class="route-arrow">
+              <i class="fas fa-arrow-right"></i>
+            </div>
+            <div class="location-point">
+              <i class="fas fa-map-marker-alt text-danger fa-lg"></i>
+              <div class="mt-1">
+                <strong id="previewDestination">Destination</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trip Timing -->
+        <div class="form-section">
+          <h5 class="form-section-title">
+            <i class="fas fa-clock me-2"></i>Trip Timing
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="id_start_time" class="form-label required-label">Start Date & Time</label>
+              <input type="datetime-local" class="form-control" id="id_start_time" 
+                     name="start_time" required>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="id_end_time" class="form-label">End Date & Time</label>
+              <input type="datetime-local" class="form-control" id="id_end_time" name="end_time">
+              <div class="form-text">Leave empty if trip is still ongoing</div>
+            </div>
+          </div>
+          
+          <!-- Quick Time Buttons -->
+          <div class="quick-fill-buttons">
+            <small class="text-muted">Quick fill start time:</small><br>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setTimeToMorning('start')">
+              <i class="fas fa-sun me-1"></i>8:00 AM Today
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setTimeToYesterday('start')">
+              <i class="fas fa-calendar-minus me-1"></i>Yesterday 8:00 AM
+            </button>
+          </div>
+        </div>
+
+        <!-- Odometer Readings -->
+        <div class="form-section">
+          <h5 class="form-section-title">
+            <i class="fas fa-tachometer-alt me-2"></i>Odometer Readings
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="id_start_odometer" class="form-label required-label">Start Odometer (km)</label>
+              <input type="number" class="form-control" id="id_start_odometer" 
+                     name="start_odometer" min="0" required>
+              <div class="form-text">Odometer reading at trip start</div>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="id_end_odometer" class="form-label">End Odometer (km)</label>
+              <input type="number" class="form-control" id="id_end_odometer" 
+                     name="end_odometer" min="0">
+              <div class="form-text">Leave empty if trip is ongoing</div>
+            </div>
+          </div>
+          
+          <div id="odometerWarning" class="odometer-warning" style="display: none;">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <span id="odometerWarningText"></span>
+          </div>
+          
+          <div id="distanceCalculation" class="mt-2 text-info" style="display: none;">
+            <i class="fas fa-route me-1"></i>
+            <strong>Distance Traveled: <span id="calculatedDistance">0</span> km</strong>
+          </div>
+        </div>
+
+        <!-- Trip Details -->
+        <div class="form-section">
+          <h5 class="form-section-title">
+            <i class="fas fa-clipboard me-2"></i>Trip Details
+          </h5>
+          
+          <div class="mb-3">
+            <label for="id_purpose" class="form-label required-label">Purpose of Trip</label>
+            <input type="text" class="form-control" id="id_purpose" name="purpose" 
+                   placeholder="e.g., Client Meeting, Delivery, Maintenance" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="id_notes" class="form-label">Additional Notes</label>
+            <textarea class="form-control" id="id_notes" name="notes" rows="3"
+                      placeholder="Any additional details about the trip..."></textarea>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-section">
+          <div class="d-flex justify-content-between">
+            <div>
+              <button type="button" class="btn btn-secondary me-2" onclick="resetForm()">
+                <i class="fas fa-undo me-1"></i>Reset Form
+              </button>
+              <button type="button" class="btn btn-outline-info" onclick="loadSampleData()">
+                <i class="fas fa-magic me-1"></i>Load Sample Data
+              </button>
+            </div>
+            <div>
+              <button type="button" class="btn btn-info me-2" onclick="previewTrip()">
+                <i class="fas fa-eye me-1"></i>Preview
+              </button>
+              <button type="submit" class="btn btn-success">
+                <i class="fas fa-save me-1"></i>Save Trip
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Trip Preview Modal -->
+<div class="modal fade" id="tripPreviewModal" tabindex="-1" aria-labelledby="tripPreviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="tripPreviewModalLabel">Trip Preview</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="tripPreviewContent">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-success" onclick="document.getElementById('manualTripForm').submit();">
+          <i class="fas fa-save me-1"></i>Save Trip
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Form elements
+    const driverSelect = document.getElementById('id_driver');
+    const vehicleSelect = document.getElementById('id_vehicle');
+    const originInput = document.getElementById('id_origin');
+    const destinationInput = document.getElementById('id_destination');
+    const startTimeInput = document.getElementById('id_start_time');
+    const endTimeInput = document.getElementById('id_end_time');
+    const startOdometerInput = document.getElementById('id_start_odometer');
+    const endOdometerInput = document.getElementById('id_end_odometer');
+    
+    // Preview elements
+    const driverPreview = document.getElementById('driverPreview');
+    const vehiclePreview = document.getElementById('vehiclePreview');
+    const routeDisplay = document.getElementById('routeDisplay');
+    const odometerWarning = document.getElementById('odometerWarning');
+    const distanceCalculation = document.getElementById('distanceCalculation');
+    
+    let selectedVehicleOdometer = 0;
+    
+    // Driver selection handler
+    driverSelect.addEventListener('change', function() {
+      if (this.value) {
+        const selectedOption = this.options[this.selectedIndex];
+        
+        document.getElementById('driverFullName').textContent = selectedOption.dataset.fullName;
+        document.getElementById('driverEmail').textContent = selectedOption.dataset.email;
+        
+        driverPreview.style.display = 'block';
+      } else {
+        driverPreview.style.display = 'none';
+      }
+    });
+    
+    // Vehicle selection handler
+    vehicleSelect.addEventListener('change', function() {
+      if (this.value) {
+        const selectedOption = this.options[this.selectedIndex];
+        
+        document.getElementById('vehicleLicensePlate').textContent = selectedOption.dataset.licensePlate;
+        document.getElementById('vehicleMakeModel').textContent = `${selectedOption.dataset.make} ${selectedOption.dataset.model}`;
+        document.getElementById('vehicleOdometer').textContent = selectedOption.dataset.odometer;
+        
+        selectedVehicleOdometer = parseInt(selectedOption.dataset.odometer) || 0;
+        startOdometerInput.min = selectedVehicleOdometer;
+        startOdometerInput.value = selectedVehicleOdometer;
+        
+        vehiclePreview.style.display = 'block';
+        validateOdometer();
+      } else {
+        vehiclePreview.style.display = 'none';
+        selectedVehicleOdometer = 0;
+      }
+    });
+    
+    // Route display update
+    function updateRouteDisplay() {
+      const origin = originInput.value.trim();
+      const destination = destinationInput.value.trim();
+      
+      if (origin && destination) {
+        document.getElementById('previewOrigin').textContent = origin;
+        document.getElementById('previewDestination').textContent = destination;
+        routeDisplay.style.display = 'flex';
+      } else {
+        routeDisplay.style.display = 'none';
+      }
+    }
+    
+    originInput.addEventListener('input', updateRouteDisplay);
+    destinationInput.addEventListener('input', updateRouteDisplay);
+    
+    // Odometer validation
+    function validateOdometer() {
+      const startOdometer = parseInt(startOdometerInput.value) || 0;
+      const endOdometer = parseInt(endOdometerInput.value) || 0;
+      
+      odometerWarning.style.display = 'none';
+      distanceCalculation.style.display = 'none';
+      
+      if (startOdometer < selectedVehicleOdometer) {
+        odometerWarning.style.display = 'block';
+        document.getElementById('odometerWarningText').textContent = 
+          `Start odometer (${startOdometer}) cannot be less than vehicle's current odometer (${selectedVehicleOdometer})`;
+        return false;
+      }
+      
+      if (endOdometer && startOdometer) {
+        if (endOdometer <= startOdometer) {
+          odometerWarning.style.display = 'block';
+          document.getElementById('odometerWarningText').textContent = 
+            `End odometer (${endOdometer}) must be greater than start odometer (${startOdometer})`;
+          return false;
+        } else {
+          const distance = endOdometer - startOdometer;
+          document.getElementById('calculatedDistance').textContent = distance;
+          distanceCalculation.style.display = 'block';
+        }
+      }
+      
+      return true;
+    }
+    
+    startOdometerInput.addEventListener('input', validateOdometer);
+    endOdometerInput.addEventListener('input', validateOdometer);
+    
+    // Quick location buttons
+    document.querySelectorAll('[data-location]').forEach(button => {
+      button.addEventListener('click', function() {
+        const location = this.dataset.location;
+        const activeField = document.activeElement;
+        
+        if (activeField === originInput || activeField === destinationInput) {
+          activeField.value = location;
+        } else {
+          // Default to origin if no field is focused
+          originInput.value = location;
+        }
+        updateRouteDisplay();
+      });
+    });
+    
+    // Form validation
+    document.getElementById('manualTripForm').addEventListener('submit', function(e) {
+      if (!validateOdometer()) {
+        e.preventDefault();
+        alert('Please fix the odometer reading errors before submitting.');
+        return false;
+      }
+      
+      const startTime = new Date(startTimeInput.value);
+      const endTime = endTimeInput.value ? new Date(endTimeInput.value) : null;
+      
+      if (endTime && endTime <= startTime) {
+        e.preventDefault();
+        alert('End time must be after start time.');
+        endTimeInput.focus();
+        return false;
+      }
+      
+      // Check if end time and end odometer are both provided or both empty
+      const hasEndTime = !!endTimeInput.value;
+      const hasEndOdometer = !!endOdometerInput.value;
+      
+      if (hasEndTime !== hasEndOdometer) {
+        const message = hasEndTime 
+          ? 'Please provide end odometer reading since end time is specified.'
+          : 'Please provide end time since end odometer is specified.';
+        
+        e.preventDefault();
+        alert(message);
+        return false;
+      }
+    });
+  });
+  
+  // Utility functions
+  function setTimeToMorning(field) {
+    const today = new Date();
+    today.setHours(8, 0, 0, 0);
+    const localTime = new Date(today.getTime() - today.getTimezoneOffset() * 60000);
+    const timeString = localTime.toISOString().slice(0, 16);
+    
+    if (field === 'start') {
+      document.getElementById('id_start_time').value = timeString;
+    }
+  }
+  
+  function setTimeToYesterday(field) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(8, 0, 0, 0);
+    const localTime = new Date(yesterday.getTime() - yesterday.getTimezoneOffset() * 60000);
+    
+    if (field === 'start') {
+      document.getElementById('id_start_time').value = localTime.toISOString().slice(0, 16);
+    }
+  }
+  
+  function loadSampleData() {
+    // Set sample origin and destination
+    document.getElementById('id_origin').value = 'Main Office';
+    document.getElementById('id_destination').value = 'Client Site Downtown';
+    document.getElementById('id_purpose').value = 'Client Meeting';
+    document.getElementById('id_notes').value = 'Regular business meeting with client.';
+    
+    // Update route display
+    document.getElementById('previewOrigin').textContent = 'Main Office';
+    document.getElementById('previewDestination').textContent = 'Client Site Downtown';
+    document.getElementById('routeDisplay').style.display = 'flex';
+    
+    // Set start time to yesterday morning
+    setTimeToYesterday('start');
+    
+    alert('Sample data loaded! Please select a driver and vehicle to complete the form.');
+  }
+  
+  function resetForm() {
+    if (confirm('Are you sure you want to reset all fields? This action cannot be undone.')) {
+      document.getElementById('manualTripForm').reset();
+      document.getElementById('driverPreview').style.display = 'none';
+      document.getElementById('vehiclePreview').style.display = 'none';
+      document.getElementById('routeDisplay').style.display = 'none';
+      document.getElementById('odometerWarning').style.display = 'none';
+      document.getElementById('distanceCalculation').style.display = 'none';
+    }
+  }
+  
+  function previewTrip() {
+    const modal = new bootstrap.Modal(document.getElementById('tripPreviewModal'));
+    const content = document.getElementById('tripPreviewContent');
+    
+    // Get form data
+    const driver = document.getElementById('id_driver');
+    const vehicle = document.getElementById('id_vehicle');
+    const origin = document.getElementById('id_origin').value;
+    const destination = document.getElementById('id_destination').value;
+    const startTime = document.getElementById('id_start_time').value;
+    const endTime = document.getElementById('id_end_time').value;
+    const startOdometer = document.getElementById('id_start_odometer').value;
+    const endOdometer = document.getElementById('id_end_odometer').value;
+    const purpose = document.getElementById('id_purpose').value;
+    const notes = document.getElementById('id_notes').value;
+    
+    const distance = endOdometer && startOdometer ? (parseInt(endOdometer) - parseInt(startOdometer)) : 'N/A';
+    const status = endTime && endOdometer ? 'Completed' : 'Ongoing';
+    
+    content.innerHTML = `
+      <div class="row">
+        <div class="col-md-6">
+          <h6>Driver Information</h6>
+          <p><strong>Driver:</strong> ${driver.selectedOptions[0]?.text || 'Not selected'}</p>
+          
+          <h6>Vehicle Information</h6>
+          <p><strong>Vehicle:</strong> ${vehicle.selectedOptions[0]?.text || 'Not selected'}</p>
+          
+          <h6>Route Information</h6>
+          <p><strong>From:</strong> ${origin || 'Not entered'}</p>
+          <p><strong>To:</strong> ${destination || 'Not entered'}</p>
+        </div>
+        <div class="col-md-6">
+          <h6>Trip Timing</h6>
+          <p><strong>Start:</strong> ${startTime ? new Date(startTime).toLocaleString() : 'Not set'}</p>
+          <p><strong>End:</strong> ${endTime ? new Date(endTime).toLocaleString() : 'Ongoing'}</p>
+          
+          <h6>Odometer Readings</h6>
+          <p><strong>Start:</strong> ${startOdometer || 'Not entered'} km</p>
+          <p><strong>End:</strong> ${endOdometer || 'Not entered'} km</p>
+          <p><strong>Distance:</strong> ${distance} km</p>
+          
+          <h6>Trip Details</h6>
+          <p><strong>Purpose:</strong> ${purpose || 'Not entered'}</p>
+          <p><strong>Status:</strong> <span class="badge bg-${status === 'Completed' ? 'success' : 'warning'}">${status}</span></p>
+        </div>
+      </div>
+      ${notes ? `<div class="mt-3"><h6>Notes</h6><p>${notes}</p></div>` : ''}
+    `;
+    
+    modal.show();
+  }
+</script>
+{% endblock %}

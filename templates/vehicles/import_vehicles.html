@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Import Vehicles - Vehicle Management System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Import Vehicles from Excel</h1>
+    <a href="{% url 'vehicle_list' %}" class="btn btn-sm btn-secondary">
+      <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Vehicle List
+    </a>
+  </div>
+  
+  <!-- Instructions Card -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-info">
+        <i class="fas fa-info-circle"></i> Excel Format Requirements
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <h6>Required Columns:</h6>
+          <ul class="small">
+            <li><strong>Vehicles No.</strong> - License plate number</li>
+            <li><strong>Type</strong> - Vehicle type (Car, Truck, etc.)</li>
+            <li><strong>Vehicle make & Model</strong> - Make and model</li>
+            <li><strong>Year of Manufacture</strong> - Manufacturing year</li>
+            <li><strong>Vehicle Capacity</strong> - Seating capacity</li>
+            <li><strong>Fuel Type</strong> - Petrol, Diesel, EV, etc.</li>
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <h6>Optional Columns:</h6>
+          <ul class="small">
+            <li>Owner Name</li>
+            <li>RC Valid Till, Insurance Expiry Date</li>
+            <li>GPS Fitted, GPS_Name</li>
+            <li>Driver Contact, Assigned Driver</li>
+            <li>CHASSIS NO</li>
+            <li>Company_Owned, usage_type, used by</li>
+          </ul>
+        </div>
+      </div>
+      <div class="alert alert-warning mt-3">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>Note:</strong> Make sure your Excel file has data starting from row 4 (after headers). 
+        Empty rows and rows with "NIL" values will be handled automatically.
+      </div>
+    </div>
+  </div>
+  
+  <!-- Upload Form -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">Upload Excel File</h6>
+    </div>
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <div class="mb-3">
+          <label for="{{ form.excel_file.id_for_label }}" class="form-label">Excel File</label>
+          {{ form.excel_file }}
+          {% if form.excel_file.help_text %}
+            <small class="form-text text-muted">{{ form.excel_file.help_text }}</small>
+          {% endif %}
+          {% if form.excel_file.errors %}
+            <div class="invalid-feedback d-block">{{ form.excel_file.errors }}</div>
+          {% endif %}
+        </div>
+        
+        <div class="mb-3 form-check">
+          {{ form.preview_only }}
+          <label class="form-check-label" for="{{ form.preview_only.id_for_label }}">
+            Preview Only (don't import yet)
+          </label>
+          {% if form.preview_only.help_text %}
+            <small class="form-text text-muted d-block">{{ form.preview_only.help_text }}</small>
+          {% endif %}
+        </div>
+        
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-upload me-1"></i> Upload File
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  {% if preview_data %}
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+      <h6 class="m-0 font-weight-bold text-success">Data Preview</h6>
+      <span class="badge badge-info">Showing first 10 rows of {{ total_rows }} total rows from {{ file_name }}</span>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-info">
+        <i class="fas fa-eye"></i>
+        <strong>Preview Mode:</strong> This is a preview of the data that will be imported. 
+        Review the data below and click "Proceed with Import" if everything looks correct.
+      </div>
+      
+      <div class="table-responsive">
+        <div style="max-height: 500px; overflow-y: auto;">
+          {{ preview_data|safe }}
+        </div>
+      </div>
+      
+      <div class="row mt-4">
+        <div class="col-md-6">
+          <div class="alert alert-warning">
+            <strong>Before importing:</strong>
+            <ul class="mb-0 mt-2">
+              <li>Verify license plate numbers are correct</li>
+              <li>Check that dates are properly formatted</li>
+              <li>Ensure vehicle types match your system</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.excel_file.as_hidden }}
+            <input type="hidden" name="preview_only" value="false">
+            <button type="submit" class="btn btn-success btn-lg btn-block">
+              <i class="fas fa-file-import me-2"></i> Proceed with Import
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  
+  <!-- Sample Data Format -->
+  <div class="card shadow">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-secondary">
+        <i class="fas fa-table"></i> Sample Excel Format
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-bordered table-sm">
+          <thead class="thead-light">
+            <tr>
+              <th>Sl No</th>
+              <th>Vehicles No.</th>
+              <th>Type</th>
+              <th>Vehicle make & Model</th>
+              <th>Year of Manufacture</th>
+              <th>Vehicle Capacity</th>
+              <th>Fuel Type</th>
+              <th>Owner Name</th>
+              <th>GPS Fitted</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td>KL-01-BC-0001</td>
+              <td>Car</td>
+              <td>AUDI A4</td>
+              <td>2020</td>
+              <td>5</td>
+              <td>DIESEL</td>
+              <td>John Doe</td>
+              <td>YES</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>KL-01-BW-2727</td>
+              <td>Car</td>
+              <td>BMW X5</td>
+              <td>2019</td>
+              <td>7</td>
+              <td>PETROL</td>
+              <td>Jane Smith</td>
+              <td>NO</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.table-responsive table {
+  font-size: 0.85rem;
+}
+.table-responsive th, 
+.table-responsive td {
+  white-space: nowrap;
+  padding: 0.5rem 0.25rem;
+}
+</style>
+{% endblock %}

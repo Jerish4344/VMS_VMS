@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Service Providers - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .provider-card {
+    transition: transform 0.2s;
+  }
+  
+  .provider-card:hover {
+    transform: translateY(-5px);
+  }
+  
+  .provider-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #4e73df;
+  }
+  
+  .provider-name {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .provider-contact {
+    color: #858796;
+    font-size: 0.9rem;
+  }
+  
+  .provider-contact i {
+    width: 18px;
+    text-align: center;
+    margin-right: 0.5rem;
+  }
+  
+  .provider-address {
+    white-space: pre-line;
+    margin-bottom: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Service Providers</h1>
+    {% if request.user.user_type != 'driver' %}
+    <a href="{% url 'maintenance_provider_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+      <i class="fas fa-plus fa-sm text-white-50"></i> Add New Provider
+    </a>
+    {% endif %}
+  </div>
+  
+  <div class="row">
+    <!-- Sidebar -->
+    <div class="col-xl-3 col-lg-4 mb-4">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Quick Links</h6>
+        </div>
+        <div class="card-body">
+          <div class="list-group">
+            <a href="{% url 'maintenance_list' %}" class="list-group-item list-group-item-action">
+              <i class="fas fa-wrench me-2"></i> Maintenance Records
+            </a>
+            <a href="{% url 'maintenance_type_list' %}" class="list-group-item list-group-item-action">
+              <i class="fas fa-tools me-2"></i> Maintenance Types
+            </a>
+            {% if request.user.user_type != 'driver' %}
+            <a href="{% url 'maintenance_create' %}" class="list-group-item list-group-item-action">
+              <i class="fas fa-plus-circle me-2"></i> Add Maintenance Record
+            </a>
+            <a href="{% url 'maintenance_provider_create' %}" class="list-group-item list-group-item-action">
+              <i class="fas fa-plus-circle me-2"></i> Add New Provider
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Search Card -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Search Providers</h6>
+        </div>
+        <div class="card-body">
+          <form method="get" action="{% url 'maintenance_provider_list' %}">
+            <div class="mb-3">
+              <div class="input-group">
+                <input type="text" class="form-control" name="search" 
+                       placeholder="Search by name or contact..." value="{{ request.GET.search|default:'' }}">
+                <button class="btn btn-primary" type="submit">
+                  <i class="fas fa-search"></i>
+                </button>
+              </div>
+            </div>
+            {% if request.GET.search %}
+              <div class="d-grid">
+                <a href="{% url 'maintenance_provider_list' %}" class="btn btn-secondary btn-sm">
+                  <i class="fas fa-times"></i> Clear Search
+                </a>
+              </div>
+            {% endif %}
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="col-xl-9 col-lg-8">
+      {% if maintenance_providers %}
+        <div class="row">
+          {% for provider in maintenance_providers %}
+            <div class="col-xl-4 col-md-6 mb-4">
+              <div class="card shadow h-100 provider-card">
+                <div class="card-body">
+                  <div class="provider-icon">
+                    <i class="fas fa-building"></i>
+                  </div>
+                  <div class="provider-name">{{ provider.name }}</div>
+                  <div class="provider-address">{{ provider.address }}</div>
+                  
+                  <div class="provider-contact mb-1">
+                    {% if provider.phone %}
+                      <div><i class="fas fa-phone"></i> {{ provider.phone }}</div>
+                    {% endif %}
+                    
+                    {% if provider.email %}
+                      <div><i class="fas fa-envelope"></i> {{ provider.email }}</div>
+                    {% endif %}
+                    
+                    {% if provider.website %}
+                      <div><i class="fas fa-globe"></i> 
+                        <a href="{{ provider.website }}" target="_blank">{{ provider.website }}</a>
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="card-footer bg-light p-2 d-flex justify-content-between">
+                  <a href="{% url 'maintenance_list' %}?provider={{ provider.id }}" class="btn btn-sm btn-info">
+                    <i class="fas fa-history"></i> Service History
+                  </a>
+                  {% if request.user.user_type != 'driver' %}
+                  <a href="{% url 'maintenance_provider_update' provider.id %}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-edit"></i> Edit
+                  </a>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        {% if is_paginated %}
+          <div class="mt-4">
+            <nav aria-label="Page navigation">
+              <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                  <li class="page-item">
+                    <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page=1" aria-label="First">
+                      <span aria-hidden="true">&laquo;&laquo;</span>
+                    </a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}" aria-label="Previous">
+                      <span aria-hidden="true">&laquo;</span>
+                    </a>
+                  </li>
+                {% endif %}
+                
+                {% for num in page_obj.paginator.page_range %}
+                  {% if page_obj.number == num %}
+                    <li class="page-item active">
+                      <span class="page-link">{{ num }}</span>
+                    </li>
+                  {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                      <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+                    </li>
+                  {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                  <li class="page-item">
+                    <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}" aria-label="Next">
+                      <span aria-hidden="true">&raquo;</span>
+                    </a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.paginator.num_pages }}" aria-label="Last">
+                      <span aria-hidden="true">&raquo;&raquo;</span>
+                    </a>
+                  </li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="card shadow mb-4">
+          <div class="card-body">
+            <div class="alert alert-info text-center">
+              <i class="fas fa-info-circle me-2"></i> No service providers found.
+              {% if request.GET.search %}
+                <a href="{% url 'maintenance_provider_list' %}" class="alert-link">Clear search</a> to see all providers.
+              {% else %}
+                {% if request.user.user_type != 'driver' %}
+                <a href="{% url 'maintenance_provider_create' %}" class="alert-link">Add a new provider</a> to get started.
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Style form controls
+    document.querySelectorAll('input').forEach(function(element) {
+      if (element.type !== 'submit' && element.type !== 'button') {
+        element.classList.add('form-control');
+      }
+    });
+  });
+</script>
+{% endblock %}

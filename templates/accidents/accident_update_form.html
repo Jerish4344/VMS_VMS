@@ -1,0 +1,643 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Update Accident - {{ form.instance.vehicle.license_plate }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-section {
+    margin-bottom: 2rem;
+  }
+  
+  .form-section-title {
+    font-weight: 700;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e3e6f0;
+  }
+  
+  .status-select {
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .status-option {
+    padding: 0.75rem 1rem;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .status-option:hover {
+    background-color: #f8f9fc;
+  }
+  
+  .status-option.selected {
+    background-color: #4e73df;
+    color: white;
+    border-color: #3a5fc8;
+  }
+  
+  .status-option-reported {
+    border-left: 4px solid #f6c23e;
+  }
+  
+  .status-option-under_investigation {
+    border-left: 4px solid #4e73df;
+  }
+  
+  .status-option-repair_scheduled {
+    border-left: 4px solid #36b9cc;
+  }
+  
+  .status-option-repair_in_progress {
+    border-left: 4px solid #1cc88a;
+  }
+  
+  .status-option-resolved {
+    border-left: 4px solid #1cc88a;
+  }
+  
+  .status-description {
+    font-size: 0.85rem;
+    color: #858796;
+  }
+  
+  .required-label::after {
+    content: " *";
+    color: #e74a3b;
+  }
+  
+  .coordinates-help {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #858796;
+  }
+  
+  .current-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .image-container {
+    position: relative;
+    width: 150px;
+  }
+  
+  .accident-image {
+    width: 150px;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 0.35rem;
+    border: 1px solid #e3e6f0;
+  }
+  
+  .image-caption {
+    font-size: 0.8rem;
+    text-align: center;
+    margin-top: 0.5rem;
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .image-actions {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    display: flex;
+    gap: 0.25rem;
+  }
+  
+  .action-button {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background-color 0.2s;
+  }
+  
+  .action-button:hover {
+    background-color: rgba(255, 255, 255, 1);
+  }
+  
+  .action-button-danger {
+    color: #e74a3b;
+  }
+  
+  .action-button-info {
+    color: #4e73df;
+  }
+  
+  .image-formset-item {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border: 1px dashed #d1d3e2;
+    border-radius: 0.35rem;
+    background-color: #f8f9fc;
+  }
+  
+  .delete-formset-item {
+    margin-top: 0.5rem;
+  }
+  
+  .image-preview {
+    max-width: 200px;
+    max-height: 200px;
+    margin-top: 0.5rem;
+    display: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Update Accident</h1>
+    <a href="{% url 'accident_detail' form.instance.id %}" class="btn btn-sm btn-secondary">
+      <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Accident
+    </a>
+  </div>
+  
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Update Accident Details</h6>
+        </div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            
+            <!-- Status Update -->
+            <div class="form-section">
+              <h5 class="form-section-title">Accident Status</h5>
+              <div class="status-select">
+                <div class="row">
+                  {% for status_value, status_label in form.fields.status.choices %}
+                  <div class="col-md-6 mb-2">
+                    <div class="status-option status-option-{{ status_value }} {% if form.instance.status == status_value %}selected{% endif %}" data-status="{{ status_value }}">
+                      <div class="d-flex align-items-center">
+                        <input type="radio" name="{{ form.status.name }}" id="id_status_{{ status_value }}" value="{{ status_value }}" 
+                              {% if form.instance.status == status_value %}checked{% endif %} class="d-none">
+                        <i class="fas fa-circle me-2"></i>
+                        <div>
+                          <div class="status-label">{{ status_label }}</div>
+                          <div class="status-description">
+                            {% if status_value == 'reported' %}
+                              Initial report of the accident, awaiting investigation.
+                            {% elif status_value == 'under_investigation' %}
+                              Accident is being investigated to determine cause and liability.
+                            {% elif status_value == 'repair_scheduled' %}
+                              Repairs have been scheduled with a service provider.
+                            {% elif status_value == 'repair_in_progress' %}
+                              Vehicle is currently undergoing repairs.
+                            {% elif status_value == 'resolved' %}
+                              Accident case has been resolved and closed.
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+                
+                {% if form.status.errors %}
+                  <div class="invalid-feedback d-block">{{ form.status.errors }}</div>
+                {% endif %}
+              </div>
+              
+              <!-- Resolution Date (shown only when status is 'resolved') -->
+              <div id="resolution-date-group" class="mb-3" {% if form.instance.status != 'resolved' %}style="display: none;"{% endif %}>
+                <label for="{{ form.resolution_date.id_for_label }}" class="form-label required-label">Resolution Date</label>
+                {{ form.resolution_date }}
+                {% if form.resolution_date.errors %}
+                  <div class="invalid-feedback d-block">{{ form.resolution_date.errors }}</div>
+                {% endif %}
+                <div class="form-text">The date when all repairs were completed and the case was closed.</div>
+              </div>
+            </div>
+            
+            <!-- Location Information -->
+            <div class="form-section">
+              <h5 class="form-section-title">Location Information</h5>
+              <div class="mb-3">
+                <label for="{{ form.location.id_for_label }}" class="form-label required-label">Location</label>
+                {{ form.location }}
+                {% if form.location.errors %}
+                  <div class="invalid-feedback d-block">{{ form.location.errors }}</div>
+                {% endif %}
+              </div>
+              
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="{{ form.latitude.id_for_label }}" class="form-label">Latitude</label>
+                  {{ form.latitude }}
+                  {% if form.latitude.errors %}
+                    <div class="invalid-feedback d-block">{{ form.latitude.errors }}</div>
+                  {% endif %}
+                  <div class="coordinates-help">Range: -90 to 90 degrees</div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                  <label for="{{ form.longitude.id_for_label }}" class="form-label">Longitude</label>
+                  {{ form.longitude }}
+                  {% if form.longitude.errors %}
+                    <div class="invalid-feedback d-block">{{ form.longitude.errors }}</div>
+                  {% endif %}
+                  <div class="coordinates-help">Range: -180 to 180 degrees</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Accident Description -->
+            <div class="form-section">
+              <h5 class="form-section-title">Accident Description</h5>
+              <div class="mb-3">
+                <label for="{{ form.description.id_for_label }}" class="form-label required-label">Description of the Accident</label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                  <div class="invalid-feedback d-block">{{ form.description.errors }}</div>
+                {% endif %}
+              </div>
+              
+              <div class="mb-3">
+                <label for="{{ form.damage_description.id_for_label }}" class="form-label required-label">Description of the Damage</label>
+                {{ form.damage_description }}
+                {% if form.damage_description.errors %}
+                  <div class="invalid-feedback d-block">{{ form.damage_description.errors }}</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <!-- Third Party Involvement -->
+            <div class="form-section">
+              <h5 class="form-section-title">Third Party Involvement</h5>
+              <div class="form-check mb-3">
+                {{ form.third_party_involved }}
+                <label class="form-check-label" for="{{ form.third_party_involved.id_for_label }}">
+                  Third party involved in the accident
+                </label>
+                {% if form.third_party_involved.errors %}
+                  <div class="invalid-feedback d-block">{{ form.third_party_involved.errors }}</div>
+                {% endif %}
+              </div>
+              
+              <div id="police-report-group" class="mb-3" {% if not form.instance.third_party_involved %}style="display: none;"{% endif %}>
+                <label for="{{ form.police_report_number.id_for_label }}" class="form-label">Police Report Number</label>
+                {{ form.police_report_number }}
+                {% if form.police_report_number.errors %}
+                  <div class="invalid-feedback d-block">{{ form.police_report_number.errors }}</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <!-- Injuries -->
+            <div class="form-section">
+              <h5 class="form-section-title">Injuries</h5>
+              <div class="form-check mb-3">
+                {{ form.injuries }}
+                <label class="form-check-label" for="{{ form.injuries.id_for_label }}">
+                  Injuries occurred in the accident
+                </label>
+                {% if form.injuries.errors %}
+                  <div class="invalid-feedback d-block">{{ form.injuries.errors }}</div>
+                {% endif %}
+              </div>
+              
+              <div id="injuries-description-group" class="mb-3" {% if not form.instance.injuries %}style="display: none;"{% endif %}>
+                <label for="{{ form.injuries_description.id_for_label }}" class="form-label">Description of Injuries</label>
+                {{ form.injuries_description }}
+                {% if form.injuries_description.errors %}
+                  <div class="invalid-feedback d-block">{{ form.injuries_description.errors }}</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <!-- Financial Information -->
+            <div class="form-section">
+              <h5 class="form-section-title">Financial Information</h5>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="{{ form.estimated_cost.id_for_label }}" class="form-label">Estimated Cost</label>
+                  {{ form.estimated_cost }}
+                  {% if form.estimated_cost.errors %}
+                    <div class="invalid-feedback d-block">{{ form.estimated_cost.errors }}</div>
+                  {% endif %}
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                  <label for="{{ form.actual_cost.id_for_label }}" class="form-label">Actual Cost</label>
+                  {{ form.actual_cost }}
+                  {% if form.actual_cost.errors %}
+                    <div class="invalid-feedback d-block">{{ form.actual_cost.errors }}</div>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <label for="{{ form.insurance_claim_number.id_for_label }}" class="form-label">Insurance Claim Number</label>
+                {{ form.insurance_claim_number }}
+                {% if form.insurance_claim_number.errors %}
+                  <div class="invalid-feedback d-block">{{ form.insurance_claim_number.errors }}</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <!-- Additional Notes -->
+            <div class="form-section">
+              <h5 class="form-section-title">Additional Notes</h5>
+              <div class="mb-3">
+                <label for="{{ form.notes.id_for_label }}" class="form-label">Notes</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                  <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <!-- Current Images -->
+            <div class="form-section">
+              <h5 class="form-section-title">Current Images</h5>
+              
+              {% if current_images %}
+                <div class="current-images">
+                  {% for image in current_images %}
+                    <div class="image-container">
+                      <img src="{{ image.image.url }}" alt="{{ image.caption|default:'Accident Image' }}" class="accident-image">
+                      <div class="image-actions">
+                        <a href="{{ image.image.url }}" target="_blank" class="action-button action-button-info" title="View Full Size">
+                          <i class="fas fa-search"></i>
+                        </a>
+                        <a href="{% url 'remove_accident_image' image.id %}?accident_id={{ form.instance.id }}" 
+                           class="action-button action-button-danger" title="Remove Image"
+                           onclick="return confirm('Are you sure you want to remove this image?');">
+                          <i class="fas fa-trash"></i>
+                        </a>
+                      </div>
+                      <div class="image-caption">{{ image.caption|default:'No caption' }}</div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="alert alert-info">
+                  <i class="fas fa-info-circle me-2"></i> No images have been uploaded for this accident.
+                </div>
+              {% endif %}
+            </div>
+            
+            <!-- Add New Images -->
+            <div class="form-section">
+              <h5 class="form-section-title">Add New Images</h5>
+              
+              {{ image_formset.management_form }}
+              {% for image_form in image_formset %}
+                <div class="image-formset-item">
+                  {{ image_form.id }}
+                  <div class="row">
+                    <div class="col-md-6 mb-3">
+                      <label for="{{ image_form.image.id_for_label }}" class="form-label">Image</label>
+                      {{ image_form.image }}
+                      {% if image_form.image.errors %}
+                        <div class="invalid-feedback d-block">{{ image_form.image.errors }}</div>
+                      {% endif %}
+                      <img class="image-preview" id="preview-{{ forloop.counter0 }}" src="#" alt="Image Preview">
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                      <label for="{{ image_form.caption.id_for_label }}" class="form-label">Caption</label>
+                      {{ image_form.caption }}
+                      {% if image_form.caption.errors %}
+                        <div class="invalid-feedback d-block">{{ image_form.caption.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  
+                  {% if image_formset.can_delete %}
+                    <div class="delete-formset-item">
+                      <div class="form-check">
+                        {{ image_form.DELETE }}
+                        <label class="form-check-label text-danger" for="{{ image_form.DELETE.id_for_label }}">
+                          Delete this image
+                        </label>
+                      </div>
+                    </div>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+            
+            <!-- Save Button -->
+            <div class="form-actions mt-4">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-1"></i> Save Changes
+              </button>
+              <a href="{% url 'accident_detail' form.instance.id %}" class="btn btn-secondary ms-2">
+                <i class="fas fa-times me-1"></i> Cancel
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      <!-- Vehicle Information -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Vehicle Information</h6>
+        </div>
+        <div class="card-body">
+          {% if form.instance.vehicle.image %}
+          <div class="text-center mb-3">
+            <img src="{{ form.instance.vehicle.image.url }}" alt="{{ form.instance.vehicle }}" class="img-fluid rounded">
+          </div>
+          {% endif %}
+          
+          <div class="detail-label">Vehicle</div>
+          <div class="detail-value">
+            {{ form.instance.vehicle.make }} {{ form.instance.vehicle.model }} ({{ form.instance.vehicle.year }})
+          </div>
+          
+          <div class="detail-label">License Plate</div>
+          <div class="detail-value">{{ form.instance.vehicle.license_plate }}</div>
+          
+          <div class="detail-label">Vehicle Type</div>
+          <div class="detail-value">{{ form.instance.vehicle.vehicle_type.name }}</div>
+          
+          <div class="detail-label">Status</div>
+          <div class="detail-value">
+            <span class="badge 
+              {% if form.instance.vehicle.status == 'available' %}bg-success
+              {% elif form.instance.vehicle.status == 'in_use' %}bg-primary
+              {% elif form.instance.vehicle.status == 'maintenance' %}bg-warning text-dark
+              {% else %}bg-secondary{% endif %}">
+              {{ form.instance.vehicle.get_status_display }}
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Driver Information -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Driver Information</h6>
+        </div>
+        <div class="card-body">
+          <div class="detail-label">Driver Name</div>
+          <div class="detail-value">{{ form.instance.driver.get_full_name }}</div>
+          
+          <div class="detail-label">Driver Type</div>
+          <div class="detail-value">{{ form.instance.driver.get_user_type_display }}</div>
+          
+          {% if form.instance.driver.phone_number %}
+          <div class="detail-label">Contact</div>
+          <div class="detail-value">
+            {{ form.instance.driver.phone_number }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Status Effects -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Status Effects</h6>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info">
+            <h5 class="alert-heading">Vehicle Status</h5>
+            <p>Changing the accident status affects the vehicle's status:</p>
+            <ul>
+              <li><strong>Reported, Under Investigation:</strong> Vehicle remains in maintenance status</li>
+              <li><strong>Repair Scheduled, In Progress:</strong> Vehicle will be set to maintenance status</li>
+              <li><strong>Resolved:</strong> Vehicle will be set to available status (if no other unresolved accidents)</li>
+            </ul>
+          </div>
+          
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Note:</strong> Make sure you've entered all required information, especially when marking an accident as resolved.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Style form controls
+    const formControls = document.querySelectorAll('input:not([type="checkbox"]):not([type="radio"]), select, textarea');
+    formControls.forEach(function(element) {
+      element.classList.add('form-control');
+    });
+    
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(function(element) {
+      element.classList.add('form-check-input');
+    });
+    
+    // Status option selection
+    const statusOptions = document.querySelectorAll('.status-option');
+    const statusRadios = document.querySelectorAll('input[name="{{ form.status.name }}"]');
+    const resolutionDateGroup = document.getElementById('resolution-date-group');
+    
+    statusOptions.forEach(function(option) {
+      option.addEventListener('click', function() {
+        // Remove selected class from all options
+        statusOptions.forEach(opt => opt.classList.remove('selected'));
+        
+        // Add selected class to clicked option
+        this.classList.add('selected');
+        
+        // Update radio button
+        const statusValue = this.dataset.status;
+        const radioInput = document.getElementById('id_status_' + statusValue);
+        radioInput.checked = true;
+        
+        // Show/hide resolution date field based on status
+        if (statusValue === 'resolved') {
+          resolutionDateGroup.style.display = 'block';
+        } else {
+          resolutionDateGroup.style.display = 'none';
+        }
+      });
+    });
+    
+    // Third party checkbox
+    const thirdPartyCheckbox = document.getElementById('{{ form.third_party_involved.id_for_label }}');
+    const policeReportGroup = document.getElementById('police-report-group');
+    
+    if (thirdPartyCheckbox && policeReportGroup) {
+      thirdPartyCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+          policeReportGroup.style.display = 'block';
+        } else {
+          policeReportGroup.style.display = 'none';
+        }
+      });
+    }
+    
+    // Injuries checkbox
+    const injuriesCheckbox = document.getElementById('{{ form.injuries.id_for_label }}');
+    const injuriesDescriptionGroup = document.getElementById('injuries-description-group');
+    
+    if (injuriesCheckbox && injuriesDescriptionGroup) {
+      injuriesCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+          injuriesDescriptionGroup.style.display = 'block';
+        } else {
+          injuriesDescriptionGroup.style.display = 'none';
+        }
+      });
+    }
+    
+    // Image preview functionality
+    const imageInputs = document.querySelectorAll('input[type="file"]');
+    imageInputs.forEach(function(input, index) {
+      input.addEventListener('change', function() {
+        const preview = document.getElementById('preview-' + index);
+        
+        if (this.files && this.files[0]) {
+          const reader = new FileReader();
+          
+          reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+          };
+          
+          reader.readAsDataURL(this.files[0]);
+        }
+      });
+    });
+    
+    // Resolution date field
+    const resolutionDateField = document.getElementById('{{ form.resolution_date.id_for_label }}');
+    if (resolutionDateField) {
+      // Set type to date
+      resolutionDateField.type = 'date';
+      
+      // Set max date to today
+      const today = new Date().toISOString().split('T')[0];
+      resolutionDateField.max = today;
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,541 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+  {% if form.instance.pk %}Edit{% else %}Add{% endif %} 
+  Transaction - Vehicle Management System
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-section {
+    margin-bottom: 2rem;
+  }
+  
+  .form-section-title {
+    font-weight: 700;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e3e6f0;
+  }
+  
+  .receipt-preview {
+    max-width: 250px;
+    max-height: 250px;
+    margin-top: 0.5rem;
+    border-radius: 0.25rem;
+    border: 1px solid #e3e6f0;
+    padding: 0.25rem;
+    display: none;
+  }
+  
+  .calculation-help {
+    font-size: 0.8rem;
+    color: #858796;
+    margin-top: 0.25rem;
+  }
+  
+  .required-label::after {
+    content: " *";
+    color: #e74a3b;
+  }
+  
+  .total-cost-calculated {
+    display: none;
+    padding: 0.5rem;
+    background-color: #f8f9fc;
+    border-radius: 0.25rem;
+    margin-top: 0.5rem;
+    font-weight: 600;
+  }
+  
+  .vehicle-type-info {
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .info-electric { 
+    background-color: #d4edda; 
+    border: 1px solid #c3e6cb; 
+    color: #155724; 
+  }
+  
+  .info-fuel { 
+    background-color: #d1ecf1; 
+    border: 1px solid #bee5eb; 
+    color: #0c5460; 
+  }
+  
+  .field-group {
+    border: 1px solid #e3e6f0;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background-color: #f8f9fc;
+  }
+  
+  .field-group-title {
+    font-weight: 600;
+    color: #5a5c69;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+  }
+  
+  /* Initially hide both field groups */
+  .fuel-fields, .electric-fields {
+    display: none;
+  }
+  
+  /* Show when active */
+  .fuel-fields.active, .electric-fields.active {
+    display: block;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">
+      {% if form.instance.pk %}
+        Edit Transaction
+      {% else %}
+        Add New Transaction
+      {% endif %}
+    </h1>
+  </div>
+  
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">
+        {% if form.instance.pk %}
+          Edit Transaction Details
+        {% else %}
+          Transaction Details
+        {% endif %}
+      </h6>
+    </div>
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data" id="transaction-form">
+        {% csrf_token %}
+        
+        <!-- Debug Information -->
+        {% if form.errors %}
+        <div class="alert alert-danger">
+            <h4>Form Errors:</h4>
+            {% for field, errors in form.errors.items %}
+                <p><strong>{{ field }}:</strong> {{ errors|join:", " }}</p>
+            {% endfor %}
+            {% if form.non_field_errors %}
+                <p><strong>Non-field errors:</strong> {{ form.non_field_errors|join:", " }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        {{ form.non_field_errors }}
+        
+        <!-- Vehicle and Driver Information -->
+        <div class="form-section">
+          <h5 class="form-section-title">Vehicle and Driver Information</h5>
+          
+          <!-- Vehicle Type Info Display -->
+          <div id="vehicle-type-info" class="vehicle-type-info" style="display: none;">
+            <div id="vehicle-type-description"></div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.vehicle.id_for_label }}" class="form-label required-label">Vehicle</label>
+              {{ form.vehicle }}
+              {% if form.vehicle.errors %}
+                <div class="invalid-feedback d-block">{{ form.vehicle.errors }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.driver.id_for_label }}" class="form-label required-label">Driver</label>
+              {{ form.driver }}
+              {% if form.driver.errors %}
+                <div class="invalid-feedback d-block">{{ form.driver.errors }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Transaction Details -->
+        <div class="form-section">
+          <h5 class="form-section-title">Transaction Details</h5>
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.date.id_for_label }}" class="form-label required-label">Date</label>
+              {{ form.date }}
+              {% if form.date.errors %}
+                <div class="invalid-feedback d-block">{{ form.date.errors }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.fuel_station.id_for_label }}" class="form-label">Station</label>
+              {{ form.fuel_station }}
+              {% if form.fuel_station.errors %}
+                <div class="invalid-feedback d-block">{{ form.fuel_station.errors }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.odometer_reading.id_for_label }}" class="form-label required-label">Odometer Reading (km)</label>
+              {{ form.odometer_reading }}
+              {% if form.odometer_reading.errors %}
+                <div class="invalid-feedback d-block">{{ form.odometer_reading.errors }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.total_cost.id_for_label }}" class="form-label">Total Cost (₹)</label>
+              {{ form.total_cost }}
+              {% if form.total_cost.errors %}
+                <div class="invalid-feedback d-block">{{ form.total_cost.errors }}</div>
+              {% endif %}
+              <div class="total-cost-calculated" id="calculatedCost"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Fuel Vehicle Information -->
+        <div class="fuel-fields field-group" id="fuel-fields">
+          <div class="field-group-title">
+            <i class="fas fa-gas-pump"></i> Fuel Vehicle Information
+          </div>
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.fuel_type.id_for_label }}" class="form-label">Fuel Type</label>
+              {{ form.fuel_type }}
+              {% if form.fuel_type.errors %}
+                <div class="invalid-feedback d-block">{{ form.fuel_type.errors }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.quantity.id_for_label }}" class="form-label">Quantity (Liters)</label>
+              {{ form.quantity }}
+              {% if form.quantity.errors %}
+                <div class="invalid-feedback d-block">{{ form.quantity.errors }}</div>
+              {% endif %}
+              <div class="calculation-help">Enter quantity and cost per liter, or total cost</div>
+            </div>
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.cost_per_liter.id_for_label }}" class="form-label">Cost Per Liter (₹)</label>
+              {{ form.cost_per_liter }}
+              {% if form.cost_per_liter.errors %}
+                <div class="invalid-feedback d-block">{{ form.cost_per_liter.errors }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-4 mb-3 d-flex align-items-end">
+              <button type="button" id="calculateFuelBtn" class="btn btn-outline-primary">
+                <i class="fas fa-calculator"></i> Calculate
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Electric Vehicle Information -->
+        <div class="electric-fields field-group" id="electric-fields">
+          <div class="field-group-title">
+            <i class="fas fa-bolt"></i> Electric Vehicle Information
+          </div>
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.energy_consumed.id_for_label }}" class="form-label">Energy Consumed (kWh)</label>
+              {{ form.energy_consumed }}
+              {% if form.energy_consumed.errors %}
+                <div class="invalid-feedback d-block">{{ form.energy_consumed.errors }}</div>
+              {% endif %}
+              <div class="calculation-help">Enter energy consumed and cost per kWh, or total cost</div>
+            </div>
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.cost_per_kwh.id_for_label }}" class="form-label">Cost Per kWh (₹)</label>
+              {{ form.cost_per_kwh }}
+              {% if form.cost_per_kwh.errors %}
+                <div class="invalid-feedback d-block">{{ form.cost_per_kwh.errors }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.charging_duration_minutes.id_for_label }}" class="form-label">Charging Duration (minutes)</label>
+              {{ form.charging_duration_minutes }}
+              {% if form.charging_duration_minutes.errors %}
+                <div class="invalid-feedback d-block">{{ form.charging_duration_minutes.errors }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-4 mb-3 d-flex align-items-end">
+              <button type="button" id="calculateElectricBtn" class="btn btn-outline-primary">
+                <i class="fas fa-calculator"></i> Calculate
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Receipt Image and Notes -->
+        <div class="form-section">
+          <h5 class="form-section-title">Receipt and Notes</h5>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.receipt_image.id_for_label }}" class="form-label">Upload Receipt Image</label>
+              {{ form.receipt_image }}
+              {% if form.receipt_image.errors %}
+                <div class="invalid-feedback d-block">{{ form.receipt_image.errors }}</div>
+              {% endif %}
+              <img id="receipt-preview" class="receipt-preview" src="{% if form.instance.receipt_image %}{{ form.instance.receipt_image.url }}{% else %}#{% endif %}" alt="Receipt Preview">
+              {% if form.instance.receipt_image %}
+                <script>document.getElementById('receipt-preview').style.display = 'block';</script>
+              {% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.notes.id_for_label }}" class="form-label">Notes</label>
+              {{ form.notes }}
+              {% if form.notes.errors %}
+                <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Form Actions -->
+        <div class="form-actions mt-4">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i> 
+            {% if form.instance.pk %}Update{% else %}Save{% endif %} Transaction
+          </button>
+          <a href="{% if request.GET.back %}{{ request.GET.back }}{% else %}{% url 'fuel_transaction_list' %}{% endif %}" class="btn btn-secondary ms-2">
+            <i class="fas fa-times me-1"></i> Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let currentVehicle = null;
+  let isElectric = false;
+
+  function clearFuelFields() {
+    document.getElementById('{{ form.fuel_type.id_for_label }}').value = '';
+    document.getElementById('{{ form.quantity.id_for_label }}').value = '';
+    document.getElementById('{{ form.cost_per_liter.id_for_label }}').value = '';
+  }
+
+  function clearElectricFields() {
+    document.getElementById('{{ form.energy_consumed.id_for_label }}').value = '';
+    document.getElementById('{{ form.cost_per_kwh.id_for_label }}').value = '';
+    document.getElementById('{{ form.charging_duration_minutes.id_for_label }}').value = '';
+  }
+
+  function toggleFieldsByVehicleType() {
+    const vehicleSelect = document.getElementById('{{ form.vehicle.id_for_label }}');
+    const vehicleId = vehicleSelect.value;
+    
+    const fuelFields = document.getElementById('fuel-fields');
+    const electricFields = document.getElementById('electric-fields');
+    const vehicleTypeInfo = document.getElementById('vehicle-type-info');
+    const vehicleTypeDescription = document.getElementById('vehicle-type-description');
+    
+    // Hide both field groups first
+    fuelFields.classList.remove('active');
+    electricFields.classList.remove('active');
+    vehicleTypeInfo.style.display = 'none';
+    
+    if (!vehicleId) {
+      return;
+    }
+    
+    // Show loading state
+    vehicleTypeInfo.style.display = 'block';
+    vehicleTypeInfo.className = 'vehicle-type-info info-fuel';
+    vehicleTypeDescription.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading vehicle information...';
+    
+    // Fetch vehicle details (simplified for demo - you can use a real API)
+    const vehicleOption = vehicleSelect.options[vehicleSelect.selectedIndex];
+    const vehicleText = vehicleOption.text.toUpperCase();
+    
+    // Simple detection based on vehicle name (you can improve this with a real API)
+    const isElectricVehicle = vehicleText.includes('ELECTRIC') || 
+                             vehicleText.includes('EV') || 
+                             vehicleText.includes('HYBRID') ||
+                             vehicleText.includes('TESLA') ||
+                             vehicleText.includes('LEAF');
+    
+    isElectric = isElectricVehicle;
+    
+    let infoText = `<strong>${vehicleOption.text}</strong>`;
+    
+    if (isElectricVehicle) {
+      // Show electric fields
+      electricFields.classList.add('active');
+      clearFuelFields(); // Clear fuel fields when switching to electric
+      
+      infoText += '<br><small><i class="fas fa-bolt"></i> Electric vehicle - charging information required.</small>';
+      vehicleTypeInfo.className = 'vehicle-type-info info-electric';
+      
+      // Set fuel type for electric vehicles
+      document.getElementById('{{ form.fuel_type.id_for_label }}').value = 'Electric';
+    } else {
+      // Show fuel fields
+      fuelFields.classList.add('active');
+      clearElectricFields(); // Clear electric fields when switching to fuel
+      
+      infoText += '<br><small><i class="fas fa-gas-pump"></i> Fuel vehicle - fuel information required.</small>';
+      vehicleTypeInfo.className = 'vehicle-type-info info-fuel';
+      
+      // Set default fuel type
+      const fuelTypeField = document.getElementById('{{ form.fuel_type.id_for_label }}');
+      if (!fuelTypeField.value || fuelTypeField.value === 'Electric') {
+        fuelTypeField.value = 'Petrol'; // Default fuel type
+      }
+    }
+    
+    vehicleTypeDescription.innerHTML = infoText;
+    
+    // Update odometer (you can get this from vehicle data if available)
+    const odometerField = document.getElementById('{{ form.odometer_reading.id_for_label }}');
+    if (!odometerField.value) {
+      odometerField.value = 0; // Default value
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add Bootstrap classes to form elements
+    const formControls = document.querySelectorAll('input, select, textarea');
+    formControls.forEach(function(element) {
+      if (element.type !== 'file') {
+        element.classList.add('form-control');
+      } else {
+        element.classList.add('form-control');
+      }
+    });
+    
+    // Set up vehicle type change listener
+    const vehicleSelect = document.getElementById('{{ form.vehicle.id_for_label }}');
+    if (vehicleSelect) {
+      vehicleSelect.addEventListener('change', toggleFieldsByVehicleType);
+      // Initialize on page load if vehicle is already selected
+      if (vehicleSelect.value) {
+        toggleFieldsByVehicleType();
+      }
+    }
+    
+    // Image preview
+    const receiptInput = document.getElementById('{{ form.receipt_image.id_for_label }}');
+    const receiptPreview = document.getElementById('receipt-preview');
+    
+    if (receiptInput && receiptPreview) {
+      receiptInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+          const reader = new FileReader();
+          
+          reader.onload = function(e) {
+            receiptPreview.src = e.target.result;
+            receiptPreview.style.display = 'block';
+          };
+          
+          reader.readAsDataURL(this.files[0]);
+        }
+      });
+    }
+    
+    // Fuel calculation button functionality
+    const calculateFuelBtn = document.getElementById('calculateFuelBtn');
+    if (calculateFuelBtn) {
+      calculateFuelBtn.addEventListener('click', function() {
+        const quantityInput = document.getElementById('{{ form.quantity.id_for_label }}');
+        const costPerLiterInput = document.getElementById('{{ form.cost_per_liter.id_for_label }}');
+        const totalCostInput = document.getElementById('{{ form.total_cost.id_for_label }}');
+        const calculatedCostDiv = document.getElementById('calculatedCost');
+        
+        const quantity = parseFloat(quantityInput.value);
+        const costPerLiter = parseFloat(costPerLiterInput.value);
+        const totalCost = parseFloat(totalCostInput.value);
+        
+        if (quantity && costPerLiter && !totalCost) {
+          const calculated = (quantity * costPerLiter).toFixed(2);
+          totalCostInput.value = calculated;
+          calculatedCostDiv.innerHTML = `<i class="fas fa-check-circle text-success"></i> Total cost calculated: ₹${calculated}`;
+          calculatedCostDiv.style.display = 'block';
+        } else if (quantity && totalCost && !costPerLiter) {
+          const calculated = (totalCost / quantity).toFixed(2);
+          costPerLiterInput.value = calculated;
+          calculatedCostDiv.innerHTML = `<i class="fas fa-check-circle text-success"></i> Cost per liter calculated: ₹${calculated}`;
+          calculatedCostDiv.style.display = 'block';
+        } else if (costPerLiter && totalCost && !quantity) {
+          const calculated = (totalCost / costPerLiter).toFixed(2);
+          quantityInput.value = calculated;
+          calculatedCostDiv.innerHTML = `<i class="fas fa-check-circle text-success"></i> Quantity calculated: ${calculated} liters`;
+          calculatedCostDiv.style.display = 'block';
+        } else {
+          calculatedCostDiv.innerHTML = `<i class="fas fa-exclamation-circle text-warning"></i> Please enter at least two values to calculate the third`;
+          calculatedCostDiv.style.display = 'block';
+        }
+      });
+    }
+    
+    // Electric calculation button functionality
+    const calculateElectricBtn = document.getElementById('calculateElectricBtn');
+    if (calculateElectricBtn) {
+      calculateElectricBtn.addEventListener('click', function() {
+        const energyInput = document.getElementById('{{ form.energy_consumed.id_for_label }}');
+        const costPerKwhInput = document.getElementById('{{ form.cost_per_kwh.id_for_label }}');
+        const totalCostInput = document.getElementById('{{ form.total_cost.id_for_label }}');
+        const calculatedCostDiv = document.getElementById('calculatedCost');
+        
+        const energy = parseFloat(energyInput.value);
+        const costPerKwh = parseFloat(costPerKwhInput.value);
+        const totalCost = parseFloat(totalCostInput.value);
+        
+        if (energy && costPerKwh && !totalCost) {
+          const calculated = (energy * costPerKwh).toFixed(2);
+          totalCostInput.value = calculated;
+          calculatedCostDiv.innerHTML = `<i class="fas fa-check-circle text-success"></i> Total cost calculated: ₹${calculated}`;
+          calculatedCostDiv.style.display = 'block';
+        } else if (energy && totalCost && !costPerKwh) {
+          const calculated = (totalCost / energy).toFixed(2);
+          costPerKwhInput.value = calculated;
+          calculatedCostDiv.innerHTML = `<i class="fas fa-check-circle text-success"></i> Cost per kWh calculated: ₹${calculated}`;
+          calculatedCostDiv.style.display = 'block';
+        } else if (costPerKwh && totalCost && !energy) {
+          const calculated = (totalCost / costPerKwh).toFixed(2);
+          energyInput.value = calculated;
+          calculatedCostDiv.innerHTML = `<i class="fas fa-check-circle text-success"></i> Energy consumed calculated: ${calculated} kWh`;
+          calculatedCostDiv.style.display = 'block';
+        } else {
+          calculatedCostDiv.innerHTML = `<i class="fas fa-exclamation-circle text-warning"></i> Please enter at least two values to calculate the third`;
+          calculatedCostDiv.style.display = 'block';
+        }
+      });
+    }
+    
+    // Before form submit, clear unused fields based on vehicle type
+    const form = document.getElementById('transaction-form');
+    form.addEventListener('submit', function(e) {
+      if (isElectric) {
+        // Clear fuel fields for electric vehicles
+        document.getElementById('{{ form.quantity.id_for_label }}').value = '';
+        document.getElementById('{{ form.cost_per_liter.id_for_label }}').value = '';
+      } else {
+        // Clear electric fields for fuel vehicles
+        document.getElementById('{{ form.energy_consumed.id_for_label }}').value = '';
+        document.getElementById('{{ form.cost_per_kwh.id_for_label }}').value = '';
+        document.getElementById('{{ form.charging_duration_minutes.id_for_label }}').value = '';
+      }
+    });
+  });
+</script>
+{% endblock %}

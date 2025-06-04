@@ -1,0 +1,417 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Vehicles - Vehicle Management System{% endblock %}
+
+{% block content %}
+
+<style>
+  .vehicle-thumbnail {
+    max-width: 120px;  /* Adjust this value as needed */
+    max-height: 80px;  /* Adjust this value as needed */
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+  
+  .vehicle-thumbnail-placeholder {
+    width: 120px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+  }
+
+  /* Custom styles for better mobile responsiveness */
+  @media (max-width: 768px) {
+    .mobile-action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      width: 100%;
+      margin-top: 1rem;
+    }
+    
+    .mobile-action-buttons .btn {
+      width: 100%;
+      justify-content: center;
+    }
+    
+    .page-header-mobile {
+      flex-direction: column;
+      align-items: flex-start !important;
+    }
+    
+    .btn-group-mobile {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      gap: 0.25rem;
+    }
+    
+    .btn-group-mobile .btn {
+      margin: 0;
+      border-radius: 0.375rem !important;
+    }
+  }
+  
+  /* Ensure buttons are properly spaced */
+  .header-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  
+  @media (min-width: 769px) {
+    .header-buttons {
+      flex-wrap: nowrap;
+    }
+  }
+</style>
+
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-flex align-items-start justify-content-between mb-4 page-header-mobile">
+    <h1 class="h3 mb-0 text-gray-800">Vehicles</h1>
+    
+    <!-- Desktop View Buttons -->
+    <div class="header-buttons d-none d-md-flex">
+      {% if request.user.user_type != 'driver' %}
+        <a href="{% url 'vehicle_create' %}" class="btn btn-primary shadow-sm">
+          <i class="fas fa-plus fa-sm text-white-50 me-1"></i> Add Vehicle
+        </a>
+      {% endif %}
+      {% if request.user.user_type == 'admin' %}
+        <a href="{% url 'vehicle_import' %}" class="btn btn-info shadow-sm">
+          <i class="fas fa-file-import fa-sm text-white-50 me-1"></i> Import Vehicles
+        </a>
+      {% endif %}
+    </div>
+    
+    <!-- Mobile View Buttons -->
+    <div class="mobile-action-buttons d-md-none">
+      {% if request.user.user_type != 'driver' %}
+        <a href="{% url 'vehicle_create' %}" class="btn btn-primary shadow-sm">
+          <i class="fas fa-plus fa-sm text-white-50 me-1"></i> Add Vehicle
+        </a>
+      {% endif %}
+      {% if request.user.user_type == 'admin' %}
+        <a href="{% url 'vehicle_import' %}" class="btn btn-info shadow-sm">
+          <i class="fas fa-file-import fa-sm text-white-50 me-1"></i> Import Vehicles
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Filters Card -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title">Filters</h5>
+    </div>
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <label for="search" class="form-label">Search</label>
+          <input type="text" class="form-control" id="search" name="search" placeholder="License plate, make, model..." value="{{ request.GET.search }}">
+        </div>
+        <div class="col-md-3">
+          <label for="vehicle_type" class="form-label">Type</label>
+          <select class="form-select" id="vehicle_type" name="vehicle_type">
+            <option value="">All Types</option>
+            {% for type in vehicle_types %}
+            <option value="{{ type.id }}" {% if request.GET.vehicle_type == type.id|stringformat:"i" %}selected{% endif %}>{{ type.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label for="status" class="form-label">Status</label>
+          <select class="form-select" id="status" name="status">
+            <option value="">All Statuses</option>
+            <option value="available" {% if request.GET.status == 'available' %}selected{% endif %}>Available</option>
+            <option value="in_use" {% if request.GET.status == 'in_use' %}selected{% endif %}>In Use</option>
+            <option value="maintenance" {% if request.GET.status == 'maintenance' %}selected{% endif %}>Maintenance</option>
+            <option value="retired" {% if request.GET.status == 'retired' %}selected{% endif %}>Retired</option>
+          </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fas fa-filter me-1"></i> Apply Filters
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Status Summary -->
+  <div class="row">
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-success shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                Available
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ available_count }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-primary shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                In Use
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ in_use_count }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-car-side fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-warning shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                Maintenance
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ maintenance_count }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-tools fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-secondary shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">
+                Retired
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ retired_count }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-archive fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Vehicles Table -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="card-title mb-0">All Vehicles</h5>
+      <span class="badge bg-primary">{{ vehicles.count }} Vehicles</span>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover" id="vehiclesTable">
+          <thead>
+            <tr>
+              <th>License Plate</th>
+              <th>Image</th>
+              <th>Make/Model</th>
+              <th>Type</th>
+              <th>Year</th>
+              <th>Odometer</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for vehicle in vehicles %}
+            <tr>
+              <td>{{ vehicle.license_plate }}</td>
+              <td>
+                {% if vehicle.image %}
+                <img src="{{ vehicle.image.url }}" alt="{{ vehicle.license_plate }}" class="img-thumbnail vehicle-thumbnail">
+                {% else %}
+                <div class="vehicle-thumbnail-placeholder">
+                  <i class="fas fa-car"></i>
+                </div>
+                {% endif %}
+              </td>
+              <td>{{ vehicle.make }} {{ vehicle.model }}</td>
+              <td>{{ vehicle.vehicle_type.name }}</td>
+              <td>{{ vehicle.year }}</td>
+              <td>{{ vehicle.current_odometer }} km</td>
+              <td>
+                <span class="badge bg-{{ vehicle.status|status_color }}">
+                  {{ vehicle.get_status_display }}
+                </span>
+              </td>
+              <td>
+                <!-- Desktop View Actions -->
+                <div class="btn-group d-none d-md-flex">
+                  <a href="{% url 'vehicle_detail' vehicle.id %}" class="btn btn-sm btn-info">
+                    <i class="fas fa-info-circle"></i>
+                  </a>
+                  {% if request.user.user_type != 'driver' %}
+                  <a href="{% url 'vehicle_update' vehicle.id %}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-edit"></i>
+                  </a>
+                  {% if request.user.user_type == 'admin' %}
+                  <a href="{% url 'vehicle_delete' vehicle.id %}" class="btn btn-sm btn-danger btn-delete" data-name="{{ vehicle.license_plate }}">
+                    <i class="fas fa-trash"></i>
+                  </a>
+                  {% endif %}
+                  {% endif %}
+                </div>
+                
+                <!-- Mobile View Actions -->
+                <div class="btn-group-mobile d-md-none">
+                  <a href="{% url 'vehicle_detail' vehicle.id %}" class="btn btn-sm btn-info">
+                    <i class="fas fa-info-circle me-1"></i> View
+                  </a>
+                  {% if request.user.user_type != 'driver' %}
+                  <a href="{% url 'vehicle_update' vehicle.id %}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-edit me-1"></i> Edit
+                  </a>
+                  {% if request.user.user_type == 'admin' %}
+                  <a href="{% url 'vehicle_delete' vehicle.id %}" class="btn btn-sm btn-danger btn-delete" data-name="{{ vehicle.license_plate }}">
+                    <i class="fas fa-trash me-1"></i> Delete
+                  </a>
+                  {% endif %}
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="8" class="text-center">No vehicles found</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Pagination -->
+      {% if is_paginated %}
+      <nav aria-label="Page navigation">
+        <ul class="pagination justify-content-center">
+          {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.vehicle_type %}&vehicle_type={{ request.GET.vehicle_type }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" aria-label="First">
+              <span aria-hidden="true">&laquo;&laquo;</span>
+            </a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.vehicle_type %}&vehicle_type={{ request.GET.vehicle_type }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" aria-label="Previous">
+              <span aria-hidden="true">&laquo;</span>
+            </a>
+          </li>
+          {% else %}
+          <li class="page-item disabled">
+            <a class="page-link" href="#" aria-label="First">
+              <span aria-hidden="true">&laquo;&laquo;</span>
+            </a>
+          </li>
+          <li class="page-item disabled">
+            <a class="page-link" href="#" aria-label="Previous">
+              <span aria-hidden="true">&laquo;</span>
+            </a>
+          </li>
+          {% endif %}
+          
+          {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li class="page-item active"><a class="page-link" href="#">{{ num }}</a></li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item"><a class="page-link" href="?page={{ num }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.vehicle_type %}&vehicle_type={{ request.GET.vehicle_type }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">{{ num }}</a></li>
+            {% endif %}
+          {% endfor %}
+          
+          {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.vehicle_type %}&vehicle_type={{ request.GET.vehicle_type }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" aria-label="Next">
+              <span aria-hidden="true">&raquo;</span>
+            </a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.vehicle_type %}&vehicle_type={{ request.GET.vehicle_type }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" aria-label="Last">
+              <span aria-hidden="true">&raquo;&raquo;</span>
+            </a>
+          </li>
+          {% else %}
+          <li class="page-item disabled">
+            <a class="page-link" href="#" aria-label="Next">
+              <span aria-hidden="true">&raquo;</span>
+            </a>
+          </li>
+          <li class="page-item disabled">
+            <a class="page-link" href="#" aria-label="Last">
+              <span aria-hidden="true">&raquo;&raquo;</span>
+            </a>
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteConfirmModalLabel">Confirm Delete</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete vehicle <strong id="deleteItemName"></strong>?</p>
+        <p class="text-danger">This action cannot be undone. All associated records (trips, maintenance, fuel, documents) will also be deleted.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form id="deleteForm" method="post" action="">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize DataTable
+    $('#vehiclesTable').DataTable({
+      responsive: true,
+      "dom": '<"top"f>rt<"bottom"lp><"clear">',
+      "language": {
+        "search": "Quick Search:",
+        "searchPlaceholder": "License plate, make, model..."
+      },
+      "order": []
+    });
+  });
+</script>
+{% endblock %}

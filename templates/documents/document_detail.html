@@ -1,0 +1,354 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ document.document_type.name }} - {{ document.vehicle.license_plate }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .document-header {
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .document-expired {
+    background-color: #ffe8e8;
+    border-left: 5px solid #e74a3b;
+  }
+  
+  .document-valid {
+    background-color: #e8f5e9;
+    border-left: 5px solid #1cc88a;
+  }
+  
+  .document-expiring-soon {
+    background-color: #fff3cd;
+    border-left: 5px solid #f6c23e;
+  }
+  
+  .document-info-label {
+    font-weight: 600;
+    color: #5a5c69;
+    margin-bottom: 0.25rem;
+  }
+  
+  .document-preview {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+    box-shadow: 0 0.15rem 0.5rem rgba(78, 115, 223, 0.1);
+  }
+  
+  .pdf-preview {
+    width: 100%;
+    height: 600px;
+  }
+  
+  .related-document {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.25rem;
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    transition: background-color 0.2s;
+  }
+  
+  .related-document:hover {
+    background-color: #eaecf4;
+  }
+  
+  .document-card {
+    height: 100%;
+  }
+  
+  .action-buttons {
+    margin-top: 1.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Document Details</h1>
+    <div>
+      <a href="{% url 'document_update' document.id %}" class="btn btn-sm btn-primary shadow-sm">
+        <i class="fas fa-edit fa-sm text-white-50"></i> Edit Document
+      </a>
+      {% if document.file %}
+        <a href="{{ document.file.url }}" target="_blank">View Document</a>
+        {% else %}
+        <span class="text-muted">No file attached</span>
+        {% endif %}
+      <a href="{% url 'document_list' %}" class="btn btn-sm btn-secondary shadow-sm">
+        <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Documents
+      </a>
+    </div>
+  </div>
+  
+  <!-- Status Header -->
+  <div class="document-header 
+    {% if is_expired %}document-expired
+    {% elif days_until_expiry <= 30 %}document-expiring-soon
+    {% else %}document-valid{% endif %}">
+    <div class="row">
+      <div class="col-lg-8">
+        <h2 class="h4 mb-2">{{ document.document_type.name }} - {{ document.vehicle.license_plate }}</h2>
+        <p class="mb-0">Document #{{ document.document_number }}</p>
+        
+        <div class="mt-3">
+          {% if is_expired %}
+            <div class="alert alert-danger mb-0">
+              <i class="fas fa-exclamation-circle"></i> 
+              This document expired <strong>{{ days_expired }} days ago</strong> on {{ document.expiry_date|date:"F j, Y" }}.
+              <a href="{% url 'document_update' document.id %}" class="alert-link">Renew now</a>.
+            </div>
+          {% elif days_until_expiry <= 30 %}
+            <div class="alert alert-warning mb-0">
+              <i class="fas fa-exclamation-triangle"></i>
+              This document will expire in <strong>{{ days_until_expiry }} days</strong> on {{ document.expiry_date|date:"F j, Y" }}.
+            </div>
+          {% else %}
+            <div class="alert alert-success mb-0">
+              <i class="fas fa-check-circle"></i>
+              This document is valid for <strong>{{ days_until_expiry }} more days</strong> until {{ document.expiry_date|date:"F j, Y" }}.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="col-lg-4 text-lg-end">
+        <div class="mb-2">
+          <span class="badge {% if is_expired %}bg-danger{% elif days_until_expiry <= 30 %}bg-warning{% else %}bg-success{% endif %} p-2">
+            {% if is_expired %}
+              Expired
+            {% elif days_until_expiry <= 30 %}
+              Expiring Soon
+            {% else %}
+              Valid
+            {% endif %}
+          </span>
+        </div>
+        <div>
+          <span class="text-muted">Vehicle:</span> 
+          <a href="{% url 'vehicle_detail' document.vehicle.id %}" class="fw-bold">
+            {{ document.vehicle.make }} {{ document.vehicle.model }} ({{ document.vehicle.license_plate }})
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <!-- Document Details -->
+    <div class="col-lg-8">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Document Information</h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-4">
+                <div class="document-info-label">Document Type</div>
+                <div>{{ document.document_type.name }}</div>
+              </div>
+              
+              <div class="mb-4">
+                <div class="document-info-label">Document Number</div>
+                <div>{{ document.document_number }}</div>
+              </div>
+              
+              <div class="mb-4">
+                <div class="document-info-label">Issuing Authority</div>
+                <div>{{ document.issuing_authority }}</div>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-4">
+                <div class="document-info-label">Issue Date</div>
+                <div>{{ document.issue_date|date:"F j, Y" }}</div>
+              </div>
+              
+              <div class="mb-4">
+                <div class="document-info-label">Expiry Date</div>
+                <div>{{ document.expiry_date|date:"F j, Y" }}</div>
+              </div>
+              
+              <div class="mb-4">
+                <div class="document-info-label">Status</div>
+                <div>
+                  {% if is_expired %}
+                    <span class="text-danger">Expired ({{ days_expired }} days ago)</span>
+                  {% elif days_until_expiry <= 30 %}
+                    <span class="text-warning">Expiring Soon ({{ days_until_expiry }} days left)</span>
+                  {% else %}
+                    <span class="text-success">Valid ({{ days_until_expiry }} days left)</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {% if document.notes %}
+          <div class="row">
+            <div class="col-12">
+              <div class="mb-4">
+                <div class="document-info-label">Notes</div>
+                <div>{{ document.notes|linebreaks }}</div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Document Preview -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Document Preview</h6>
+        </div>
+        <div class="card-body">
+          {% if document.file %}
+            {% with file_ext=document.file.url|slice:"-3:" %}
+              {% if file_ext == 'pdf' %}
+                <div class="text-center">
+                  <iframe src="{{ document.file.url }}" class="pdf-preview"></iframe>
+                </div>
+              {% elif file_ext == 'jpg' or file_ext == 'png' or file_ext == 'gif' or file_ext == 'jpeg' %}
+                <div class="text-center">
+                  <img src="{{ document.file.url }}" alt="{{ document.document_type.name }}" class="document-preview">
+                </div>
+              {% else %}
+                <div class="text-center">
+                  <p class="mb-3">Preview not available for this file type.</p>
+                  <a href="{{ document.file.url }}" class="btn btn-primary" download>
+                    <i class="fas fa-download mr-2"></i> Download File
+                  </a>
+                </div>
+              {% endif %}
+            {% endwith %}
+          {% else %}
+            <div class="alert alert-info text-center">
+              <i class="fas fa-info-circle mr-2"></i>
+              <strong>No file attached to this document.</strong>
+              <p class="mt-2 mb-0">This is an auto-generated document record from vehicle data. 
+              You can upload a file by editing this document.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Actions -->
+      <div class="action-buttons">
+        <a href="{% url 'document_update' document.id %}" class="btn btn-primary">
+          <i class="fas fa-edit mr-2"></i> Edit Document
+        </a>
+        {% if document.file %}
+        <a href="{{ document.file.url }}" class="btn btn-success" download>
+          <i class="fas fa-download mr-2"></i> Download File
+        </a>
+        {% else %}
+        <a href="{% url 'document_update' document.id %}" class="btn btn-success">
+          <i class="fas fa-upload mr-2"></i> Upload File
+        </a>
+        {% endif %}
+        {% if perms.documents.delete_document %}
+        <a href="{% url 'document_delete' document.id %}" class="btn btn-danger">
+          <i class="fas fa-trash mr-2"></i> Delete Document
+        </a>
+        {% endif %}
+      </div>
+    
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      <!-- Vehicle Information -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Vehicle Information</h6>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <div class="document-info-label">Vehicle</div>
+            <div>{{ document.vehicle.make }} {{ document.vehicle.model }} ({{ document.vehicle.year }})</div>
+          </div>
+          
+          <div class="mb-3">
+            <div class="document-info-label">License Plate</div>
+            <div>{{ document.vehicle.license_plate }}</div>
+          </div>
+          
+          <div class="mb-3">
+            <div class="document-info-label">Status</div>
+            <div>
+              {% if document.vehicle.status == 'available' %}
+                <span class="badge bg-success">Available</span>
+              {% elif document.vehicle.status == 'in_use' %}
+                <span class="badge bg-primary">In Use</span>
+              {% elif document.vehicle.status == 'maintenance' %}
+                <span class="badge bg-warning text-dark">Under Maintenance</span>
+              {% elif document.vehicle.status == 'retired' %}
+                <span class="badge bg-secondary">Retired</span>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="mt-3">
+            <a href="{% url 'vehicle_detail' document.vehicle.id %}" class="btn btn-sm btn-outline-primary">
+              <i class="fas fa-car mr-1"></i> View Vehicle Details
+            </a>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Related Documents -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Other Documents for this Vehicle</h6>
+        </div>
+        <div class="card-body">
+          {% if related_documents %}
+            <div class="related-documents-list">
+              {% for doc in related_documents %}
+                <div class="related-document">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>{{ doc.document_type.name }}</strong>
+                      <div class="small text-muted">{{ doc.document_number }}</div>
+                    </div>
+                    <div>
+                      {% if doc.is_expired %}
+                        <span class="badge bg-danger">Expired</span>
+                      {% elif doc.expiry_date|timeuntil:now < '30 days' %}
+                        <span class="badge bg-warning">Expiring Soon</span>
+                      {% else %}
+                        <span class="badge bg-success">Valid</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="mt-2">
+                    <a href="{% url 'document_detail' doc.id %}" class="btn btn-sm btn-outline-primary">
+                      <i class="fas fa-eye"></i> View
+                    </a>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="mb-0">No other documents found for this vehicle.</p>
+          {% endif %}
+          
+          <div class="mt-3">
+            <a href="{% url 'document_create' %}?vehicle={{ document.vehicle.id }}" class="btn btn-sm btn-success">
+              <i class="fas fa-plus mr-1"></i> Add New Document
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

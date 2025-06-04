@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Review Driver - {{ driver.get_full_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Review Driver Application</h1>
+    <a href="{% url 'pending_drivers' %}" class="btn btn-secondary btn-sm">
+      <i class="fas fa-arrow-left me-2"></i>Back to Pending List
+    </a>
+  </div>
+  
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Driver Information</h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-4 text-center mb-4">
+              {% if driver.profile_picture %}
+                <img src="{{ driver.profile_picture.url }}" class="rounded-circle mb-3" width="120" height="120">
+              {% else %}
+                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 120px; height: 120px; font-size: 3rem;">
+                  {{ driver.get_full_name|first }}
+                </div>
+              {% endif %}
+              <h5>{{ driver.get_full_name }}</h5>
+              <p class="text-muted">{{ driver.username }}</p>
+              <span class="badge bg-warning">Pending Approval</span>
+            </div>
+            
+            <div class="col-md-8">
+              <table class="table table-borderless">
+                <tr>
+                  <th width="30%">Employee ID:</th>
+                  <td>{{ driver.hr_employee_id|default:"Not available" }}</td>
+                </tr>
+                <tr>
+                  <th>Email:</th>
+                  <td>{{ driver.email }}</td>
+                </tr>
+                <tr>
+                  <th>Phone:</th>
+                  <td>{{ driver.phone_number|default:"Not provided" }}</td>
+                </tr>
+                <tr>
+                  <th>Address:</th>
+                  <td>{{ driver.address|default:"Not provided" }}</td>
+                </tr>
+                <tr>
+                  <th>License Number:</th>
+                  <td>{{ driver.license_number|default:"Not provided" }}</td>
+                </tr>
+                <tr>
+                  <th>License Expiry:</th>
+                  <td>
+                    {{ driver.license_expiry|default:"Not provided" }}
+                    {% if driver.license_expiry and not driver.is_license_valid %}
+                      <span class="badge bg-danger ms-2">Expired</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <th>HR Authentication:</th>
+                  <td>{{ driver.hr_authenticated_at|date:"F j, Y, g:i a" }}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-4">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">HR System Data</h6>
+        </div>
+        <div class="card-body">
+          {% if hr_data %}
+            <div class="small">
+              {% for key, value in hr_data.items %}
+                <div class="mb-2">
+                  <strong>{{ key|title }}:</strong><br>
+                  <span class="text-muted">{{ value }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted">No additional HR data available.</p>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="card shadow">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Approval Decision</h6>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            
+            <div class="mb-3">
+              <label class="form-label">Decision:</label>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="action" value="approve" id="approve" checked>
+                <label class="form-check-label text-success" for="approve">
+                  <i class="fas fa-check-circle me-2"></i>Approve Access
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="action" value="reject" id="reject">
+                <label class="form-check-label text-danger" for="reject">
+                  <i class="fas fa-times-circle me-2"></i>Reject Access
+                </label>
+              </div>
+            </div>
+            
+            <div class="mb-3" id="rejection-reason" style="display: none;">
+              <label for="rejection_reason" class="form-label">Reason for Rejection:</label>
+              <textarea class="form-control" name="rejection_reason" rows="3" placeholder="Enter reason for rejection"></textarea>
+            </div>
+            
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-2"></i>Submit Decision
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const approveRadio = document.getElementById('approve');
+  const rejectRadio = document.getElementById('reject');
+  const rejectionReason = document.getElementById('rejection-reason');
+  
+  function toggleRejectionReason() {
+    if (rejectRadio.checked) {
+      rejectionReason.style.display = 'block';
+    } else {
+      rejectionReason.style.display = 'none';
+    }
+  }
+  
+  approveRadio.addEventListener('change', toggleRejectionReason);
+  rejectRadio.addEventListener('change', toggleRejectionReason);
+});
+</script>
+{% endblock %}

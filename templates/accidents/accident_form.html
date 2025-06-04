@@ -1,0 +1,409 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Report Accident - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-section {
+    margin-bottom: 2rem;
+  }
+  
+  .form-section-title {
+    font-weight: 700;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e3e6f0;
+  }
+  
+  .image-preview {
+    max-width: 200px;
+    max-height: 200px;
+    margin-top: 0.5rem;
+    border-radius: 0.25rem;
+    border: 1px solid #e3e6f0;
+    padding: 0.25rem;
+  }
+  
+  .formset-item {
+    border: 1px solid #e3e6f0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background-color: #f8f9fc;
+  }
+  
+  .delete-formset-item {
+    display: flex;
+    align-items: center;
+    margin-top: 1rem;
+  }
+  
+  .delete-formset-item label {
+    margin-left: 0.5rem;
+    font-weight: normal;
+    color: #e74a3b;
+  }
+  
+  #id_third_party_involved, #id_injuries {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .required-label::after {
+    content: " *";
+    color: #e74a3b;
+  }
+
+  .coordinates-help {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #858796;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Report Accident</h1>
+  </div>
+  
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">Accident Details</h6>
+    </div>
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        
+        <!-- Vehicle and Driver Information -->
+        <div class="form-section">
+          <h5 class="form-section-title">Vehicle and Driver Information</h5>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.vehicle.id_for_label }}" class="form-label required-label">Vehicle</label>
+                {{ form.vehicle }}
+                {% if form.vehicle.errors %}
+                  <div class="invalid-feedback d-block">{{ form.vehicle.errors }}</div>
+                {% endif %}
+                {% if form.vehicle.help_text %}
+                  <div class="form-text text-muted">{{ form.vehicle.help_text }}</div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.driver.id_for_label }}" class="form-label required-label">Driver</label>
+                {{ form.driver }}
+                {% if form.driver.errors %}
+                  <div class="invalid-feedback d-block">{{ form.driver.errors }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Accident Time and Location -->
+        <div class="form-section">
+          <h5 class="form-section-title">Accident Time and Location</h5>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.date_time.id_for_label }}" class="form-label required-label">Date and Time</label>
+                {{ form.date_time }}
+                {% if form.date_time.errors %}
+                  <div class="invalid-feedback d-block">{{ form.date_time.errors }}</div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.location.id_for_label }}" class="form-label required-label">Location</label>
+                {{ form.location }}
+                {% if form.location.errors %}
+                  <div class="invalid-feedback d-block">{{ form.location.errors }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.latitude.id_for_label }}" class="form-label">Latitude</label>
+                {{ form.latitude }}
+                {% if form.latitude.errors %}
+                  <div class="invalid-feedback d-block">{{ form.latitude.errors }}</div>
+                {% endif %}
+                <div class="coordinates-help">
+                  <button type="button" class="btn btn-sm btn-outline-primary get-current-location">
+                    <i class="fas fa-map-marker-alt"></i> Get Current Location
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.longitude.id_for_label }}" class="form-label">Longitude</label>
+                {{ form.longitude }}
+                {% if form.longitude.errors %}
+                  <div class="invalid-feedback d-block">{{ form.longitude.errors }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Accident Description -->
+        <div class="form-section">
+          <h5 class="form-section-title">Accident Description</h5>
+          <div class="mb-3">
+            <label for="{{ form.description.id_for_label }}" class="form-label required-label">Description of the Accident</label>
+            {{ form.description }}
+            {% if form.description.errors %}
+              <div class="invalid-feedback d-block">{{ form.description.errors }}</div>
+            {% endif %}
+          </div>
+          <div class="mb-3">
+            <label for="{{ form.damage_description.id_for_label }}" class="form-label required-label">Description of the Damage</label>
+            {{ form.damage_description }}
+            {% if form.damage_description.errors %}
+              <div class="invalid-feedback d-block">{{ form.damage_description.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Third Party Involvement -->
+        <div class="form-section">
+          <h5 class="form-section-title">Third Party Involvement</h5>
+          <div class="mb-3">
+            <div class="form-check">
+              {{ form.third_party_involved }}
+              <label class="form-check-label" for="{{ form.third_party_involved.id_for_label }}">
+                Was a third party involved in the accident?
+              </label>
+            </div>
+            {% if form.third_party_involved.errors %}
+              <div class="invalid-feedback d-block">{{ form.third_party_involved.errors }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="mb-3 third-party-fields" {% if not form.instance.third_party_involved %}style="display: none;"{% endif %}>
+            <label for="{{ form.police_report_number.id_for_label }}" class="form-label">Police Report Number</label>
+            {{ form.police_report_number }}
+            {% if form.police_report_number.errors %}
+              <div class="invalid-feedback d-block">{{ form.police_report_number.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Injuries -->
+        <div class="form-section">
+          <h5 class="form-section-title">Injuries</h5>
+          <div class="mb-3">
+            <div class="form-check">
+              {{ form.injuries }}
+              <label class="form-check-label" for="{{ form.injuries.id_for_label }}">
+                Were there any injuries?
+              </label>
+            </div>
+            {% if form.injuries.errors %}
+              <div class="invalid-feedback d-block">{{ form.injuries.errors }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="mb-3 injuries-fields" {% if not form.instance.injuries %}style="display: none;"{% endif %}>
+            <label for="{{ form.injuries_description.id_for_label }}" class="form-label">Description of Injuries</label>
+            {{ form.injuries_description }}
+            {% if form.injuries_description.errors %}
+              <div class="invalid-feedback d-block">{{ form.injuries_description.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Financial Information -->
+        <div class="form-section">
+          <h5 class="form-section-title">Financial Information</h5>
+          <div class="mb-3">
+            <label for="{{ form.estimated_cost.id_for_label }}" class="form-label">Estimated Cost of Repairs</label>
+            {{ form.estimated_cost }}
+            {% if form.estimated_cost.errors %}
+              <div class="invalid-feedback d-block">{{ form.estimated_cost.errors }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="mb-3">
+            <label for="{{ form.insurance_claim_number.id_for_label }}" class="form-label">Insurance Claim Number</label>
+            {{ form.insurance_claim_number }}
+            {% if form.insurance_claim_number.errors %}
+              <div class="invalid-feedback d-block">{{ form.insurance_claim_number.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Additional Notes -->
+        <div class="form-section">
+          <h5 class="form-section-title">Additional Notes</h5>
+          <div class="mb-3">
+            <label for="{{ form.notes.id_for_label }}" class="form-label">Notes</label>
+            {{ form.notes }}
+            {% if form.notes.errors %}
+              <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Accident Photos -->
+        <div class="form-section">
+          <h5 class="form-section-title">Accident Photos</h5>
+          {{ image_formset.management_form }}
+          
+          <div id="formset-items">
+            {% for image_form in image_formset %}
+              <div class="formset-item">
+                {{ image_form.id }}
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="{{ image_form.image.id_for_label }}" class="form-label">Image</label>
+                      {{ image_form.image }}
+                      {% if image_form.image.errors %}
+                        <div class="invalid-feedback d-block">{{ image_form.image.errors }}</div>
+                      {% endif %}
+                      <img id="preview-{{ forloop.counter0 }}" class="image-preview" src="#" alt="Image Preview" style="display: none;">
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="{{ image_form.caption.id_for_label }}" class="form-label">Caption</label>
+                      {{ image_form.caption }}
+                      {% if image_form.caption.errors %}
+                        <div class="invalid-feedback d-block">{{ image_form.caption.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+                
+                {% if image_formset.can_delete %}
+                  <div class="delete-formset-item">
+                    {{ image_form.DELETE }}
+                    <label for="{{ image_form.DELETE.id_for_label }}">Delete this image</label>
+                  </div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i> Save Accident Report
+          </button>
+          <a href="javascript:history.back()" class="btn btn-secondary">
+            <i class="fas fa-times me-1"></i> Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Third party fields toggle
+    const thirdPartyCheckbox = document.getElementById('id_third_party_involved');
+    const thirdPartyFields = document.querySelector('.third-party-fields');
+    
+    if (thirdPartyCheckbox) {
+      thirdPartyCheckbox.addEventListener('change', function() {
+        thirdPartyFields.style.display = this.checked ? 'block' : 'none';
+      });
+    }
+    
+    // Injuries fields toggle
+    const injuriesCheckbox = document.getElementById('id_injuries');
+    const injuriesFields = document.querySelector('.injuries-fields');
+    
+    if (injuriesCheckbox) {
+      injuriesCheckbox.addEventListener('change', function() {
+        injuriesFields.style.display = this.checked ? 'block' : 'none';
+      });
+    }
+    
+    // Image preview
+    const imageInputs = document.querySelectorAll('input[type="file"]');
+    
+    imageInputs.forEach(function(input, index) {
+      input.addEventListener('change', function(event) {
+        const preview = document.getElementById(`preview-${index}`);
+        
+        if (preview && event.target.files && event.target.files[0]) {
+          const reader = new FileReader();
+          
+          reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+          }
+          
+          reader.readAsDataURL(event.target.files[0]);
+        }
+      });
+    });
+    
+    // Get current location
+    const locationButtons = document.querySelectorAll('.get-current-location');
+    const latitudeField = document.getElementById('id_latitude');
+    const longitudeField = document.getElementById('id_longitude');
+    
+    locationButtons.forEach(function(button) {
+      button.addEventListener('click', function() {
+        if (navigator.geolocation) {
+          button.disabled = true;
+          button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting location...';
+          
+          navigator.geolocation.getCurrentPosition(
+            function(position) {
+              latitudeField.value = position.coords.latitude;
+              longitudeField.value = position.coords.longitude;
+              
+              button.disabled = false;
+              button.innerHTML = '<i class="fas fa-map-marker-alt"></i> Update Location';
+            },
+            function(error) {
+              console.error('Error getting location:', error);
+              
+              button.disabled = false;
+              button.innerHTML = '<i class="fas fa-map-marker-alt"></i> Try Again';
+              
+              alert('Could not get your location. Please try again or enter coordinates manually.');
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0
+            }
+          );
+        } else {
+          alert('Geolocation is not supported by your browser.');
+        }
+      });
+    });
+    
+    // Style form controls
+    document.querySelectorAll('input, select, textarea').forEach(function(element) {
+      if (element.type !== 'checkbox' && element.type !== 'radio' && element.type !== 'file') {
+        element.classList.add('form-control');
+      } else if (element.type === 'checkbox' || element.type === 'radio') {
+        element.classList.add('form-check-input');
+      } else if (element.type === 'file') {
+        element.classList.add('form-control');
+      }
+    });
+  });
+</script>
+{% endblock %}

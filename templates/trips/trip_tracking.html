@@ -1,0 +1,333 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Track Trip - {{ trip.vehicle.license_plate }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<style>
+  #locationMap {
+    height: 400px;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .status-indicator {
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    background-color: #f8f9fc;
+    margin-bottom: 1rem;
+    text-align: center;
+    font-weight: 700;
+  }
+  
+  .control-buttons {
+    margin-bottom: 1.5rem;
+  }
+  
+  .trip-info-item {
+    margin-bottom: 1rem;
+  }
+  
+  .trip-info-label {
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    color: #858796;
+    margin-bottom: 0.25rem;
+  }
+  
+  .trip-info-value {
+    font-size: 1rem;
+  }
+  
+  .stats-card {
+    background-color: #f8f9fc;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+  
+  .stats-card-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  
+  .stats-card-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #858796;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Trip Header -->
+  <div class="detail-header">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="detail-title">
+          Active Trip Tracking
+        </h1>
+        <div class="detail-meta">
+          <span class="me-3"><i class="fas fa-car me-1"></i> {{ trip.vehicle.make }} {{ trip.vehicle.model }} ({{ trip.vehicle.license_plate }})</span>
+          <span class="me-3"><i class="fas fa-calendar-alt me-1"></i> Started: {{ trip.start_time|date:"M d, Y H:i" }}</span>
+          <span class="badge bg-info">In Progress</span>
+        </div>
+      </div>
+      <div class="col-md-4 text-md-end">
+        <a href="{% url 'end_trip' trip.id %}" class="btn btn-warning">
+          <i class="fas fa-flag-checkered"></i> End Trip
+        </a>
+        <a href="javascript:history.back()" class="btn btn-secondary">
+          <i class="fas fa-arrow-left"></i> Back
+        </a>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <!-- Map and Tracking Controls -->
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="card-title">Location Tracking</h5>
+        </div>
+        <div class="card-body">
+          <div id="statusIndicator" class="status-indicator text-info">
+            Ready to track your location
+          </div>
+          
+          <div id="locationMap"></div>
+          
+          <div class="control-buttons text-center">
+            <button id="startTrackingBtn" class="btn btn-primary btn-lg me-2">
+              <i class="fas fa-play"></i> Start Tracking
+            </button>
+            <button id="stopTrackingBtn" class="btn btn-danger btn-lg" disabled>
+              <i class="fas fa-stop"></i> Stop Tracking
+            </button>
+          </div>
+          
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Important:</strong> Location tracking will only work when this tab is active. 
+            The tracking will automatically send your position to the server every 30 seconds.
+            Please keep this page open during your trip.
+          </div>
+        </div>
+      </div>
+      
+      <!-- Stats Cards -->
+      <div class="row">
+        <div class="col-sm-4">
+          <div class="stats-card">
+            <div class="stats-card-value" id="tripDuration">00:00:00</div>
+            <div class="stats-card-label">Trip Duration</div>
+          </div>
+        </div>
+        <div class="col-sm-4">
+          <div class="stats-card">
+            <div class="stats-card-value" id="currentSpeed">0.0 km/h</div>
+            <div class="stats-card-label">Current Speed</div>
+          </div>
+        </div>
+        <div class="col-sm-4">
+          <div class="stats-card">
+            <div class="stats-card-value" id="locationCount">0</div>
+            <div class="stats-card-label">Updates Sent</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Trip Info -->
+    <div class="col-lg-4">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="card-title">Trip Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="trip-info-item">
+            <div class="trip-info-label">Purpose</div>
+            <div class="trip-info-value">{{ trip.purpose }}</div>
+          </div>
+          
+          {% if trip.notes %}
+          <div class="trip-info-item">
+            <div class="trip-info-label">Notes</div>
+            <div class="trip-info-value">{{ trip.notes }}</div>
+          </div>
+          {% endif %}
+          
+          <div class="trip-info-item">
+            <div class="trip-info-label">Start Odometer</div>
+            <div class="trip-info-value">{{ trip.start_odometer }} km</div>
+          </div>
+          
+          <div class="trip-info-item">
+            <div class="trip-info-label">Vehicle Information</div>
+            <div class="trip-info-value">
+              {{ trip.vehicle.make }} {{ trip.vehicle.model }} ({{ trip.vehicle.year }})<br>
+              License Plate: {{ trip.vehicle.license_plate }}<br>
+              Vehicle Type: {{ trip.vehicle.vehicle_type.name }}
+            </div>
+          </div>
+          
+          {% if fuel_stations %}
+          <div class="trip-info-item">
+            <div class="trip-info-label">Nearby Fuel Stations</div>
+            <div class="trip-info-value">
+              <div id="nearbyFuelStations">
+                <div class="text-muted">Start tracking to see nearby fuel stations</div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Emergency Contact -->
+      <div class="card mb-4 bg-danger text-white">
+        <div class="card-header bg-danger text-white border-0">
+          <h5 class="card-title">Emergency Contact</h5>
+        </div>
+        <div class="card-body">
+          <p><i class="fas fa-phone-alt me-2"></i> Call Fleet Manager: <strong>{{ fleet_manager.phone_number|default:"Not available" }}</strong></p>
+          
+          <p><i class="fas fa-exclamation-triangle me-2"></i> In case of accident:</p>
+          <ol>
+            <li>Ensure safety first</li>
+            <li>Call emergency services if needed</li>
+            <li>Take photos of the scene</li>
+            <li>Collect information from other parties</li>
+            <li>Report the accident in the system</li>
+          </ol>
+          
+          <a href="{% url 'accident_create' %}" class="btn btn-light">
+            <i class="fas fa-car-crash me-1"></i> Report Accident
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="{% static 'js/geolocation.js' %}"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Trip timer
+    const startTime = new Date('{{ trip.start_time|date:"c" }}');
+    const tripDurationElement = document.getElementById('tripDuration');
+    
+    function updateTripDuration() {
+      const now = new Date();
+      const diff = now - startTime;
+      
+      // Calculate hours, minutes, seconds
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      // Format with leading zeros
+      const formattedHours = String(hours).padStart(2, '0');
+      const formattedMinutes = String(minutes).padStart(2, '0');
+      const formattedSeconds = String(seconds).padStart(2, '0');
+      
+      tripDurationElement.textContent = `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
+    }
+    
+    // Update duration every second
+    updateTripDuration();
+    setInterval(updateTripDuration, 1000);
+    
+    // Initialize trip tracker
+    const tripTracker = new TripTracker({
+      tripId: {{ trip.id }},
+      mapElement: document.getElementById('locationMap'),
+      statusElement: document.getElementById('statusIndicator'),
+      startButton: document.getElementById('startTrackingBtn'),
+      stopButton: document.getElementById('stopTrackingBtn'),
+      intervalTime: 30000, // 30 seconds
+      apiUrl: '{% url "location_update" %}'
+    });
+    
+    // Update speed and location count
+    let locationCount = 0;
+    const currentSpeedElement = document.getElementById('currentSpeed');
+    const locationCountElement = document.getElementById('locationCount');
+    
+    // Listen for geolocation updates
+    navigator.geolocation.watchPosition(
+      function(position) {
+        // Update speed if available
+        if (position.coords.speed) {
+          // Convert from m/s to km/h
+          const speedKmh = (position.coords.speed * 3.6).toFixed(1);
+          currentSpeedElement.textContent = `${speedKmh} km/h`;
+        }
+      },
+      function(error) {
+        console.error('Error watching position:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+    
+    // Mock API response to update location count (in real implementation, this would be called after successful API submission)
+    const originalSendPositionToServer = tripTracker.sendPositionToServer;
+    tripTracker.sendPositionToServer = function(data) {
+      // Call the original method
+      originalSendPositionToServer.call(this, data);
+      
+      // Update location count
+      locationCount++;
+      locationCountElement.textContent = locationCount;
+      
+      // Update nearby fuel stations
+      updateNearbyFuelStations(data.latitude, data.longitude);
+    };
+    
+    // Nearby fuel stations
+    function updateNearbyFuelStations(latitude, longitude) {
+      const nearbyFuelStationsElement = document.getElementById('nearbyFuelStations');
+      if (!nearbyFuelStationsElement) return;
+      
+      // In a real implementation, you would call an API to get nearby stations
+      // For this mock, we'll generate some fake fuel stations
+      const stations = [
+        { name: 'Shell', distance: (Math.random() * 5).toFixed(1) },
+        { name: 'BP', distance: (Math.random() * 5).toFixed(1) },
+        { name: 'Texaco', distance: (Math.random() * 5).toFixed(1) }
+      ];
+      
+      // Sort by distance
+      stations.sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
+      
+      // Generate HTML
+      let html = '<ul class="list-group">';
+      stations.forEach(station => {
+        html += `
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            ${station.name}
+            <span class="badge bg-primary rounded-pill">${station.distance} km</span>
+          </li>
+        `;
+      });
+      html += '</ul>';
+      
+      nearbyFuelStationsElement.innerHTML = html;
+    }
+  });
+</script>
+{% endblock %}

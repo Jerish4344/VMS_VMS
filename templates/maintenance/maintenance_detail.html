@@ -1,0 +1,553 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Maintenance Details - {{ maintenance.vehicle }} - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .status-badge {
+    display: inline-block;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+  }
+  
+  .status-scheduled {
+    background-color: #f6c23e;
+    color: #212529;
+  }
+  
+  .status-in_progress {
+    background-color: #4e73df;
+    color: white;
+  }
+  
+  .status-completed {
+    background-color: #1cc88a;
+    color: white;
+  }
+  
+  .status-cancelled {
+    background-color: #858796;
+    color: white;
+  }
+  
+  .detail-section {
+    margin-bottom: 2rem;
+  }
+  
+  .detail-section-title {
+    font-weight: 700;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e3e6f0;
+  }
+  
+  .detail-label {
+    font-weight: 600;
+    color: #4e73df;
+  }
+  
+  .detail-value {
+    font-weight: 400;
+  }
+  
+  .detail-empty {
+    color: #858796;
+    font-style: italic;
+  }
+  
+  .vehicle-info {
+    background-color: #f8f9fc;
+    border-radius: 0.35rem;
+    padding: 1rem;
+  }
+  
+  .invoice-image {
+    max-width: 100%;
+    border-radius: 0.35rem;
+    border: 1px solid #e3e6f0;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  
+  .invoice-image:hover {
+    transform: scale(1.02);
+  }
+  
+  .timeline {
+    position: relative;
+    padding-left: 30px;
+  }
+  
+  .timeline::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 11px;
+    width: 2px;
+    background-color: #e3e6f0;
+  }
+  
+  .timeline-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+  
+  .timeline-marker {
+    position: absolute;
+    top: 0;
+    left: -30px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background-color: #4e73df;
+    box-shadow: 0 0 0 4px #e3e6f0;
+  }
+  
+  .timeline-marker.completed {
+    background-color: #1cc88a;
+  }
+  
+  .timeline-marker.cancelled {
+    background-color: #858796;
+  }
+  
+  .timeline-content {
+    padding-bottom: 1rem;
+  }
+  
+  .timeline-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .timeline-date {
+    font-size: 0.8rem;
+    color: #858796;
+  }
+  
+  .timeline-description {
+    color: #5a5c69;
+  }
+  
+  .related-records-table {
+    font-size: 0.9rem;
+  }
+  
+  .related-records-table .status-badge {
+    font-size: 0.7rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">
+      Maintenance Details #{{ maintenance.id }}
+    </h1>
+    <div>
+      <a href="{% url 'maintenance_list' %}" class="btn btn-sm btn-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Back to List
+      </a>
+      {% if request.user.user_type != 'driver' %}
+      <a href="{% url 'maintenance_update' maintenance.id %}" class="btn btn-sm btn-primary ms-2">
+        <i class="fas fa-edit me-1"></i> Edit Record
+      </a>
+      {% if request.user.user_type == 'admin' %}
+      <a href="{% url 'maintenance_delete' maintenance.id %}" class="btn btn-sm btn-danger ms-2">
+        <i class="fas fa-trash me-1"></i> Delete
+      </a>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  
+  <div class="row">
+    <!-- Left Column - Main Details -->
+    <div class="col-xl-8 col-lg-7">
+      <!-- Basic Information Card -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">Maintenance Details</h6>
+          <span class="status-badge status-{{ maintenance.status }}">
+            {{ maintenance.get_status_display }}
+          </span>
+        </div>
+        <div class="card-body">
+          <!-- Basic Information Section -->
+          <div class="detail-section">
+            <h5 class="detail-section-title">Basic Information</h5>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <div class="detail-label">Vehicle</div>
+                <div class="detail-value">
+                  <a href="{% url 'vehicle_detail' maintenance.vehicle.id %}">
+                    {{ maintenance.vehicle }} ({{ maintenance.vehicle.license_plate }})
+                  </a>
+                </div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <div class="detail-label">Maintenance Type</div>
+                <div class="detail-value">{{ maintenance.maintenance_type.name }}</div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <div class="detail-label">Reported By</div>
+                <div class="detail-value">{{ maintenance.reported_by.get_full_name }}</div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <div class="detail-label">Date Reported</div>
+                <div class="detail-value">{{ maintenance.date_reported|date:"F d, Y" }}</div>
+              </div>
+              <div class="col-12 mb-3">
+                <div class="detail-label">Description</div>
+                <div class="detail-value">{{ maintenance.description }}</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Status Information Section -->
+          <div class="detail-section">
+            <h5 class="detail-section-title">Status Information</h5>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <div class="detail-label">Current Status</div>
+                <div class="detail-value">
+                  <span class="status-badge status-{{ maintenance.status }}">
+                    {{ maintenance.get_status_display }}
+                  </span>
+                </div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <div class="detail-label">Odometer Reading</div>
+                <div class="detail-value">{{ maintenance.odometer_reading }} km</div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <div class="detail-label">Scheduled Date</div>
+                <div class="detail-value">
+                  {% if maintenance.scheduled_date %}
+                    {{ maintenance.scheduled_date|date:"F d, Y" }}
+                  {% else %}
+                    <span class="detail-empty">Not scheduled</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <div class="detail-label">Completion Date</div>
+                <div class="detail-value">
+                  {% if maintenance.completion_date %}
+                    {{ maintenance.completion_date|date:"F d, Y" }}
+                  {% else %}
+                    <span class="detail-empty">Not completed</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Service Provider Section -->
+          <div class="detail-section">
+            <h5 class="detail-section-title">Service Provider</h5>
+            <div class="row">
+              {% if maintenance.provider %}
+                <div class="col-md-6 mb-3">
+                  <div class="detail-label">Provider Name</div>
+                  <div class="detail-value">
+                    <a href="{% url 'maintenance_provider_list' %}">
+                      {{ maintenance.provider.name }}
+                    </a>
+                  </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <div class="detail-label">Contact Information</div>
+                  <div class="detail-value">
+                    {% if maintenance.provider.phone %}
+                      <div><i class="fas fa-phone me-2"></i> {{ maintenance.provider.phone }}</div>
+                    {% endif %}
+                    {% if maintenance.provider.email %}
+                      <div><i class="fas fa-envelope me-2"></i> {{ maintenance.provider.email }}</div>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="col-12 mb-3">
+                  <div class="detail-label">Address</div>
+                  <div class="detail-value">{{ maintenance.provider.address }}</div>
+                </div>
+              {% else %}
+                <div class="col-12">
+                  <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i> No service provider assigned.
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Cost Information Section -->
+          <div class="detail-section">
+            <h5 class="detail-section-title">Cost Information</h5>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <div class="detail-label">Total Cost</div>
+                <div class="detail-value">
+                  {% if maintenance.cost %}
+                    {{ maintenance.cost }}
+                  {% else %}
+                    <span class="detail-empty">Not specified</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <div class="detail-label">Invoice</div>
+                <div class="detail-value">
+                  {% if maintenance.invoice_image %}
+                    <a href="{{ maintenance.invoice_image.url }}" target="_blank">View Invoice</a>
+                  {% else %}
+                    <span class="detail-empty">No invoice uploaded</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            
+            {% if maintenance.invoice_image %}
+              <div class="row">
+                <div class="col-md-8 mx-auto mt-3">
+                  <div class="card">
+                    <div class="card-body text-center">
+                      <img src="{{ maintenance.invoice_image.url }}" class="invoice-image" alt="Invoice Image" 
+                           data-bs-toggle="modal" data-bs-target="#invoiceModal">
+                    </div>
+                    <div class="card-footer bg-light text-center">
+                      <a href="{{ maintenance.invoice_image.url }}" class="btn btn-sm btn-primary" download>
+                        <i class="fas fa-download me-1"></i> Download Invoice
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+          
+          <!-- Additional Notes Section -->
+          {% if maintenance.notes %}
+            <div class="detail-section">
+              <h5 class="detail-section-title">Additional Notes</h5>
+              <div class="card">
+                <div class="card-body">
+                  {{ maintenance.notes|linebreaks }}
+                </div>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Right Column - Sidebar Information -->
+    <div class="col-xl-4 col-lg-5">
+      <!-- Vehicle Information Card -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Vehicle Information</h6>
+        </div>
+        <div class="card-body">
+          <div class="vehicle-info">
+            <div class="text-center mb-3">
+              {% if maintenance.vehicle.image %}
+                <img src="{{ maintenance.vehicle.image.url }}" alt="{{ maintenance.vehicle }}" 
+                     class="img-fluid rounded mb-3" style="max-height: 150px;">
+              {% else %}
+                <div class="text-center p-3 bg-light rounded mb-3">
+                  <i class="fas fa-car fa-3x text-secondary"></i>
+                </div>
+              {% endif %}
+              <h5>{{ maintenance.vehicle }}</h5>
+              <div class="badge bg-primary">{{ maintenance.vehicle.license_plate }}</div>
+            </div>
+            
+            <div class="row mt-4">
+              <div class="col-6 mb-2">
+                <div class="detail-label">Make</div>
+                <div class="detail-value">{{ maintenance.vehicle.make }}</div>
+              </div>
+              <div class="col-6 mb-2">
+                <div class="detail-label">Model</div>
+                <div class="detail-value">{{ maintenance.vehicle.model }}</div>
+              </div>
+              <div class="col-6 mb-2">
+                <div class="detail-label">Year</div>
+                <div class="detail-value">{{ maintenance.vehicle.year }}</div>
+              </div>
+              <div class="col-6 mb-2">
+                <div class="detail-label">Status</div>
+                <div class="detail-value">{{ maintenance.vehicle.get_status_display }}</div>
+              </div>
+            </div>
+            
+            <div class="d-grid gap-2 mt-3">
+              <a href="{% url 'vehicle_detail' maintenance.vehicle.id %}" class="btn btn-info btn-sm">
+                <i class="fas fa-info-circle me-1"></i> Vehicle Details
+              </a>
+              <a href="{% url 'maintenance_list' %}?vehicle={{ maintenance.vehicle.id }}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-history me-1"></i> Maintenance History
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Timeline Card -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Maintenance Timeline</h6>
+        </div>
+        <div class="card-body">
+          <div class="timeline">
+            <div class="timeline-item">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content">
+                <div class="timeline-title">Maintenance Reported</div>
+                <div class="timeline-date">{{ maintenance.date_reported|date:"F d, Y" }}</div>
+                <div class="timeline-description">
+                  Reported by {{ maintenance.reported_by.get_full_name }}
+                </div>
+              </div>
+            </div>
+            
+            {% if maintenance.scheduled_date %}
+              <div class="timeline-item">
+                <div class="timeline-marker"></div>
+                <div class="timeline-content">
+                  <div class="timeline-title">Scheduled</div>
+                  <div class="timeline-date">{{ maintenance.scheduled_date|date:"F d, Y" }}</div>
+                  <div class="timeline-description">
+                    Maintenance scheduled to be performed
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+            
+            {% if maintenance.status == 'in_progress' %}
+              <div class="timeline-item">
+                <div class="timeline-marker"></div>
+                <div class="timeline-content">
+                  <div class="timeline-title">In Progress</div>
+                  <div class="timeline-description">
+                    Maintenance is currently being performed
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+            
+            {% if maintenance.completion_date %}
+              <div class="timeline-item">
+                <div class="timeline-marker {% if maintenance.status == 'completed' %}completed{% endif %}"></div>
+                <div class="timeline-content">
+                  <div class="timeline-title">
+                    {% if maintenance.status == 'completed' %}Completed{% else %}Cancelled{% endif %}
+                  </div>
+                  <div class="timeline-date">{{ maintenance.completion_date|date:"F d, Y" }}</div>
+                  <div class="timeline-description">
+                    {% if maintenance.status == 'completed' %}
+                      Maintenance has been completed
+                    {% else %}
+                      Maintenance was cancelled
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            {% elif maintenance.status == 'cancelled' %}
+              <div class="timeline-item">
+                <div class="timeline-marker cancelled"></div>
+                <div class="timeline-content">
+                  <div class="timeline-title">Cancelled</div>
+                  <div class="timeline-description">
+                    Maintenance was cancelled
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Related Records Card -->
+      {% if related_records %}
+        <div class="card shadow mb-4">
+          <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Related Maintenance Records</h6>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm related-records-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for record in related_records %}
+                    <tr>
+                      <td>{{ record.date_reported|date:"M d, Y" }}</td>
+                      <td>
+                        <a href="{% url 'maintenance_detail' record.id %}">
+                          {{ record.maintenance_type.name }}
+                        </a>
+                      </td>
+                      <td>
+                        <span class="status-badge status-{{ record.status }}">
+                          {{ record.get_status_display }}
+                        </span>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="d-grid mt-2">
+              <a href="{% url 'maintenance_list' %}?vehicle={{ maintenance.vehicle.id }}" class="btn btn-sm btn-secondary">
+                View All Records
+              </a>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Invoice Modal -->
+{% if maintenance.invoice_image %}
+  <div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="invoiceModalLabel">Invoice Image</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body text-center">
+          <img src="{{ maintenance.invoice_image.url }}" class="img-fluid" alt="Invoice Image">
+        </div>
+        <div class="modal-footer">
+          <a href="{{ maintenance.invoice_image.url }}" class="btn btn-primary" download>
+            <i class="fas fa-download me-1"></i> Download
+          </a>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

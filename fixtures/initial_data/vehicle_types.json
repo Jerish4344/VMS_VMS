@@ -1,0 +1,42 @@
+[
+    {
+        "model": "vehicles.vehicletype",
+        "pk": 1,
+        "fields": {
+            "name": "Car",
+            "description": "Standard passenger car"
+        }
+    },
+    {
+        "model": "vehicles.vehicletype",
+        "pk": 2,
+        "fields": {
+            "name": "Van",
+            "description": "Utility van for cargo or passengers"
+        }
+    },
+    {
+        "model": "vehicles.vehicletype",
+        "pk": 3,
+        "fields": {
+            "name": "Truck",
+            "description": "Light or medium-duty truck"
+        }
+    },
+    {
+        "model": "vehicles.vehicletype",
+        "pk": 4,
+        "fields": {
+            "name": "SUV",
+            "description": "Sport utility vehicle"
+        }
+    },
+    {
+        "model": "vehicles.vehicletype",
+        "pk": 5,
+        "fields": {
+            "name": "Motorcycle",
+            "description": "Two-wheeled motor vehicle"
+        }
+    }
+]

@@ -1,0 +1,370 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}End Trip - {{ trip.vehicle.license_plate }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .trip-summary {
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .trip-info-label {
+    font-weight: 600;
+    color: #5a5c69;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+  }
+  
+  .trip-info-value {
+    margin-bottom: 1rem;
+    font-size: 1rem;
+  }
+  
+  .route-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1rem 0;
+  }
+  
+  .location {
+    padding: 0.5rem 1rem;
+    background-color: #e7f1ff;
+    border: 1px solid #b8daff;
+    border-radius: 0.25rem;
+    font-weight: 600;
+  }
+  
+  .route-arrow {
+    font-size: 1.5rem;
+    color: #6c757d;
+  }
+  
+  .current-duration {
+    color: #28a745;
+    font-weight: 600;
+  }
+  
+  .form-section {
+    margin-bottom: 2rem;
+  }
+  
+  .form-section-title {
+    font-weight: 700;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e3e6f0;
+  }
+  
+  .required-label::after {
+    content: " *";
+    color: #e74a3b;
+  }
+  
+  .odometer-help {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+  }
+  
+  .warning-box {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">End Trip</h1>
+    <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-sm btn-secondary">
+      <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Trip Details
+    </a>
+  </div>
+  
+  <!-- Trip Summary Card -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">
+        <i class="fas fa-route"></i> Trip Summary
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="trip-summary">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="trip-info-label">Vehicle</div>
+            <div class="trip-info-value">
+              {{ trip.vehicle.make }} {{ trip.vehicle.model }} ({{ trip.vehicle.license_plate }})
+            </div>
+            
+            <div class="trip-info-label">Driver</div>
+            <div class="trip-info-value">{{ trip.driver.get_full_name }}</div>
+            
+            <div class="trip-info-label">Start Time</div>
+            <div class="trip-info-value">{{ trip.start_time|date:"F j, Y g:i A" }}</div>
+            
+            <div class="trip-info-label">Start Odometer</div>
+            <div class="trip-info-value">{{ trip.start_odometer }} km</div>
+          </div>
+          
+          <div class="col-md-6">
+            <div class="trip-info-label">Purpose</div>
+            <div class="trip-info-value">{{ trip.purpose }}</div>
+            
+            <div class="trip-info-label">Current Duration</div>
+            <div class="trip-info-value current-duration">
+              {{ trip.duration|default:"Calculating..." }}
+            </div>
+            
+            <div class="trip-info-label">Status</div>
+            <div class="trip-info-value">
+              <span class="badge bg-primary">{{ trip.get_status_display }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Route Display -->
+        <div class="trip-info-label">Route</div>
+        <div class="route-display">
+          <div class="location">
+            <i class="fas fa-map-marker-alt text-success"></i> {{ trip.origin }}
+          </div>
+          <div class="route-arrow">
+            <i class="fas fa-arrow-right"></i>
+          </div>
+          <div class="location">
+            <i class="fas fa-map-marker-alt text-danger"></i> {{ trip.destination }}
+          </div>
+        </div>
+        
+        {% if trip.notes %}
+        <div class="trip-info-label">Trip Notes</div>
+        <div class="trip-info-value">{{ trip.notes }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- End Trip Form -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-danger">
+        <i class="fas fa-stop-circle"></i> End Trip
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="warning-box">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>Important:</strong> Once you end this trip, the vehicle will be marked as available 
+        and its odometer reading will be updated. Make sure all information is correct.
+      </div>
+      
+      <form method="post" id="end-trip-form">
+        {% csrf_token %}
+        
+        <!-- Form Errors -->
+        {% if form.errors %}
+        <div class="alert alert-danger">
+          <h5>Please correct the following errors:</h5>
+          {% for field, errors in form.errors.items %}
+            <p><strong>{{ field }}:</strong> {{ errors|join:", " }}</p>
+          {% endfor %}
+        </div>
+        {% endif %}
+        
+        <div class="form-section">
+          <h5 class="form-section-title">Trip Completion Details</h5>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="end_odometer" class="form-label required-label">End Odometer Reading (km)</label>
+              <input 
+                type="number" 
+                id="end_odometer" 
+                name="end_odometer" 
+                class="form-control" 
+                min="{{ trip.start_odometer|add:1 }}"
+                value="{{ form.end_odometer.value|default:'' }}"
+                required
+              >
+              <div class="odometer-help">
+                Must be greater than start odometer ({{ trip.start_odometer }} km). 
+                Current vehicle odometer: {{ trip.vehicle.current_odometer }} km
+              </div>
+              <div id="distance-calculation" class="mt-2 text-info" style="display: none;">
+                <i class="fas fa-route"></i> <span id="calculated-distance"></span>
+              </div>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="end_time" class="form-label">End Time</label>
+              <input 
+                type="datetime-local" 
+                id="end_time" 
+                name="end_time" 
+                class="form-control"
+                value="{% now 'Y-m-d\TH:i' %}"
+                readonly
+              >
+              <div class="odometer-help">Trip end time (automatically set to current time)</div>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-12 mb-3">
+              <label for="notes" class="form-label">Additional Notes (Optional)</label>
+              <textarea 
+                id="notes" 
+                name="notes" 
+                class="form-control" 
+                rows="3"
+                placeholder="Any additional notes about the trip, fuel consumption, issues encountered, etc."
+              >{{ form.notes.value|default:'' }}</textarea>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Form Actions -->
+        <div class="form-actions mt-4">
+          <button type="submit" class="btn btn-danger" id="end-trip-btn">
+            <i class="fas fa-stop-circle me-1"></i> End Trip
+          </button>
+          <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-secondary ms-2">
+            <i class="fas fa-times me-1"></i> Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmEndModal" tabindex="-1" aria-labelledby="confirmEndModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmEndModalLabel">Confirm End Trip</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to end this trip?</p>
+        <div class="alert alert-info">
+          <strong>Trip Summary:</strong><br>
+          Distance: <span id="modal-distance"></span> km<br>
+          Duration: <span id="modal-duration"></span><br>
+          End Odometer: <span id="modal-odometer"></span> km
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirm-end-btn">
+          <i class="fas fa-stop-circle"></i> End Trip
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const endOdometerInput = document.getElementById('end_odometer');
+    const distanceCalculation = document.getElementById('distance-calculation');
+    const calculatedDistance = document.getElementById('calculated-distance');
+    const startOdometer = {{ trip.start_odometer }};
+    const endTripForm = document.getElementById('end-trip-form');
+    const endTripBtn = document.getElementById('end-trip-btn');
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmEndModal'));
+    const confirmEndBtn = document.getElementById('confirm-end-btn');
+    
+    // Calculate distance as user types
+    endOdometerInput.addEventListener('input', function() {
+      const endOdometer = parseInt(this.value);
+      
+      if (endOdometer && endOdometer > startOdometer) {
+        const distance = endOdometer - startOdometer;
+        calculatedDistance.textContent = `Distance: ${distance} km`;
+        distanceCalculation.style.display = 'block';
+        
+        // Remove error styling
+        this.classList.remove('is-invalid');
+      } else {
+        distanceCalculation.style.display = 'none';
+        
+        // Add error styling if value is invalid
+        if (this.value && endOdometer <= startOdometer) {
+          this.classList.add('is-invalid');
+        }
+      }
+    });
+    
+    // Form submission with confirmation
+    endTripForm.addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const endOdometer = parseInt(endOdometerInput.value);
+  
+  if (!endOdometer || endOdometer <= startOdometer) {
+    alert('Please enter a valid end odometer reading greater than ' + startOdometer + ' km');
+    endOdometerInput.focus();
+    return false;
+  }
+  
+  // Log for debugging
+  console.log('Form submission data:', {
+    end_odometer: endOdometer,
+    notes: document.getElementById('notes').value,
+    csrf_token: document.querySelector('[name=csrfmiddlewaretoken]').value
+  });
+  
+  // Update modal with trip summary
+  const distance = endOdometer - startOdometer;
+  document.getElementById('modal-distance').textContent = distance;
+  document.getElementById('modal-duration').textContent = '{{ trip.duration|default:"Calculating..." }}';
+  document.getElementById('modal-odometer').textContent = endOdometer;
+  
+  // Show confirmation modal
+  confirmModal.show();
+});
+
+// Confirm button in modal
+confirmEndBtn.addEventListener('click', function() {
+  confirmModal.hide();
+  
+  // Disable button to prevent double submission
+  endTripBtn.disabled = true;
+  endTripBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Ending Trip...';
+  
+  // Create a temporary form for submission without preventDefault
+  const tempForm = document.createElement('form');
+  tempForm.method = 'POST';
+  tempForm.action = endTripForm.action;
+  
+  // Copy form data
+  const formData = new FormData(endTripForm);
+  for (let [key, value] of formData.entries()) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = key;
+    input.value = value;
+    tempForm.appendChild(input);
+  }
+  
+  document.body.appendChild(tempForm);
+  tempForm.submit();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,653 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Accident Details - {{ accident.vehicle.license_plate }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .accident-header {
+    margin-bottom: 1.5rem;
+  }
+  
+  .status-badge {
+    font-size: 0.8rem;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .detail-label {
+    font-weight: 600;
+    color: #4e73df;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+  }
+  
+  .detail-value {
+    margin-bottom: 1rem;
+  }
+  
+  .accident-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  
+  .accident-image {
+    width: 150px;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 0.35rem;
+    border: 1px solid #e3e6f0;
+    transition: transform 0.2s;
+    cursor: pointer;
+  }
+  
+  .accident-image:hover {
+    transform: scale(1.05);
+  }
+  
+  .image-modal-content {
+    display: flex;
+    justify-content: center;
+  }
+  
+  .image-modal-img {
+    max-width: 100%;
+    max-height: 80vh;
+  }
+  
+  .accident-progress {
+    background-color: #f8f9fc;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .progress-step {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+  }
+  
+  .progress-indicator {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #e3e6f0;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-right: 1rem;
+    flex-shrink: 0;
+    font-weight: 700;
+  }
+  
+  .progress-active {
+    background-color: #4e73df;
+  }
+  
+  .progress-completed {
+    background-color: #1cc88a;
+  }
+  
+  .progress-pending {
+    background-color: #d1d3e2;
+  }
+  
+  .progress-content {
+    flex-grow: 1;
+  }
+  
+  .progress-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  
+  .progress-description {
+    font-size: 0.85rem;
+    color: #858796;
+  }
+  
+  .progress-date {
+    font-size: 0.8rem;
+    color: #858796;
+    font-style: italic;
+  }
+  
+  .map-container {
+    height: 250px;
+    border-radius: 0.35rem;
+    margin-top: 0.5rem;
+  }
+  
+  .related-accident {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.25rem;
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+  }
+  
+  .accident-date {
+    font-weight: 600;
+  }
+  
+  .accident-details {
+    color: #858796;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+  }
+  
+  .third-party-alert {
+    background-color: #fff3cd;
+    border-left: 4px solid #f6c23e;
+  }
+  
+  .injuries-alert {
+    background-color: #f8d7da;
+    border-left: 4px solid #e74a3b;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Accident Header -->
+  <div class="accident-header">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="h3 mb-0 text-gray-800">
+          Accident: {{ accident.vehicle.make }} {{ accident.vehicle.model }} ({{ accident.vehicle.license_plate }})
+        </h1>
+        <div class="text-muted">
+          <span class="me-3"><i class="fas fa-calendar-alt me-1"></i> {{ accident.date_time|date:"F j, Y" }}</span>
+          <span class="me-3"><i class="fas fa-clock me-1"></i> {{ accident.date_time|time:"H:i" }}</span>
+          <span class="me-3"><i class="fas fa-user me-1"></i> {{ accident.driver.get_full_name }}</span>
+          <span class="badge 
+            {% if accident.status == 'reported' %}bg-warning text-dark
+            {% elif accident.status == 'under_investigation' %}bg-info
+            {% elif accident.status == 'repair_scheduled' %}bg-primary
+            {% elif accident.status == 'repair_in_progress' %}bg-info
+            {% elif accident.status == 'resolved' %}bg-success
+            {% endif %} status-badge">
+            {{ accident.get_status_display }}
+          </span>
+        </div>
+      </div>
+      <div class="col-md-4 text-md-end">
+        <a href="{% url 'accident_update' accident.id %}" class="btn btn-primary">
+          <i class="fas fa-edit"></i> Update Status
+        </a>
+        <a href="{% url 'accident_list' %}" class="btn btn-secondary">
+          <i class="fas fa-arrow-left"></i> Back to List
+        </a>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <!-- Main Content -->
+    <div class="col-lg-8">
+      <!-- Accident Details -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Accident Details</h6>
+        </div>
+        <div class="card-body">
+          <!-- Special Alerts -->
+          {% if accident.third_party_involved %}
+          <div class="alert third-party-alert mb-4">
+            <h5 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i> Third Party Involved</h5>
+            <p class="mb-0">This accident involves a third party. Additional documentation and legal procedures may be required.</p>
+            {% if accident.police_report_number %}
+            <hr>
+            <p class="mb-0"><strong>Police Report Number:</strong> {{ accident.police_report_number }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+          
+          {% if accident.injuries %}
+          <div class="alert injuries-alert mb-4">
+            <h5 class="alert-heading"><i class="fas fa-first-aid me-2"></i> Injuries Reported</h5>
+            <p class="mb-0">This accident resulted in injuries. Medical attention was required.</p>
+            {% if accident.injuries_description %}
+            <hr>
+            <p class="mb-0"><strong>Injury Details:</strong> {{ accident.injuries_description }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="detail-label">Vehicle</div>
+              <div class="detail-value">
+                {{ accident.vehicle.make }} {{ accident.vehicle.model }} ({{ accident.vehicle.license_plate }})
+              </div>
+              
+              <div class="detail-label">Driver</div>
+              <div class="detail-value">{{ accident.driver.get_full_name }}</div>
+              
+              <div class="detail-label">Date & Time</div>
+              <div class="detail-value">{{ accident.date_time|date:"F j, Y, g:i a" }}</div>
+              
+              <div class="detail-label">Location</div>
+              <div class="detail-value">
+                {{ accident.location }}
+                {% if accident.latitude and accident.longitude %}
+                <div id="accidentMap" class="map-container"></div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="detail-label">Status</div>
+              <div class="detail-value">
+                <span class="badge 
+                  {% if accident.status == 'reported' %}bg-warning text-dark
+                  {% elif accident.status == 'under_investigation' %}bg-info
+                  {% elif accident.status == 'repair_scheduled' %}bg-primary
+                  {% elif accident.status == 'repair_in_progress' %}bg-info
+                  {% elif accident.status == 'resolved' %}bg-success
+                  {% endif %} status-badge">
+                  {{ accident.get_status_display }}
+                </span>
+                
+                {% if accident.status == 'resolved' and accident.resolution_date %}
+                <div class="mt-2 text-muted">
+                  <small>Resolved on: {{ accident.resolution_date|date:"F j, Y" }}</small>
+                </div>
+                {% endif %}
+              </div>
+              
+              <div class="detail-label">Odometer Reading</div>
+              <div class="detail-value">{{ accident.vehicle.current_odometer }} km</div>
+              
+              {% if accident.third_party_involved %}
+              <div class="detail-label">Police Report Number</div>
+              <div class="detail-value">{{ accident.police_report_number|default:"Not provided" }}</div>
+              {% endif %}
+              
+              <div class="detail-label">Cost Estimation</div>
+              <div class="detail-value">
+                {% if accident.actual_cost %}
+                <strong>Actual Cost:</strong> {{ accident.actual_cost }}<br>
+                {% endif %}
+                
+                {% if accident.estimated_cost %}
+                <strong>Estimated Cost:</strong> {{ accident.estimated_cost }}
+                {% else %}
+                Not estimated yet
+                {% endif %}
+              </div>
+              
+              {% if accident.insurance_claim_number %}
+              <div class="detail-label">Insurance Claim</div>
+              <div class="detail-value">{{ accident.insurance_claim_number }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-12">
+              <div class="detail-label">Description</div>
+              <div class="detail-value">{{ accident.description }}</div>
+              
+              <div class="detail-label">Damage Description</div>
+              <div class="detail-value">{{ accident.damage_description }}</div>
+              
+              {% if accident.notes %}
+              <div class="detail-label">Additional Notes</div>
+              <div class="detail-value">{{ accident.notes }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Accident Images -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">Accident Images</h6>
+          <span class="badge bg-primary">{{ images|length }} Images</span>
+        </div>
+        <div class="card-body">
+          {% if images %}
+          <div class="accident-images">
+            {% for image in images %}
+            <img src="{{ image.image.url }}" alt="{{ image.caption|default:'Accident Image' }}" 
+                 class="accident-image" data-bs-toggle="modal" data-bs-target="#imageModal"
+                 data-image-url="{{ image.image.url }}" data-image-caption="{{ image.caption|default:'Accident Image' }}">
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-center text-muted py-5">
+            <i class="fas fa-camera fa-3x mb-3"></i>
+            <p>No images have been uploaded for this accident.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Accident Progress -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Resolution Progress</h6>
+        </div>
+        <div class="card-body">
+          <div class="accident-progress">
+            <!-- Reported Step -->
+            <div class="progress-step">
+              <div class="progress-indicator progress-completed">
+                <i class="fas fa-check"></i>
+              </div>
+              <div class="progress-content">
+                <div class="progress-title">Accident Reported</div>
+                <div class="progress-description">
+                  The accident has been reported and logged in the system.
+                </div>
+                <div class="progress-date">{{ accident.date_time|date:"F j, Y, g:i a" }}</div>
+              </div>
+            </div>
+            
+            <!-- Investigation Step -->
+            <div class="progress-step">
+              <div class="progress-indicator 
+                {% if accident.status == 'reported' %}progress-pending
+                {% else %}progress-completed{% endif %}">
+                {% if accident.status == 'reported' %}2{% else %}<i class="fas fa-check"></i>{% endif %}
+              </div>
+              <div class="progress-content">
+                <div class="progress-title">Under Investigation</div>
+                <div class="progress-description">
+                  The accident is being investigated to determine cause and liability.
+                </div>
+                {% if accident.status != 'reported' %}
+                <div class="progress-date">Completed</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <!-- Repair Scheduled Step -->
+            <div class="progress-step">
+              <div class="progress-indicator 
+                {% if accident.status == 'reported' or accident.status == 'under_investigation' %}progress-pending
+                {% else %}progress-completed{% endif %}">
+                {% if accident.status == 'reported' or accident.status == 'under_investigation' %}3
+                {% else %}<i class="fas fa-check"></i>{% endif %}
+              </div>
+              <div class="progress-content">
+                <div class="progress-title">Repair Scheduled</div>
+                <div class="progress-description">
+                  Vehicle repairs have been scheduled with a service provider.
+                </div>
+                {% if accident.status != 'reported' and accident.status != 'under_investigation' %}
+                <div class="progress-date">Completed</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <!-- Repair In Progress Step -->
+            <div class="progress-step">
+              <div class="progress-indicator 
+                {% if accident.status == 'repair_in_progress' %}progress-active
+                {% elif accident.status == 'resolved' %}progress-completed
+                {% else %}progress-pending{% endif %}">
+                {% if accident.status == 'repair_in_progress' %}4
+                {% elif accident.status == 'resolved' %}<i class="fas fa-check"></i>
+                {% else %}4{% endif %}
+              </div>
+              <div class="progress-content">
+                <div class="progress-title">Repair In Progress</div>
+                <div class="progress-description">
+                  Vehicle is currently undergoing repairs.
+                </div>
+                {% if accident.status == 'resolved' %}
+                <div class="progress-date">Completed</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <!-- Resolved Step -->
+            <div class="progress-step">
+              <div class="progress-indicator 
+                {% if accident.status == 'resolved' %}progress-completed
+                {% else %}progress-pending{% endif %}">
+                {% if accident.status == 'resolved' %}<i class="fas fa-check"></i>{% else %}5{% endif %}
+              </div>
+              <div class="progress-content">
+                <div class="progress-title">Resolved</div>
+                <div class="progress-description">
+                  Accident case has been resolved and closed.
+                </div>
+                {% if accident.status == 'resolved' %}
+                <div class="progress-date">{{ accident.resolution_date|date:"F j, Y" }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          {% if accident.status != 'resolved' %}
+          <div class="text-center">
+            <a href="{% url 'accident_update' accident.id %}" class="btn btn-primary">
+              <i class="fas fa-edit"></i> Update Status
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      <!-- Vehicle Information -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Vehicle Information</h6>
+        </div>
+        <div class="card-body">
+          {% if accident.vehicle.image %}
+          <div class="text-center mb-3">
+            <img src="{{ accident.vehicle.image.url }}" alt="{{ accident.vehicle }}" class="img-fluid rounded">
+          </div>
+          {% endif %}
+          
+          <div class="detail-label">Vehicle</div>
+          <div class="detail-value">
+            {{ accident.vehicle.make }} {{ accident.vehicle.model }} ({{ accident.vehicle.year }})
+          </div>
+          
+          <div class="detail-label">License Plate</div>
+          <div class="detail-value">{{ accident.vehicle.license_plate }}</div>
+          
+          <div class="detail-label">Vehicle Type</div>
+          <div class="detail-value">{{ accident.vehicle.vehicle_type.name }}</div>
+          
+          <div class="detail-label">Status</div>
+          <div class="detail-value">
+            <span class="badge 
+              {% if accident.vehicle.status == 'available' %}bg-success
+              {% elif accident.vehicle.status == 'in_use' %}bg-primary
+              {% elif accident.vehicle.status == 'maintenance' %}bg-warning text-dark
+              {% else %}bg-secondary{% endif %}">
+              {{ accident.vehicle.get_status_display }}
+            </span>
+          </div>
+          
+          <div class="mt-3">
+            <a href="{% url 'vehicle_detail' accident.vehicle.id %}" class="btn btn-outline-primary">
+              <i class="fas fa-info-circle"></i> View Vehicle Details
+            </a>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Driver Information -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Driver Information</h6>
+        </div>
+        <div class="card-body">
+          {% if accident.driver.profile_picture %}
+          <div class="text-center mb-3">
+            <img src="{{ accident.driver.profile_picture.url }}" alt="{{ accident.driver.get_full_name }}" 
+                 class="img-fluid rounded-circle" style="max-width: 100px;">
+          </div>
+          {% endif %}
+          
+          <div class="detail-label">Driver Name</div>
+          <div class="detail-value">{{ accident.driver.get_full_name }}</div>
+          
+          <div class="detail-label">Driver Type</div>
+          <div class="detail-value">{{ accident.driver.get_user_type_display }}</div>
+          
+          {% if accident.driver.phone_number %}
+          <div class="detail-label">Contact</div>
+          <div class="detail-value">
+            <a href="tel:{{ accident.driver.phone_number }}">{{ accident.driver.phone_number }}</a>
+          </div>
+          {% endif %}
+          
+          <div class="detail-label">License</div>
+          <div class="detail-value">
+            {{ accident.driver.license_number }}
+            {% if accident.driver.license_expiry %}
+            <div class="small 
+              {% if accident.driver.is_license_valid %}text-success
+              {% else %}text-danger{% endif %}">
+              {% if accident.driver.is_license_valid %}
+              Valid until {{ accident.driver.license_expiry|date:"F j, Y" }}
+              {% else %}
+              Expired on {{ accident.driver.license_expiry|date:"F j, Y" }}
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+          
+          <div class="mt-3">
+            <a href="{% url 'user_detail' accident.driver.id %}" class="btn btn-outline-primary">
+              <i class="fas fa-user"></i> View Driver Profile
+            </a>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Related Accidents -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">Other Accidents for This Vehicle</h6>
+          <span class="badge bg-primary">{{ related_accidents|length }}</span>
+        </div>
+        <div class="card-body">
+          {% if related_accidents %}
+            {% for related in related_accidents %}
+              <div class="related-accident">
+                <div class="accident-date">{{ related.date_time|date:"M d, Y" }}</div>
+                <div class="accident-details">
+                  Driver: {{ related.driver.get_full_name }}<br>
+                  Status: <span class="badge 
+                    {% if related.status == 'reported' %}bg-warning text-dark
+                    {% elif related.status == 'under_investigation' %}bg-info
+                    {% elif related.status == 'repair_scheduled' %}bg-primary
+                    {% elif related.status == 'repair_in_progress' %}bg-info
+                    {% elif related.status == 'resolved' %}bg-success
+                    {% endif %}">
+                    {{ related.get_status_display }}
+                  </span>
+                </div>
+                <a href="{% url 'accident_detail' related.id %}" class="btn btn-sm btn-outline-info mt-2">
+                  <i class="fas fa-eye"></i> View
+                </a>
+              </div>
+            {% endfor %}
+            
+            {% if related_accidents.count > 5 %}
+              <div class="text-center mt-3">
+                <a href="{% url 'accident_list' %}?vehicle={{ accident.vehicle.id }}" class="btn btn-outline-primary btn-sm">
+                  View All Accidents
+                </a>
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="text-center text-muted py-3">
+              No other accidents reported for this vehicle
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="imageModalLabel">Accident Image</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body image-modal-content">
+        <img src="" id="modalImage" class="image-modal-img" alt="Accident Image">
+      </div>
+      <div class="modal-footer">
+        <div class="modal-caption me-auto" id="modalCaption"></div>
+        <a href="#" id="downloadImage" class="btn btn-primary" download>
+          <i class="fas fa-download"></i> Download
+        </a>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if accident.latitude and accident.longitude %}
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize map
+    const accidentMap = L.map('accidentMap').setView([{{ accident.latitude }}, {{ accident.longitude }}], 15);
+    
+    // Add tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(accidentMap);
+    
+    // Add marker
+    L.marker([{{ accident.latitude }}, {{ accident.longitude }}])
+      .addTo(accidentMap)
+      .bindPopup("<strong>Accident Location</strong><br>{{ accident.location }}");
+  });
+</script>
+{% endif %}
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Handle image modal
+    const imageModal = document.getElementById('imageModal');
+    if (imageModal) {
+      imageModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget; // Button that triggered the modal
+        const imageUrl = button.getAttribute('data-image-url');
+        const imageCaption = button.getAttribute('data-image-caption');
+        
+        const modalImage = document.getElementById('modalImage');
+        const modalCaption = document.getElementById('modalCaption');
+        const downloadImage = document.getElementById('downloadImage');
+        
+        modalImage.src = imageUrl;
+        modalCaption.textContent = imageCaption;
+        downloadImage.href = imageUrl;
+        
+        // Extract filename from URL for download
+        const filename = imageUrl.split('/').pop();
+        downloadImage.setAttribute('download', filename);
+      });
+    }
+  });
+</script>
+{% endblock %}

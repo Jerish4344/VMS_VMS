@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Vehicle Types - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .type-card {
+    height: 100%;
+    transition: transform 0.2s;
+  }
+  
+  .type-card:hover {
+    transform: translateY(-5px);
+  }
+  
+  .vehicle-count {
+    font-size: 2rem;
+    font-weight: 700;
+  }
+  
+  .add-type-btn {
+    margin-bottom: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Vehicle Types</h1>
+    <a href="{% url 'vehicle_type_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+      <i class="fas fa-plus fa-sm text-white-50"></i> Add New Vehicle Type
+    </a>
+  </div>
+  
+  <!-- Vehicle Types Grid -->
+  <div class="row">
+    {% if vehicle_types %}
+      {% for vehicle_type in vehicle_types %}
+        <div class="col-xl-3 col-md-6 mb-4">
+          <div class="card border-left-primary shadow h-100 py-2 type-card">
+            <div class="card-body">
+              <div class="row no-gutters align-items-center">
+                <div class="col mr-2">
+                  <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                    {{ vehicle_type.name }}
+                  </div>
+                  <div class="vehicle-count text-gray-800">{{ vehicle_type.vehicle_count }}</div>
+                  <div class="text-sm text-gray-600 mt-2">Vehicles</div>
+                  <div class="text-sm text-gray-500 mt-2">
+                    {% if vehicle_type.description %}
+                      {{ vehicle_type.description|truncatechars:100 }}
+                    {% else %}
+                      <em>No description</em>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="col-auto">
+                  <i class="fas fa-car-side fa-2x text-gray-300"></i>
+                </div>
+              </div>
+              
+              <div class="mt-3">
+                <a href="{% url 'vehicle_type_update' vehicle_type.id %}" class="btn btn-sm btn-outline-primary">
+                  <i class="fas fa-edit"></i> Edit
+                </a>
+                <a href="{% url 'vehicle_list' %}?type={{ vehicle_type.id }}" class="btn btn-sm btn-outline-info">
+                  <i class="fas fa-list"></i> View Vehicles
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="col-12">
+        <div class="alert alert-info text-center" role="alert">
+          <i class="fas fa-info-circle mr-2"></i>
+          No vehicle types found. <a href="{% url 'vehicle_type_create' %}" class="alert-link">Add your first vehicle type</a>.
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  
+  <!-- Table View -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">All Vehicle Types</h6>
+    </div>
+    <div class="card-body">
+      {% if vehicle_types %}
+        <div class="table-responsive">
+          <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Vehicle Count</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for vehicle_type in vehicle_types %}
+                <tr>
+                  <td>{{ vehicle_type.name }}</td>
+                  <td>{{ vehicle_type.description|truncatechars:150|default:"—" }}</td>
+                  <td>{{ vehicle_type.vehicle_count }}</td>
+                  <td>
+                    <a href="{% url 'vehicle_type_update' vehicle_type.id %}" class="btn btn-sm btn-primary">
+                      <i class="fas fa-edit"></i> Edit
+                    </a>
+                    <a href="{% url 'vehicle_list' %}?type={{ vehicle_type.id }}" class="btn btn-sm btn-info">
+                      <i class="fas fa-list"></i> View Vehicles
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="alert alert-info mb-0">
+          <i class="fas fa-info-circle mr-2"></i> No vehicle types have been added yet.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the datatable if there are vehicle types
+    if (document.getElementById('dataTable') && document.querySelectorAll('#dataTable tbody tr').length > 0) {
+      $('#dataTable').DataTable({
+        order: [[0, 'asc']], // Sort by name
+      });
+    }
+  });
+</script>
+{% endblock %}

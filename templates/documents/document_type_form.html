@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+  {% if form.instance.pk %}Edit Document Type{% else %}Add New Document Type{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-section {
+    margin-bottom: 2rem;
+  }
+  
+  .form-section-title {
+    font-weight: 700;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e3e6f0;
+  }
+  
+  .required-label::after {
+    content: " *";
+    color: #e74a3b;
+  }
+  
+  .document-list {
+    margin-top: 1rem;
+  }
+  
+  .document-item {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.25rem;
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+  }
+  
+  .document-item:hover {
+    background-color: #eaecf4;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">
+      {% if form.instance.pk %}Edit Document Type: {{ form.instance.name }}{% else %}Add New Document Type{% endif %}
+    </h1>
+    <a href="{% url 'document_type_list' %}" class="btn btn-sm btn-secondary">
+      <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Document Types
+    </a>
+  </div>
+  
+  <div class="row">
+    <div class="col-lg-{% if form.instance.pk %}8{% else %}12{% endif %}">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            {% if form.instance.pk %}Edit Document Type{% else %}Document Type Information{% endif %}
+          </h6>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            
+            <div class="form-section">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="{{ form.name.id_for_label }}" class="form-label required-label">Name</label>
+                  {{ form.name }}
+                  {% if form.name.errors %}
+                    <div class="invalid-feedback d-block">{{ form.name.errors }}</div>
+                  {% endif %}
+                  <small class="form-text text-muted">Enter a unique name for this document type (e.g., "Registration Certificate", "Insurance Policy").</small>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                  <div class="form-check mt-4">
+                    {{ form.required }}
+                    <label class="form-check-label" for="{{ form.required.id_for_label }}">
+                      Required Document
+                    </label>
+                    {% if form.required.errors %}
+                      <div class="invalid-feedback d-block">{{ form.required.errors }}</div>
+                    {% endif %}
+                    <small class="form-text text-muted d-block">If checked, all vehicles must have this document type.</small>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="row">
+                <div class="col-md-12 mb-3">
+                  <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
+                  {{ form.description }}
+                  {% if form.description.errors %}
+                    <div class="invalid-feedback d-block">{{ form.description.errors }}</div>
+                  {% endif %}
+                  <small class="form-text text-muted">Provide details about this document type, requirements, and any special instructions.</small>
+                </div>
+              </div>
+            </div>
+            
+            <div class="form-actions mt-4">
+              <button type="submit" class="btn btn-primary">
+                {% if form.instance.pk %}Save Changes{% else %}Add Document Type{% endif %}
+              </button>
+              <a href="{% url 'document_type_list' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    {% if form.instance.pk %}
+    <div class="col-lg-4">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Associated Documents</h6>
+        </div>
+        <div class="card-body">
+          {% with documents=form.instance.document_set.all %}
+            {% if documents %}
+              <p>There are <strong>{{ documents|length }}</strong> documents of this type.</p>
+              
+              <div class="document-list">
+                {% for document in documents|slice:":5" %}
+                  <div class="document-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <strong>{{ document.vehicle.license_plate }}</strong>
+                        <div class="small text-muted">{{ document.document_number }}</div>
+                      </div>
+                      <div>
+                        {% if document.is_expired %}
+                          <span class="badge bg-danger">Expired</span>
+                        {% else %}
+                          <span class="badge bg-success">Valid</span>
+                        {% endif %}
+                      </div>
+                    </div>
+                    <div class="mt-2">
+                      <a href="{% url 'document_detail' document.id %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-eye"></i> View
+                      </a>
+                    </div>
+                  </div>
+                {% endfor %}
+                
+                {% if documents|length > 5 %}
+                  <div class="text-center mt-3">
+                    <a href="{% url 'document_list' %}?document_type={{ form.instance.id }}" class="btn btn-outline-primary">
+                      View All {{ documents|length }} Documents
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            {% else %}
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle mr-2"></i> No documents of this type have been added yet.
+              </div>
+              
+              <div class="text-center mt-3">
+                <a href="{% url 'document_create' %}?document_type={{ form.instance.id }}" class="btn btn-outline-success">
+                  <i class="fas fa-plus"></i> Add Document of This Type
+                </a>
+              </div>
+            {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+      
+      {% if form.instance.required %}
+      <div class="card shadow mb-4">
+        <div class="card-header py-3 bg-danger text-white">
+          <h6 class="m-0 font-weight-bold">Required Document Information</h6>
+        </div>
+        <div class="card-body">
+          <p>This document type is marked as <strong>required</strong>.</p>
+          <p>All vehicles in the system must have a valid document of this type. Missing or expired documents will be flagged in vehicle reports.</p>
+          
+          <div class="alert alert-warning mt-3">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            Changing a document type from "required" to "optional" or deleting it could affect vehicle compliance reports.
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add Bootstrap classes to form elements
+    const formControls = document.querySelectorAll('input[type="text"], textarea');
+    formControls.forEach(function(element) {
+      element.classList.add('form-control');
+    });
+    
+    // Style checkboxes
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(function(element) {
+      element.classList.add('form-check-input');
+    });
+  });
+</script>
+{% endblock %}

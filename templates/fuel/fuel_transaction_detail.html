@@ -1,0 +1,526 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+  {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+    Charging Session Details - {{ transaction.vehicle.license_plate }}
+  {% else %}
+    Fuel Transaction Details - {{ transaction.vehicle.license_plate }}
+  {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .detail-header {
+    margin-bottom: 1.5rem;
+  }
+  
+  .detail-title {
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+  
+  .detail-meta {
+    color: #858796;
+    margin-bottom: 1rem;
+  }
+  
+  .detail-label {
+    font-weight: 600;
+    color: #4e73df;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+  }
+  
+  .detail-value {
+    margin-bottom: 1rem;
+  }
+  
+  .receipt-image {
+    max-width: 100%;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+  }
+  
+  .efficiency-stats {
+    background-color: #f8f9fc;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .efficiency-stats.electric {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+  }
+  
+  .stats-item {
+    text-align: center;
+    padding: 0.5rem;
+  }
+  
+  .stats-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #4e73df;
+    margin-bottom: 0.25rem;
+  }
+  
+  .stats-value.electric {
+    color: #28a745;
+  }
+  
+  .stats-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: #858796;
+  }
+  
+  .related-transaction {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.25rem;
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+  }
+  
+  .related-transaction.electric {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+  }
+  
+  .transaction-date {
+    font-weight: 600;
+  }
+  
+  .transaction-details {
+    color: #858796;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+  }
+  
+  .transaction-type-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .electric-badge {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  
+  .fuel-badge {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Transaction Header -->
+  <div class="detail-header">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="detail-title">
+          {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+            <i class="fas fa-bolt text-success"></i> Charging Session: {{ transaction.vehicle.make }} {{ transaction.vehicle.model }}
+          {% else %}
+            <i class="fas fa-gas-pump text-info"></i> Fuel Transaction: {{ transaction.vehicle.make }} {{ transaction.vehicle.model }}
+          {% endif %}
+        </h1>
+        <div class="detail-meta">
+          <span class="me-3"><i class="fas fa-calendar-alt me-1"></i> {{ transaction.date|date:"F j, Y" }}</span>
+          <span class="me-3"><i class="fas fa-user me-1"></i> {{ transaction.driver.get_full_name }}</span>
+          {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+            <span class="me-3"><i class="fas fa-bolt me-1"></i> Electric Charging</span>
+          {% else %}
+            <span class="me-3"><i class="fas fa-gas-pump me-1"></i> {{ transaction.fuel_type }}</span>
+          {% endif %}
+          {% if transaction.fuel_station %}
+          <span><i class="fas fa-map-marker-alt me-1"></i> {{ transaction.fuel_station.name }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-md-4 text-md-end">
+        <a href="{% url 'fuel_transaction_update' transaction.id %}" class="btn btn-primary">
+          <i class="fas fa-edit"></i> Edit
+        </a>
+        <a href="{% url 'fuel_transaction_list' %}" class="btn btn-secondary">
+          <i class="fas fa-arrow-left"></i> Back to List
+        </a>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <!-- Transaction Details -->
+    <div class="col-lg-8">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">
+            {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+              Charging Session Details
+            {% else %}
+              Transaction Details
+            {% endif %}
+          </h6>
+          <span class="badge {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}bg-success{% else %}bg-primary{% endif %}">
+            {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+              {% if transaction.energy_consumed %}
+                {{ transaction.energy_consumed|floatformat:2 }} kWh
+              {% else %}
+                0 kWh
+              {% endif %} - ₹{{ transaction.total_cost|floatformat:2 }}
+            {% else %}
+              {% if transaction.quantity %}
+                {{ transaction.quantity|floatformat:2 }} L
+              {% else %}
+                0 L
+              {% endif %} - ₹{{ transaction.total_cost|floatformat:2 }}
+            {% endif %}
+          </span>
+        </div>
+        <div class="card-body">
+          <!-- Transaction Type Badge -->
+          <div class="text-center mb-3">
+            {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+              <span class="badge transaction-type-badge electric-badge">
+                <i class="fas fa-bolt"></i> Electric Vehicle Charging
+              </span>
+            {% else %}
+              <span class="badge transaction-type-badge fuel-badge">
+                <i class="fas fa-gas-pump"></i> Fuel Vehicle Refueling
+              </span>
+            {% endif %}
+          </div>
+          
+          <!-- Efficiency Stats -->
+          {% if efficiency or distance_since_last %}
+          <div class="efficiency-stats {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}electric{% endif %} mb-4">
+            <div class="row">
+              {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+                <div class="col-md-4 stats-item">
+                  <div class="stats-value electric">
+                    {% if transaction.energy_consumed %}
+                      {{ transaction.energy_consumed|floatformat:2 }}
+                    {% else %}
+                      0
+                    {% endif %} kWh
+                  </div>
+                  <div class="stats-label">Energy Consumed</div>
+                </div>
+                {% if distance_since_last %}
+                <div class="col-md-4 stats-item">
+                  <div class="stats-value electric">{{ distance_since_last }} km</div>
+                  <div class="stats-label">Distance Traveled</div>
+                </div>
+                {% endif %}
+                {% if efficiency %}
+                <div class="col-md-4 stats-item">
+                  <div class="stats-value electric">{{ efficiency }} {{ efficiency_unit }}</div>
+                  <div class="stats-label">{{ efficiency_label }}</div>
+                </div>
+                {% endif %}
+              {% else %}
+                <div class="col-md-4 stats-item">
+                  <div class="stats-value">
+                    {% if transaction.quantity %}
+                      {{ transaction.quantity|floatformat:2 }}
+                    {% else %}
+                      0
+                    {% endif %} L
+                  </div>
+                  <div class="stats-label">Fuel Quantity</div>
+                </div>
+                {% if distance_since_last %}
+                <div class="col-md-4 stats-item">
+                  <div class="stats-value">{{ distance_since_last }} km</div>
+                  <div class="stats-label">Distance Traveled</div>
+                </div>
+                {% endif %}
+                {% if efficiency %}
+                <div class="col-md-4 stats-item">
+                  <div class="stats-value">{{ efficiency }} {{ efficiency_unit }}</div>
+                  <div class="stats-label">{{ efficiency_label }}</div>
+                </div>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="detail-label">Vehicle</div>
+              <div class="detail-value">
+                {{ transaction.vehicle.make }} {{ transaction.vehicle.model }} ({{ transaction.vehicle.license_plate }})
+              </div>
+              
+              <div class="detail-label">Driver</div>
+              <div class="detail-value">{{ transaction.driver.get_full_name }}</div>
+              
+              <div class="detail-label">Date</div>
+              <div class="detail-value">{{ transaction.date|date:"F j, Y" }}</div>
+              
+              <div class="detail-label">Odometer Reading</div>
+              <div class="detail-value">{{ transaction.odometer_reading }} km</div>
+            </div>
+            
+            <div class="col-md-6">
+              {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+                <!-- Electric Vehicle Details -->
+                <div class="detail-label">Energy Type</div>
+                <div class="detail-value">Electric</div>
+                
+                <div class="detail-label">Energy Consumed</div>
+                <div class="detail-value">
+                  {% if transaction.energy_consumed %}
+                    {{ transaction.energy_consumed|floatformat:2 }} kWh
+                  {% else %}
+                    N/A
+                  {% endif %}
+                </div>
+                
+                <div class="detail-label">Cost Per kWh</div>
+                <div class="detail-value">
+                  {% if transaction.cost_per_kwh %}
+                    ₹{{ transaction.cost_per_kwh|floatformat:2 }}
+                  {% else %}
+                    N/A
+                  {% endif %}
+                </div>
+                
+                {% if transaction.charging_duration_minutes %}
+                <div class="detail-label">Charging Duration</div>
+                <div class="detail-value">{{ transaction.charging_duration_minutes }} minutes</div>
+                {% endif %}
+              {% else %}
+                <!-- Fuel Vehicle Details -->
+                <div class="detail-label">Fuel Type</div>
+                <div class="detail-value">{{ transaction.fuel_type|default:"N/A" }}</div>
+                
+                <div class="detail-label">Quantity</div>
+                <div class="detail-value">
+                  {% if transaction.quantity %}
+                    {{ transaction.quantity|floatformat:2 }} L
+                  {% else %}
+                    N/A
+                  {% endif %}
+                </div>
+                
+                <div class="detail-label">Cost Per Liter</div>
+                <div class="detail-value">
+                  {% if transaction.cost_per_liter %}
+                    ₹{{ transaction.cost_per_liter|floatformat:2 }}
+                  {% else %}
+                    N/A
+                  {% endif %}
+                </div>
+              {% endif %}
+              
+              <div class="detail-label">Total Cost</div>
+              <div class="detail-value">₹{{ transaction.total_cost|floatformat:2 }}</div>
+            </div>
+          </div>
+          
+          {% if transaction.fuel_station %}
+          <div class="detail-label">
+            {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}Charging Station{% else %}Fuel Station{% endif %}
+          </div>
+          <div class="detail-value">
+            {{ transaction.fuel_station.name }}
+            {% if transaction.fuel_station.address %}
+            <div class="text-muted">{{ transaction.fuel_station.address }}</div>
+            {% endif %}
+            
+            {% if transaction.fuel_station.latitude and transaction.fuel_station.longitude %}
+            <a href="https://www.google.com/maps/search/?api=1&query={{ transaction.fuel_station.latitude }},{{ transaction.fuel_station.longitude }}" 
+               class="btn btn-sm btn-outline-primary mt-2" target="_blank">
+              <i class="fas fa-map-marker-alt"></i> View on Map
+            </a>
+            {% endif %}
+          </div>
+          {% endif %}
+          
+          {% if transaction.notes %}
+          <div class="detail-label">Notes</div>
+          <div class="detail-value">{{ transaction.notes }}</div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Receipt Image -->
+      {% if transaction.receipt_image %}
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Receipt Image</h6>
+        </div>
+        <div class="card-body text-center">
+          <a href="{{ transaction.receipt_image.url }}" target="_blank">
+            <img src="{{ transaction.receipt_image.url }}" alt="Receipt" class="receipt-image">
+          </a>
+          <div class="mt-3">
+            <a href="{{ transaction.receipt_image.url }}" class="btn btn-primary" download>
+              <i class="fas fa-download"></i> Download Receipt
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      <!-- Vehicle Information -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Vehicle Information</h6>
+        </div>
+        <div class="card-body">
+          {% if transaction.vehicle.image %}
+          <div class="text-center mb-3">
+            <img src="{{ transaction.vehicle.image.url }}" alt="{{ transaction.vehicle }}" class="img-fluid rounded">
+          </div>
+          {% endif %}
+          
+          <div class="detail-label">Vehicle</div>
+          <div class="detail-value">
+            {{ transaction.vehicle.make }} {{ transaction.vehicle.model }} ({{ transaction.vehicle.year }})
+          </div>
+          
+          <div class="detail-label">License Plate</div>
+          <div class="detail-value">{{ transaction.vehicle.license_plate }}</div>
+          
+          <div class="detail-label">Vehicle Type</div>
+          <div class="detail-value">
+            {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+              <span class="badge electric-badge">
+                <i class="fas fa-bolt"></i> Electric Vehicle
+              </span>
+            {% else %}
+              {{ transaction.vehicle.vehicle_type.name }}
+            {% endif %}
+          </div>
+          
+          <div class="detail-label">
+            {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}Energy Type{% else %}Fuel Type{% endif %}
+          </div>
+          <div class="detail-value">
+            {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}
+              Electric
+            {% else %}
+              {{ transaction.vehicle.fuel_type }}
+            {% endif %}
+          </div>
+          
+          <div class="detail-label">Status</div>
+          <div class="detail-value">
+            <span class="badge 
+              {% if transaction.vehicle.status == 'available' %}bg-success
+              {% elif transaction.vehicle.status == 'in_use' %}bg-primary
+              {% elif transaction.vehicle.status == 'maintenance' %}bg-warning
+              {% else %}bg-secondary{% endif %}">
+              {{ transaction.vehicle.get_status_display }}
+            </span>
+          </div>
+          
+          <div class="mt-3">
+            <a href="{% url 'vehicle_detail' transaction.vehicle.id %}" class="btn btn-outline-primary">
+              <i class="fas fa-info-circle"></i> View Vehicle Details
+            </a>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Related Transactions -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">
+            Previous {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}Charging Sessions{% else %}Fuel Transactions{% endif %}
+          </h6>
+          <span class="badge bg-primary">{{ previous_transactions|length }}</span>
+        </div>
+        <div class="card-body">
+          {% if previous_transactions %}
+            {% for prev in previous_transactions %}
+              <div class="related-transaction {% if prev.energy_consumed or prev.fuel_type == 'Electric' %}electric{% endif %}">
+                <div class="transaction-date">
+                  <i class="fas {% if prev.energy_consumed or prev.fuel_type == 'Electric' %}fa-bolt text-success{% else %}fa-gas-pump text-info{% endif %} me-1"></i>
+                  {{ prev.date|date:"M d, Y" }}
+                </div>
+                <div class="transaction-details">
+                  {% if prev.energy_consumed or prev.fuel_type == 'Electric' %}
+                    {{ prev.energy_consumed|default:"0" }} kWh (Electric) - ₹{{ prev.total_cost }}
+                    {% if prev.charging_duration_minutes %}
+                      <br>Duration: {{ prev.charging_duration_minutes }} minutes
+                    {% endif %}
+                  {% else %}
+                    {{ prev.quantity|default:"0" }} L ({{ prev.fuel_type }}) - ₹{{ prev.total_cost }}
+                  {% endif %}
+                  <br>Odometer: {{ prev.odometer_reading }} km
+                </div>
+                <a href="{% url 'fuel_transaction_detail' prev.id %}" class="btn btn-sm btn-outline-info mt-2">
+                  <i class="fas fa-eye"></i> View
+                </a>
+              </div>
+            {% endfor %}
+            
+            {% if previous_transactions.count > 5 %}
+              <div class="text-center mt-3">
+                <a href="{% url 'fuel_transaction_list' %}?vehicle={{ transaction.vehicle.id }}" class="btn btn-outline-primary btn-sm">
+                  View All {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}Sessions{% else %}Transactions{% endif %}
+                </a>
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="text-center text-muted py-3">
+              No previous {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}charging sessions{% else %}transactions{% endif %} for this vehicle
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Next Transactions -->
+      {% if next_transactions %}
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            Next {% if transaction.energy_consumed or transaction.fuel_type == 'Electric' %}Charging Sessions{% else %}Fuel Transactions{% endif %}
+          </h6>
+        </div>
+        <div class="card-body">
+          {% for next in next_transactions %}
+            <div class="related-transaction {% if next.energy_consumed or next.fuel_type == 'Electric' %}electric{% endif %}">
+              <div class="transaction-date">
+                <i class="fas {% if next.energy_consumed or next.fuel_type == 'Electric' %}fa-bolt text-success{% else %}fa-gas-pump text-info{% endif %} me-1"></i>
+                {{ next.date|date:"M d, Y" }}
+              </div>
+              <div class="transaction-details">
+                {% if next.energy_consumed or next.fuel_type == 'Electric' %}
+                  {{ next.energy_consumed|default:"0" }} kWh (Electric) - ₹{{ next.total_cost }}
+                  {% if next.charging_duration_minutes %}
+                    <br>Duration: {{ next.charging_duration_minutes }} minutes
+                  {% endif %}
+                {% else %}
+                  {{ next.quantity|default:"0" }} L ({{ next.fuel_type }}) - ₹{{ next.total_cost }}
+                {% endif %}
+                <br>Odometer: {{ next.odometer_reading }} km
+              </div>
+              <a href="{% url 'fuel_transaction_detail' next.id %}" class="btn btn-sm btn-outline-info mt-2">
+                <i class="fas fa-eye"></i> View
+              </a>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

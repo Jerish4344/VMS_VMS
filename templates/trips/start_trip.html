@@ -1,0 +1,858 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Start Trip - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .vehicle-card {
+    margin-bottom: 1.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  .vehicle-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+  }
+  
+  #vehiclePreview {
+    transition: all 0.3s ease;
+  }
+  
+  #vehiclePreview.show {
+    transform: scale(1.02);
+  }
+  
+  .vehicle-search-container {
+    position: relative;
+  }
+  
+  .search-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #858796;
+    z-index: 10;
+    pointer-events: none;
+  }
+  
+  .form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 16px 12px;
+  }
+  
+  .form-select:focus {
+    border-color: #4e73df;
+    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+  }
+  
+  .filter-buttons .btn {
+    transition: all 0.2s ease;
+  }
+  
+  .filter-buttons .btn:hover {
+    transform: translateY(-1px);
+  }
+  
+  .vehicle-preview-card {
+    border: none;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    transition: all 0.3s ease;
+  }
+  
+  .vehicle-preview-card:hover {
+    box-shadow: 0 0.25rem 2rem 0 rgba(58, 59, 69, 0.2);
+  }
+  
+  .no-vehicles-message {
+    text-align: center;
+    padding: 3rem 1rem;
+    background-color: #f8f9fc;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .no-vehicles-message i {
+    font-size: 3rem;
+    color: #d1d3e2;
+    margin-bottom: 1rem;
+  }
+  
+  .no-vehicles-message h5 {
+    font-weight: 700;
+    color: #5a5c69;
+    margin-bottom: 0.5rem;
+  }
+  
+  .no-vehicles-message p {
+    color: #858796;
+  }
+  
+  .form-step {
+    display: none;
+  }
+  
+  .form-step.active {
+    display: block;
+  }
+  
+  .step-indicator {
+    display: flex;
+    margin-bottom: 2rem;
+  }
+  
+  .step {
+    flex: 1;
+    padding: 0.5rem;
+    text-align: center;
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    font-weight: 600;
+  }
+  
+  .step.active {
+    background-color: #4e73df;
+    color: white;
+    border-color: #4e73df;
+  }
+  
+  .step.completed {
+    background-color: #1cc88a;
+    color: white;
+    border-color: #1cc88a;
+  }
+  
+  .license-expired-alert {
+    font-size: 0.875rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .route-preview {
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-top: 1rem;
+    display: none;
+  }
+
+  .route-preview.show {
+    display: block;
+  }
+
+  .route-arrow {
+    color: #4e73df;
+    font-weight: bold;
+    margin: 0 0.5rem;
+  }
+
+  .location-suggestions {
+    position: absolute;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.25rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    max-height: 200px;
+    overflow-y: auto;
+    width: 100%;
+    display: none;
+  }
+
+  .location-suggestion {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f1f1;
+  }
+
+  .location-suggestion:hover {
+    background-color: #f8f9fc;
+  }
+
+  .location-suggestion:last-child {
+    border-bottom: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Start New Trip</h1>
+  </div>
+  
+  {% if user.license_expiry and user.license_expiry < today %}
+  <div class="alert alert-danger license-expired-alert mb-4">
+    <i class="fas fa-exclamation-circle me-2"></i>
+    <strong>Warning:</strong> Your driver's license has expired or is not on file. Please contact your manager to update your license information.
+  </div>
+  {% endif %}
+  
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">New Trip Details</h6>
+    </div>
+    <div class="card-body">
+      <div class="step-indicator">
+        <div class="step active" id="step1-indicator">1. Select Vehicle</div>
+        <div class="step" id="step2-indicator">2. Route & Details</div>
+        <div class="step" id="step3-indicator">3. Confirm</div>
+      </div>
+      
+      <form method="post" id="tripForm">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        
+        <!-- Step 1: Select Vehicle -->
+        <div class="form-step active" id="step1">
+          <h5 class="mb-3">Select a Vehicle</h5>
+          
+          {% if available_vehicles %}
+          
+          <!-- Vehicle Selection -->
+          <div class="mb-3">
+            <label for="{{ form.vehicle.id_for_label }}" class="form-label">
+              <i class="fas fa-car me-1"></i>Available Vehicles
+            </label>
+            {{ form.vehicle }}
+            {% if form.vehicle.errors %}
+            <div class="invalid-feedback d-block">{{ form.vehicle.errors }}</div>
+            {% endif %}
+            <div class="form-text">Select an available vehicle for your trip</div>
+          </div>
+          
+          <!-- Driver Selection for Management Users -->
+          {% if is_management %}
+          <div class="mb-3">
+            <label for="driver" class="form-label">
+              <i class="fas fa-user me-1"></i>Select Driver (Optional)
+            </label>
+            <select class="form-select" id="driver" name="driver">
+              <option value="">I will drive myself</option>
+              {% for driver in drivers %}
+              <option value="{{ driver.id }}">
+                {{ driver.get_full_name }} ({{ driver.email }})
+              </option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Leave blank to assign trip to yourself</div>
+          </div>
+          {% endif %}
+          
+          <!-- Quick Vehicle Filter Buttons -->
+          <div class="mb-4 filter-buttons">
+            <small class="text-muted">Quick filters:</small><br>
+            <button type="button" class="btn btn-outline-secondary btn-sm me-2 mt-1" data-filter="all">
+              <i class="fas fa-list me-1"></i>All Vehicles
+            </button>
+            {% for vehicle_type in vehicle_types %}
+            <button type="button" class="btn btn-outline-secondary btn-sm me-2 mt-1" data-filter="{{ vehicle_type.name }}">
+              <i class="fas fa-car me-1"></i>{{ vehicle_type.name }}
+            </button>
+            {% endfor %}
+          </div>
+          
+          <div class="mt-4 text-end">
+            <button type="button" class="btn btn-primary" id="step1Next" disabled>
+              Next <i class="fas fa-arrow-right ms-1"></i>
+            </button>
+          </div>
+          
+          {% else %}
+          <div class="no-vehicles-message">
+            <i class="fas fa-car-side"></i>
+            <h5>No Available Vehicles</h5>
+            <p>There are no vehicles available for use at the moment. Please try again later or contact your manager.</p>
+          </div>
+          {% endif %}
+        </div>
+        
+        <!-- Step 2: Route & Trip Details -->
+        <div class="form-step" id="step2">
+          <h5 class="mb-3">Route & Trip Details</h5>
+          
+          <!-- Route Information -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="mb-3 position-relative">
+                <label for="{{ form.origin.id_for_label }}" class="form-label">
+                  <i class="fas fa-map-marker-alt text-success me-1"></i>
+                  Starting Location (From)
+                </label>
+                {{ form.origin }}
+                {% if form.origin.errors %}
+                <div class="invalid-feedback d-block">{{ form.origin.errors }}</div>
+                {% endif %}
+                <div class="form-text">
+                  Enter your starting point (office, warehouse, etc.)
+                </div>
+                <div class="location-suggestions" id="originSuggestions"></div>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3 position-relative">
+                <label for="{{ form.destination.id_for_label }}" class="form-label">
+                  <i class="fas fa-map-marker-alt text-danger me-1"></i>
+                  Destination (To)
+                </label>
+                {{ form.destination }}
+                {% if form.destination.errors %}
+                <div class="invalid-feedback d-block">{{ form.destination.errors }}</div>
+                {% endif %}
+                <div class="form-text">
+                  Enter your destination (client office, delivery point, etc.)
+                </div>
+                <div class="location-suggestions" id="destinationSuggestions"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Route Preview -->
+          <div class="route-preview" id="routePreview">
+            <div class="d-flex align-items-center justify-content-center">
+              <span class="text-success fw-bold" id="previewOrigin">Origin</span>
+              <span class="route-arrow">
+                <i class="fas fa-long-arrow-alt-right"></i>
+              </span>
+              <span class="text-danger fw-bold" id="previewDestination">Destination</span>
+            </div>
+          </div>
+          
+          <!-- Trip Details -->
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.start_odometer.id_for_label }}" class="form-label">Start Odometer Reading (km)</label>
+                {{ form.start_odometer }}
+                {% if form.start_odometer.errors %}
+                <div class="invalid-feedback d-block">{{ form.start_odometer.errors }}</div>
+                {% endif %}
+                <div class="form-text">
+                  Verify the current odometer reading matches the vehicle's display
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.purpose.id_for_label }}" class="form-label">Purpose of Trip</label>
+                {{ form.purpose }}
+                {% if form.purpose.errors %}
+                <div class="invalid-feedback d-block">{{ form.purpose.errors }}</div>
+                {% endif %}
+                <div class="form-text">
+                  Briefly describe the purpose of this trip (e.g., Client Visit, Delivery)
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="{{ form.notes.id_for_label }}" class="form-label">Additional Notes (Optional)</label>
+            {{ form.notes }}
+            {% if form.notes.errors %}
+            <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="mt-4 d-flex justify-content-between">
+            <button type="button" class="btn btn-secondary" id="step2Back">
+              <i class="fas fa-arrow-left me-1"></i> Back
+            </button>
+            <button type="button" class="btn btn-primary" id="step2Next">
+              Next <i class="fas fa-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Step 3: Confirm -->
+        <div class="form-step" id="step3">
+          <h5 class="mb-3">Confirm Trip Details</h5>
+          
+          <div class="card mb-3">
+            <div class="card-body">
+              <h6 class="card-title">Selected Vehicle</h6>
+              <div id="selectedVehicleInfo">
+                <!-- Populated by JavaScript -->
+              </div>
+            </div>
+          </div>
+
+          <div class="card mb-3">
+            <div class="card-body">
+              <h6 class="card-title">Route Information</h6>
+              <div id="routeInfo">
+                <!-- Populated by JavaScript -->
+              </div>
+            </div>
+          </div>
+          
+          <div class="card mb-3">
+            <div class="card-body">
+              <h6 class="card-title">Trip Information</h6>
+              <div id="tripDetailsSummary">
+                <!-- Populated by JavaScript -->
+              </div>
+            </div>
+          </div>
+          
+          <div class="card mb-3">
+            <div class="card-body">
+              <h6 class="card-title">Driver Information</h6>
+              <div id="driverInfo">
+                <!-- Driver info will be populated by JavaScript -->
+              </div>
+            </div>
+          </div>
+          
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Note:</strong> By submitting this form, you confirm that you have performed a visual inspection of the vehicle and it is in good condition for use. The trip will start immediately upon submission.
+          </div>
+          
+          <div class="mt-4 d-flex justify-content-between">
+            <button type="button" class="btn btn-secondary" id="step3Back">
+              <i class="fas fa-arrow-left me-1"></i> Back
+            </button>
+            <button type="submit" class="btn btn-success">
+              <i class="fas fa-play me-1"></i> Start Trip Now
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Variables for form steps
+    const step1 = document.getElementById('step1');
+    const step2 = document.getElementById('step2');
+    const step3 = document.getElementById('step3');
+    
+    const step1Indicator = document.getElementById('step1-indicator');
+    const step2Indicator = document.getElementById('step2-indicator');
+    const step3Indicator = document.getElementById('step3-indicator');
+    
+    const step1Next = document.getElementById('step1Next');
+    const step2Back = document.getElementById('step2Back');
+    const step2Next = document.getElementById('step2Next');
+    const step3Back = document.getElementById('step3Back');
+    
+    const vehicleField = document.getElementById('{{ form.vehicle.id_for_label }}');
+    const originField = document.getElementById('{{ form.origin.id_for_label }}');
+    const destinationField = document.getElementById('{{ form.destination.id_for_label }}');
+    const startOdometerField = document.getElementById('{{ form.start_odometer.id_for_label }}');
+    const purposeField = document.getElementById('{{ form.purpose.id_for_label }}');
+    const notesField = document.getElementById('{{ form.notes.id_for_label }}');
+    
+    // Route preview elements
+    const routePreview = document.getElementById('routePreview');
+    const previewOrigin = document.getElementById('previewOrigin');
+    const previewDestination = document.getElementById('previewDestination');
+    
+    // Vehicle selection and filter functionality
+    const vehicleSelect = document.getElementById('{{ form.vehicle.id_for_label }}');
+    const filterButtons = document.querySelectorAll('[data-filter]');
+    
+    let selectedVehicleData = null;
+    let allVehicleOptions = Array.from(vehicleSelect.options).slice(1); // Exclude first "Choose a vehicle" option
+    
+    // Populate vehicle options with data attributes
+    {% for vehicle in available_vehicles %}
+    const option{{ vehicle.id }} = vehicleSelect.querySelector('option[value="{{ vehicle.id }}"]');
+    if (option{{ vehicle.id }}) {
+      option{{ vehicle.id }}.setAttribute('data-odometer', '{{ vehicle.current_odometer|default:"0" }}');
+      option{{ vehicle.id }}.setAttribute('data-make', '{{ vehicle.make }}');
+      option{{ vehicle.id }}.setAttribute('data-model', '{{ vehicle.model }}');
+      option{{ vehicle.id }}.setAttribute('data-type', '{{ vehicle.vehicle_type.name|default:"Unknown" }}');
+      option{{ vehicle.id }}.setAttribute('data-fuel', '{{ vehicle.fuel_type|default:"Unknown" }}');
+      option{{ vehicle.id }}.setAttribute('data-plate', '{{ vehicle.license_plate }}');
+      {% if vehicle.image %}
+      option{{ vehicle.id }}.setAttribute('data-image', '{{ vehicle.image.url }}');
+      {% endif %}
+    }
+    {% endfor %}
+    
+    // Vehicle selection handler
+    vehicleSelect.addEventListener('change', function() {
+      const selectedOption = this.options[this.selectedIndex];
+      
+      if (selectedOption.value) {
+        // Get vehicle data from selected option
+        selectedVehicleData = {
+          id: selectedOption.value,
+          odometer: selectedOption.dataset.odometer || '0',
+          make: selectedOption.dataset.make || '',
+          model: selectedOption.dataset.model || '',
+          type: selectedOption.dataset.type || '',
+          fuel: selectedOption.dataset.fuel || '',
+          plate: selectedOption.dataset.plate || '',
+          image: selectedOption.dataset.image || ''
+        };
+        
+        // Set initial odometer value
+        startOdometerField.value = selectedVehicleData.odometer;
+        startOdometerField.min = selectedVehicleData.odometer;
+        
+        // Enable next button
+        step1Next.disabled = false;
+      } else {
+        // No vehicle selected
+        selectedVehicleData = null;
+        step1Next.disabled = true;
+      }
+    });
+    
+    // Filter buttons
+    filterButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        const filterType = this.dataset.filter;
+        
+        // Update button states
+        filterButtons.forEach(btn => btn.classList.remove('btn-primary'));
+        filterButtons.forEach(btn => btn.classList.add('btn-outline-secondary'));
+        this.classList.remove('btn-outline-secondary');
+        this.classList.add('btn-primary');
+        
+        // Apply filter
+        if (filterType === 'all') {
+          showAllVehicles();
+        } else {
+          filterVehiclesByType(filterType);
+        }
+      });
+    });
+    
+    function filterVehiclesByType(type) {
+      // Clear all options except the first one
+      vehicleSelect.innerHTML = '<option value="">Choose a vehicle...</option>';
+      
+      // Add vehicles of specified type
+      allVehicleOptions.forEach(option => {
+        if (option.dataset.type === type) {
+          vehicleSelect.appendChild(option.cloneNode(true));
+        }
+      });
+    }
+    
+    function showAllVehicles() {
+      // Clear all options except the first one
+      vehicleSelect.innerHTML = '<option value="">Choose a vehicle...</option>';
+      
+      // Add all vehicles back
+      allVehicleOptions.forEach(option => {
+        vehicleSelect.appendChild(option.cloneNode(true));
+      });
+    }
+
+    // Route preview functionality
+    function updateRoutePreview() {
+      const origin = originField.value.trim();
+      const destination = destinationField.value.trim();
+      
+      if (origin && destination) {
+        previewOrigin.textContent = origin;
+        previewDestination.textContent = destination;
+        routePreview.classList.add('show');
+      } else {
+        routePreview.classList.remove('show');
+      }
+    }
+
+    // Add event listeners for route fields
+    originField.addEventListener('input', updateRoutePreview);
+    destinationField.addEventListener('input', updateRoutePreview);
+
+    // Common locations for suggestions
+    const commonLocations = [
+      'Main Office',
+      'Warehouse',
+      'Airport',
+      'City Center',
+      'Industrial Area',
+      'Port',
+      'Train Station',
+      'Shopping Mall',
+      'Business District',
+      'Factory'
+    ];
+
+    // Simple location suggestions
+    function showLocationSuggestions(inputField, suggestionsContainer) {
+      const query = inputField.value.toLowerCase().trim();
+      suggestionsContainer.innerHTML = '';
+      
+      if (query.length < 2) {
+        suggestionsContainer.style.display = 'none';
+        return;
+      }
+
+      const matches = commonLocations.filter(location => 
+        location.toLowerCase().includes(query)
+      );
+
+      if (matches.length > 0) {
+        matches.forEach(location => {
+          const suggestion = document.createElement('div');
+          suggestion.className = 'location-suggestion';
+          suggestion.textContent = location;
+          suggestion.addEventListener('click', function() {
+            inputField.value = location;
+            suggestionsContainer.style.display = 'none';
+            updateRoutePreview();
+          });
+          suggestionsContainer.appendChild(suggestion);
+        });
+        suggestionsContainer.style.display = 'block';
+      } else {
+        suggestionsContainer.style.display = 'none';
+      }
+    }
+
+    // Location suggestions setup
+    const originSuggestions = document.getElementById('originSuggestions');
+    const destinationSuggestions = document.getElementById('destinationSuggestions');
+
+    originField.addEventListener('input', function() {
+      showLocationSuggestions(this, originSuggestions);
+    });
+
+    destinationField.addEventListener('input', function() {
+      showLocationSuggestions(this, destinationSuggestions);
+    });
+
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!originField.contains(e.target) && !originSuggestions.contains(e.target)) {
+        originSuggestions.style.display = 'none';
+      }
+      if (!destinationField.contains(e.target) && !destinationSuggestions.contains(e.target)) {
+        destinationSuggestions.style.display = 'none';
+      }
+    });
+
+    // Quick location buttons functionality
+    function addQuickLocationButtons() {
+      const quickLocations = [
+        { name: 'Main Office', icon: 'fas fa-building' },
+        { name: 'Warehouse', icon: 'fas fa-warehouse' },
+        { name: 'Airport', icon: 'fas fa-plane' },
+        { name: 'City Center', icon: 'fas fa-city' }
+      ];
+
+      const originContainer = originField.parentNode;
+      const destinationContainer = destinationField.parentNode;
+
+      // Add quick buttons for origin
+      const originQuickDiv = document.createElement('div');
+      originQuickDiv.className = 'mt-2';
+      originQuickDiv.innerHTML = '<small class="text-muted">Quick locations:</small><br>';
+      
+      quickLocations.forEach(location => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline-secondary btn-sm me-1 mt-1';
+        btn.innerHTML = `<i class="${location.icon} me-1"></i>${location.name}`;
+        btn.addEventListener('click', function() {
+          originField.value = location.name;
+          updateRoutePreview();
+        });
+        originQuickDiv.appendChild(btn);
+      });
+      
+      originContainer.appendChild(originQuickDiv);
+
+      // Add quick buttons for destination
+      const destinationQuickDiv = document.createElement('div');
+      destinationQuickDiv.className = 'mt-2';
+      destinationQuickDiv.innerHTML = '<small class="text-muted">Quick locations:</small><br>';
+      
+      quickLocations.forEach(location => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline-secondary btn-sm me-1 mt-1';
+        btn.innerHTML = `<i class="${location.icon} me-1"></i>${location.name}`;
+        btn.addEventListener('click', function() {
+          destinationField.value = location.name;
+          updateRoutePreview();
+        });
+        destinationQuickDiv.appendChild(btn);
+      });
+      
+      destinationContainer.appendChild(destinationQuickDiv);
+    }
+
+    // Add quick location buttons
+    addQuickLocationButtons();
+    
+    // Navigation between steps
+    if (step1Next) {
+      step1Next.addEventListener('click', function() {
+        step1.classList.remove('active');
+        step2.classList.add('active');
+        
+        step1Indicator.classList.remove('active');
+        step1Indicator.classList.add('completed');
+        step2Indicator.classList.add('active');
+      });
+    }
+    
+    if (step2Back) {
+      step2Back.addEventListener('click', function() {
+        step2.classList.remove('active');
+        step1.classList.add('active');
+        
+        step2Indicator.classList.remove('active');
+        step1Indicator.classList.remove('completed');
+        step1Indicator.classList.add('active');
+      });
+    }
+    
+    if (step2Next) {
+      step2Next.addEventListener('click', function() {
+        // Validate step 2 fields
+        if (originField.value.trim() === '') {
+          alert('Please enter the starting location.');
+          originField.focus();
+          return;
+        }
+
+        if (destinationField.value.trim() === '') {
+          alert('Please enter the destination.');
+          destinationField.focus();
+          return;
+        }
+
+        if (originField.value.toLowerCase().trim() === destinationField.value.toLowerCase().trim()) {
+          alert('Starting location and destination cannot be the same.');
+          destinationField.focus();
+          return;
+        }
+        
+        if (startOdometerField.value === '') {
+          alert('Please enter the start odometer reading.');
+          startOdometerField.focus();
+          return;
+        }
+        
+        if (purposeField.value === '') {
+          alert('Please enter the purpose of the trip.');
+          purposeField.focus();
+          return;
+        }
+        
+        // Update confirmation page
+        updateConfirmationPage();
+        
+        // Navigate to step 3
+        step2.classList.remove('active');
+        step3.classList.add('active');
+        
+        step2Indicator.classList.remove('active');
+        step2Indicator.classList.add('completed');
+        step3Indicator.classList.add('active');
+      });
+    }
+    
+    if (step3Back) {
+      step3Back.addEventListener('click', function() {
+        step3.classList.remove('active');
+        step2.classList.add('active');
+        
+        step3Indicator.classList.remove('active');
+        step2Indicator.classList.remove('completed');
+        step2Indicator.classList.add('active');
+      });
+    }
+    
+    // Update confirmation page
+    function updateConfirmationPage() {
+      const selectedVehicleInfo = document.getElementById('selectedVehicleInfo');
+      const routeInfo = document.getElementById('routeInfo');
+      const tripDetailsSummary = document.getElementById('tripDetailsSummary');
+      
+      if (selectedVehicleData) {
+        // Update vehicle info
+        selectedVehicleInfo.innerHTML = `
+          <div class="row">
+            <div class="col-md-4 text-center">
+              ${selectedVehicleData.image ? 
+                `<img src="${selectedVehicleData.image}" class="img-fluid rounded mb-2" alt="${selectedVehicleData.plate}">` :
+                '<i class="fas fa-car fa-3x text-muted mb-2"></i>'
+              }
+            </div>
+            <div class="col-md-8">
+              <p><strong>Vehicle:</strong> ${selectedVehicleData.make} ${selectedVehicleData.model}</p>
+              <p><strong>License Plate:</strong> <span class="badge bg-primary">${selectedVehicleData.plate}</span></p>
+              <p><strong>Type:</strong> ${selectedVehicleData.type}</p>
+              <p><strong>Fuel Type:</strong> ${selectedVehicleData.fuel}</p>
+              <p><strong>Current Odometer:</strong> ${selectedVehicleData.odometer} km</p>
+            </div>
+          </div>
+        `;
+      }
+
+      // Update route info
+      routeInfo.innerHTML = `
+        <div class="d-flex align-items-center justify-content-center mb-3">
+          <div class="text-center">
+            <i class="fas fa-map-marker-alt text-success fa-lg"></i>
+            <div class="mt-1">
+              <strong class="text-success">${originField.value}</strong>
+            </div>
+            <small class="text-muted">Starting Point</small>
+          </div>
+          <div class="mx-4">
+            <i class="fas fa-long-arrow-alt-right text-primary fa-2x"></i>
+          </div>
+          <div class="text-center">
+            <i class="fas fa-map-marker-alt text-danger fa-lg"></i>
+            <div class="mt-1">
+              <strong class="text-danger">${destinationField.value}</strong>
+            </div>
+            <small class="text-muted">Destination</small>
+          </div>
+        </div>
+      `;
+      
+      // Update trip details
+      tripDetailsSummary.innerHTML = `
+        <p><strong>Start Odometer:</strong> ${startOdometerField.value} km</p>
+        <p><strong>Purpose:</strong> ${purposeField.value}</p>
+        <p><strong>Notes:</strong> ${notesField.value || 'None'}</p>
+        <p><strong>Start Time:</strong> ${new Date().toLocaleString()}</p>
+      `;
+      
+      // Update driver info
+      const driverInfo = document.getElementById('driverInfo');
+      const driverSelect = document.getElementById('driver');
+
+      if (driverSelect && driverSelect.value) {
+        // A specific driver was selected
+        const selectedDriverOption = driverSelect.options[driverSelect.selectedIndex];
+        driverInfo.innerHTML = `
+          <p><strong>Driver:</strong> ${selectedDriverOption.text}</p>
+          <p><strong>Assigned by:</strong> {{ user.get_full_name }} ({{ user.get_user_type_display }})</p>
+        `;
+      } else {
+        // No specific driver selected, current user is the driver
+        driverInfo.innerHTML = `
+          <p><strong>Driver:</strong> {{ user.get_full_name }}</p>
+          <p><strong>Email:</strong> {{ user.email }}</p>
+          {% if user.license_number %}<p><strong>License:</strong> {{ user.license_number }}</p>{% endif %}
+          {% if user.license_expiry %}<p><strong>License Expiry:</strong> {{ user.license_expiry }}</p>{% endif %}
+        `;
+      }
+    }
+  });
+</script>
+{% endblock %}
