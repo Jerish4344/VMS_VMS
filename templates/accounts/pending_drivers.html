@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Pending Driver Approvals - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .driver-card {
+    transition: transform 0.2s;
+    border-left: 4px solid #ffc107;
+  }
+  
+  .driver-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  }
+  
+  .hr-badge {
+    background-color: #007bff;
+    color: white;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 10px;
+  }
+  
+  .stats-card {
+    border-left: 4px solid #28a745;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Driver Approval Management</h1>
+    <a href="{% url 'all_drivers' %}" class="btn btn-primary btn-sm">
+      <i class="fas fa-list me-2"></i>View All Drivers
+    </a>
+  </div>
+  
+  <!-- Statistics Cards -->
+  <div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-warning shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending Approval</div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ pending_drivers|length }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-hourglass-half fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-success shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Approved</div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ approved_drivers }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-danger shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Rejected</div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ rejected_drivers }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-times-circle fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Pending Drivers List -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">
+        <i class="fas fa-user-clock me-2"></i>Drivers Pending Approval
+      </h6>
+    </div>
+    <div class="card-body">
+      {% if pending_drivers %}
+        <div class="row">
+          {% for driver in pending_drivers %}
+          <div class="col-lg-6 col-xl-4 mb-4">
+            <div class="card driver-card h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                  {% if driver.profile_picture %}
+                    <img src="{{ driver.profile_picture.url }}" class="rounded-circle me-3" width="50" height="50">
+                  {% else %}
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
+                      {{ driver.get_full_name|first }}
+                    </div>
+                  {% endif %}
+                  <div>
+                    <h6 class="mb-1">{{ driver.get_full_name }}</h6>
+                    <small class="text-muted">{{ driver.username }}</small>
+                    <span class="hr-badge ms-2">HR Verified</span>
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <div class="row small">
+                    <div class="col-6">
+                      <strong>Email:</strong><br>
+                      <span class="text-muted">{{ driver.email|truncatechars:20 }}</span>
+                    </div>
+                    <div class="col-6">
+                      <strong>Phone:</strong><br>
+                      <span class="text-muted">{{ driver.phone_number|default:"Not provided" }}</span>
+                    </div>
+                    {% if driver.license_number %}
+                    <div class="col-6 mt-2">
+                      <strong>License:</strong><br>
+                      <span class="text-muted">{{ driver.license_number }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="col-6 mt-2">
+                      <strong>Applied:</strong><br>
+                      <span class="text-muted">{{ driver.hr_authenticated_at|timesince }} ago</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                  <a href="{% url 'driver_approval' driver.id %}" class="btn btn-info btn-sm">
+                    <i class="fas fa-eye me-1"></i>Review
+                  </a>
+                  <div>
+                    <button class="btn btn-success btn-sm me-1" onclick="quickApprove({{ driver.id }})">
+                      <i class="fas fa-check"></i>
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="quickReject({{ driver.id }})">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="alert alert-info text-center">
+          <i class="fas fa-info-circle me-2"></i>
+          No drivers are currently pending approval.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Quick Rejection Modal -->
+<div class="modal fade" id="quickRejectModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Reject Driver Access</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to reject access for <strong id="rejectDriverName"></strong>?</p>
+        <div class="mb-3">
+          <label for="quickRejectReason" class="form-label">Reason (optional):</label>
+          <textarea class="form-control" id="quickRejectReason" rows="3" placeholder="Enter reason for rejection"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmReject">Reject Access</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentDriverId = null;
+
+function quickApprove(driverId) {
+  if (confirm('Are you sure you want to approve this driver?')) {
+    fetch(`/accounts/drivers/${driverId}/toggle-status/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'action=approve'
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        location.reload();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    });
+  }
+}
+
+function quickReject(driverId) {
+  currentDriverId = driverId;
+  const modal = new bootstrap.Modal(document.getElementById('quickRejectModal'));
+  modal.show();
+}
+
+document.getElementById('confirmReject').addEventListener('click', function() {
+  const reason = document.getElementById('quickRejectReason').value;
+  
+  fetch(`/accounts/drivers/${currentDriverId}/toggle-status/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: `action=reject&reason=${encodeURIComponent(reason)}`
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  });
+});
+</script>
+{% endblock %}

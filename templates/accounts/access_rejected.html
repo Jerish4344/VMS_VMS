@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Access Rejected - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .rejection-card {
+    max-width: 600px;
+    margin: 2rem auto;
+  }
+  
+  .status-icon {
+    font-size: 4rem;
+    color: #dc3545;
+    margin-bottom: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card shadow rejection-card">
+        <div class="card-body text-center">
+          <div class="status-icon">
+            <i class="fas fa-times-circle"></i>
+          </div>
+          
+          <h2 class="mb-3 text-danger">Access Rejected</h2>
+          
+          <div class="alert alert-danger">
+            <p class="mb-0">
+              <strong>{{ user.get_full_name }}</strong><br>
+              Your request for system access has been rejected by management.
+            </p>
+          </div>
+          
+          {% if rejection_reason %}
+          <div class="alert alert-warning">
+            <h6><i class="fas fa-comment-alt me-2"></i>Reason for Rejection:</h6>
+            <p class="mb-0">{{ rejection_reason }}</p>
+          </div>
+          {% endif %}
+          
+          <div class="alert alert-info">
+            <i class="fas fa-phone me-2"></i>
+            <strong>Need Help?</strong><br>
+            Please contact your manager or HR department for more information about your access request.
+          </div>
+          
+          {% if rejected_by %}
+          <p class="text-muted small">
+            <i class="fas fa-user me-1"></i>
+            Rejected by: {{ rejected_by.get_full_name }} on {{ rejected_at|date:"F j, Y, g:i a" }}
+          </p>
+          {% endif %}
+          
+          <div class="mt-3">
+            <a href="{% url 'logout' %}" class="btn btn-secondary">
+              <i class="fas fa-sign-out-alt me-2"></i>Logout
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

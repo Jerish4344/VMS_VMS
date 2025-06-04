@@ -1,0 +1,508 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Maintenance Records - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .status-badge {
+    font-size: 0.75rem;
+    padding: 0.35em 0.65em;
+  }
+  
+  .status-scheduled {
+    background-color: #f6c23e;
+    color: #212529;
+  }
+  
+  .status-in_progress {
+    background-color: #4e73df;
+    color: white;
+  }
+  
+  .status-completed {
+    background-color: #1cc88a;
+    color: white;
+  }
+  
+  .status-cancelled {
+    background-color: #858796;
+    color: white;
+  }
+  
+  .summary-card {
+    transition: transform 0.2s;
+  }
+  
+  .summary-card:hover {
+    transform: translateY(-5px);
+  }
+  
+  .summary-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .summary-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  
+  .summary-label {
+    color: #858796;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  
+  .filter-card {
+    margin-bottom: 1.5rem;
+  }
+  
+  .invoice-thumbnail {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 0.25rem;
+    border: 1px solid #e3e6f0;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  
+  .invoice-thumbnail:hover {
+    transform: scale(1.1);
+  }
+  
+  /* Modal styles for invoice viewer */
+  .invoice-modal-content {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+  }
+  
+  .invoice-modal-img {
+    max-width: 100%;
+    max-height: 70vh;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Maintenance Records</h1>
+    {% if request.user.user_type != 'driver' %}
+    <a href="{% url 'maintenance_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+      <i class="fas fa-plus fa-sm text-white-50"></i> Add New Record
+    </a>
+    {% endif %}
+  </div>
+  
+  <!-- Status Summary Cards -->
+  <div class="row">
+    <!-- Scheduled -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-warning shadow h-100 py-3 summary-card">
+        <div class="card-body">
+          <div class="text-center">
+            <div class="summary-icon text-warning">
+              <i class="fas fa-calendar-alt"></i>
+            </div>
+            <div class="summary-value">
+              {{ scheduled_count|default:"0" }}
+            </div>
+            <div class="summary-label">Scheduled</div>
+          </div>
+        </div>
+        <div class="card-footer bg-light p-2 text-center">
+          <a href="{% url 'maintenance_list' %}?status=scheduled" class="small text-primary">View All</a>
+        </div>
+      </div>
+    </div>
+    
+    <!-- In Progress -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-primary shadow h-100 py-3 summary-card">
+        <div class="card-body">
+          <div class="text-center">
+            <div class="summary-icon text-primary">
+              <i class="fas fa-wrench"></i>
+            </div>
+            <div class="summary-value">
+              {{ in_progress_count|default:"0" }}
+            </div>
+            <div class="summary-label">In Progress</div>
+          </div>
+        </div>
+        <div class="card-footer bg-light p-2 text-center">
+          <a href="{% url 'maintenance_list' %}?status=in_progress" class="small text-primary">View All</a>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Completed -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-success shadow h-100 py-3 summary-card">
+        <div class="card-body">
+          <div class="text-center">
+            <div class="summary-icon text-success">
+              <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="summary-value">
+              {{ completed_count|default:"0" }}
+            </div>
+            <div class="summary-label">Completed</div>
+          </div>
+        </div>
+        <div class="card-footer bg-light p-2 text-center">
+          <a href="{% url 'maintenance_list' %}?status=completed" class="small text-primary">View All</a>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Cancelled -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-secondary shadow h-100 py-3 summary-card">
+        <div class="card-body">
+          <div class="text-center">
+            <div class="summary-icon text-secondary">
+              <i class="fas fa-ban"></i>
+            </div>
+            <div class="summary-value">
+              {{ cancelled_count|default:"0" }}
+            </div>
+            <div class="summary-label">Cancelled</div>
+          </div>
+        </div>
+        <div class="card-footer bg-light p-2 text-center">
+          <a href="{% url 'maintenance_list' %}?status=cancelled" class="small text-primary">View All</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <!-- Filters Column -->
+    <div class="col-xl-3 col-lg-4">
+      <!-- Search & Filters Card -->
+      <div class="card shadow filter-card">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Search & Filters</h6>
+        </div>
+        <div class="card-body">
+          <form id="filter-form" method="get" action="{% url 'maintenance_list' %}">
+            <!-- Search -->
+            <div class="mb-3">
+              <label for="search" class="form-label">Search</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="search" name="search" 
+                       placeholder="Vehicle, type, provider..." value="{{ request.GET.search|default:'' }}">
+                <button class="btn btn-primary" type="submit">
+                  <i class="fas fa-search"></i>
+                </button>
+              </div>
+            </div>
+            
+            <!-- Status Filter -->
+            <div class="mb-3">
+              <label for="status-filter" class="form-label">Status</label>
+              <select name="status" id="status-filter" class="form-select">
+                <option value="">All Statuses</option>
+                {% for status_code, status_name in statuses.items %}
+                  <option value="{{ status_code }}" {% if request.GET.status == status_code %}selected{% endif %}>
+                    {{ status_name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <!-- Vehicle Filter -->
+            <div class="mb-3">
+              <label for="vehicle-filter" class="form-label">Vehicle</label>
+              <select name="vehicle" id="vehicle-filter" class="form-select">
+                <option value="">All Vehicles</option>
+                {% for vehicle in vehicles %}
+                  <option value="{{ vehicle.id }}" {% if request.GET.vehicle == vehicle.id|stringformat:"i" %}selected{% endif %}>
+                    {{ vehicle.license_plate }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <!-- Maintenance Type Filter -->
+            <div class="mb-3">
+              <label for="type-filter" class="form-label">Maintenance Type</label>
+              <select name="type" id="type-filter" class="form-select">
+                <option value="">All Types</option>
+                {% for type in maintenance_types %}
+                  <option value="{{ type.id }}" {% if request.GET.type == type.id|stringformat:"i" %}selected{% endif %}>
+                    {{ type.name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <!-- Filter Buttons -->
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-filter"></i> Apply Filters
+              </button>
+              {% if request.GET %}
+                <a href="{% url 'maintenance_list' %}" class="btn btn-secondary">
+                  <i class="fas fa-redo"></i> Clear Filters
+                </a>
+              {% endif %}
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <!-- Quick Links Card -->
+      <div class="card shadow filter-card">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Quick Links</h6>
+        </div>
+        <div class="card-body">
+          <div class="list-group">
+            <a href="{% url 'maintenance_type_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+              Maintenance Types
+              <span class="badge bg-primary rounded-pill">{{ maintenance_types|length }}</span>
+            </a>
+            <a href="{% url 'maintenance_provider_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+              Service Providers
+              <span class="badge bg-primary rounded-pill">{{ maintenance_providers_count|default:'0' }}</span>
+            </a>
+            {% if request.user.user_type != 'driver' %}
+            <a href="{% url 'maintenance_type_create' %}" class="list-group-item list-group-item-action">
+              <i class="fas fa-plus-circle me-2"></i> Add New Type
+            </a>
+            <a href="{% url 'maintenance_provider_create' %}" class="list-group-item list-group-item-action">
+              <i class="fas fa-plus-circle me-2"></i> Add New Provider
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Maintenance Records List Column -->
+    <div class="col-xl-9 col-lg-8">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">Maintenance Records</h6>
+          {% if maintenance_records %}
+            <span>Showing {{ maintenance_records|length }} of {{ paginator.count }} records</span>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          {% if maintenance_records %}
+            <div class="table-responsive">
+              <table class="table table-hover" id="maintenance-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Vehicle</th>
+                    <th>Maintenance Type</th>
+                    <th>Date Reported</th>
+                    <th>Status</th>
+                    <th>Provider</th>
+                    <th>Cost</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for maintenance in maintenance_records %}
+                    <tr>
+                      <td>#{{ maintenance.id }}</td>
+                      <td>
+                        <a href="{% url 'vehicle_detail' maintenance.vehicle.id %}">
+                          {{ maintenance.vehicle.license_plate }}
+                        </a>
+                      </td>
+                      <td>{{ maintenance.maintenance_type.name }}</td>
+                      <td>{{ maintenance.date_reported|date:"M d, Y" }}</td>
+                      <td>
+                        <span class="badge status-{{ maintenance.status }} status-badge">
+                          {{ maintenance.get_status_display }}
+                        </span>
+                        {% if maintenance.status == 'scheduled' and maintenance.scheduled_date %}
+                          <br>
+                          <small class="text-muted">{{ maintenance.scheduled_date|date:"M d, Y" }}</small>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if maintenance.provider %}
+                          {{ maintenance.provider.name }}
+                        {% else %}
+                          <span class="text-muted">Not assigned</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if maintenance.cost %}
+                          {{ maintenance.cost }}
+                        {% else %}
+                          <span class="text-muted">N/A</span>
+                        {% endif %}
+                        {% if maintenance.invoice_image %}
+                          <br>
+                          <img src="{{ maintenance.invoice_image.url }}" class="invoice-thumbnail" 
+                               alt="Invoice" data-bs-toggle="modal" data-bs-target="#invoiceModal"
+                               data-invoice-url="{{ maintenance.invoice_image.url }}"
+                               data-maintenance-id="{{ maintenance.id }}">
+                        {% endif %}
+                      </td>
+                      <td>
+                        <div class="btn-group">
+                          <a href="{% url 'maintenance_detail' maintenance.id %}" class="btn btn-sm btn-info" title="View Details">
+                            <i class="fas fa-eye"></i>
+                          </a>
+                          {% if request.user.user_type != 'driver' %}
+                          <a href="{% url 'maintenance_update' maintenance.id %}" class="btn btn-sm btn-primary" title="Edit Record">
+                            <i class="fas fa-edit"></i>
+                          </a>
+                          {% if request.user.user_type == 'admin' %}
+                          <a href="{% url 'maintenance_delete' maintenance.id %}" class="btn btn-sm btn-danger" title="Delete Record">
+                            <i class="fas fa-trash"></i>
+                          </a>
+                          {% endif %}
+                          {% endif %}
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if is_paginated %}
+              <div class="mt-4">
+                <nav aria-label="Page navigation">
+                  <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                      <li class="page-item">
+                        <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page=1" aria-label="First">
+                          <span aria-hidden="true">&laquo;&laquo;</span>
+                        </a>
+                      </li>
+                      <li class="page-item">
+                        <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}" aria-label="Previous">
+                          <span aria-hidden="true">&laquo;</span>
+                        </a>
+                      </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                      {% if page_obj.number == num %}
+                        <li class="page-item active">
+                          <span class="page-link">{{ num }}</span>
+                        </li>
+                      {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                          <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+                        </li>
+                      {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                      <li class="page-item">
+                        <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}" aria-label="Next">
+                          <span aria-hidden="true">&raquo;</span>
+                        </a>
+                      </li>
+                      <li class="page-item">
+                        <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.paginator.num_pages }}" aria-label="Last">
+                          <span aria-hidden="true">&raquo;&raquo;</span>
+                        </a>
+                      </li>
+                    {% endif %}
+                  </ul>
+                </nav>
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="alert alert-info text-center">
+              <i class="fas fa-info-circle me-2"></i> No maintenance records found.
+              {% if request.GET %}
+                <a href="{% url 'maintenance_list' %}" class="alert-link">Clear all filters</a> to see all records.
+              {% else %}
+                {% if request.user.user_type != 'driver' %}
+                <a href="{% url 'maintenance_create' %}" class="alert-link">Add a new record</a> to get started.
+                {% endif %}
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Invoice Modal -->
+<div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="invoiceModalLabel">Invoice Image</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="invoice-modal-content">
+          <img src="" id="invoice-modal-img" class="invoice-modal-img" alt="Invoice Image">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <a href="#" id="download-invoice" class="btn btn-primary" download>
+          <i class="fas fa-download"></i> Download
+        </a>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Style form controls
+    document.querySelectorAll('select').forEach(function(element) {
+      element.classList.add('form-select');
+    });
+    
+    // Auto-submit on select changes
+    const statusFilter = document.getElementById('status-filter');
+    const vehicleFilter = document.getElementById('vehicle-filter');
+    const typeFilter = document.getElementById('type-filter');
+    
+    const filtersToAutoSubmit = [statusFilter, vehicleFilter, typeFilter];
+    filtersToAutoSubmit.forEach(filter => {
+      if (filter) {
+        filter.addEventListener('change', function() {
+          document.getElementById('filter-form').submit();
+        });
+      }
+    });
+    
+    // Handle invoice modal
+    const invoiceModal = document.getElementById('invoiceModal');
+    if (invoiceModal) {
+      invoiceModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget; // Button that triggered the modal
+        const invoiceUrl = button.getAttribute('data-invoice-url');
+        const maintenanceId = button.getAttribute('data-maintenance-id');
+        
+        const modalImage = document.getElementById('invoice-modal-img');
+        const downloadLink = document.getElementById('download-invoice');
+        
+        modalImage.src = invoiceUrl;
+        downloadLink.href = invoiceUrl;
+        downloadLink.setAttribute('download', `invoice-${maintenanceId}.jpg`);
+      });
+    }
+  });
+</script>
+{% endblock %}

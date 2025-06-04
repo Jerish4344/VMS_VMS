@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load approval_tags %}
+
+{% block title %}Pending Approval - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .approval-card {
+    max-width: 600px;
+    margin: 2rem auto;
+  }
+  
+  .status-icon {
+    font-size: 4rem;
+    color: #ffc107;
+    margin-bottom: 1rem;
+  }
+  
+  .hr-data-card {
+    background-color: #f8f9fa;
+    border-left: 4px solid #007bff;
+    padding: 1rem;
+    margin: 1rem 0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card shadow approval-card">
+        <div class="card-body text-center">
+          <div class="status-icon">
+            <i class="fas fa-hourglass-half"></i>
+          </div>
+          
+          <h2 class="mb-3">Waiting For Approval</h2>
+          
+          <div class="alert alert-info">
+            <p class="mb-0">
+              <strong>Hello {{ user.get_full_name }}!</strong><br>
+              Your employee account has been successfully authenticated with the HR system, 
+              but requires approval from management before you can access the vehicle management system.
+            </p>
+          </div>
+          
+          <div class="hr-data-card">
+            <h5><i class="fas fa-user-check me-2"></i>Your HR Information</h5>
+            <div class="row text-start">
+              <div class="col-sm-6">
+                <strong>Name:</strong> {% get_employee_display_name user %}
+              </div>
+              <div class="col-sm-6">
+                <strong>Employee ID:</strong> {{ user.hr_employee_id|default:"Not available" }}
+              </div>
+              <div class="col-sm-6">
+                <strong>Email:</strong> {{ user.email }}
+              </div>
+              <div class="col-sm-6">
+                <strong>Phone:</strong> {{ user.phone_number|default:"Not provided" }}
+              </div>
+              {% if user.hr_designation %}
+              <div class="col-sm-6">
+                <strong>Role:</strong> {{ user.hr_designation }}
+              </div>
+              {% endif %}
+              {% if user.hr_department %}
+              <div class="col-sm-6">
+                <strong>Department:</strong> {{ user.hr_department }}
+              </div>
+              {% endif %}
+              {% if user.license_number %}
+              <div class="col-sm-6">
+                <strong>License:</strong> {{ user.license_number }}
+              </div>
+              <div class="col-sm-6">
+                <strong>License Expiry:</strong> {{ user.license_expiry|default:"Not provided" }}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="alert alert-warning">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>What happens next?</strong><br>
+            A manager or administrator will review your account and approve your access. 
+            You will receive notification once your account is approved.
+          </div>
+          
+          <div class="mt-4">
+            <p class="text-muted small">
+              <i class="fas fa-clock me-1"></i>
+              Authenticated at: {{ user.hr_authenticated_at|date:"F j, Y, g:i a"|default:"Unknown" }}
+            </p>
+          </div>
+          
+          <div class="mt-3">
+            <a href="{% url 'logout' %}" class="btn btn-secondary">
+              <i class="fas fa-sign-out-alt me-2"></i>Logout
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

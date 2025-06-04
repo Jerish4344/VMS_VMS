@@ -1,0 +1,421 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+  {% if form.instance.pk %}
+    Edit Maintenance Record
+  {% else %}
+    Add Maintenance Record
+  {% endif %}
+  - Vehicle Management System
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-section {
+    margin-bottom: 2rem;
+  }
+  
+  .form-section-title {
+    font-weight: 700;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e3e6f0;
+  }
+  
+  .invoice-preview {
+    max-width: 250px;
+    max-height: 250px;
+    margin-top: 0.5rem;
+    border-radius: 0.25rem;
+    border: 1px solid #e3e6f0;
+    padding: 0.25rem;
+    display: none;
+  }
+  
+  .required-label::after {
+    content: " *";
+    color: #e74a3b;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+  }
+  
+  .status-scheduled {
+    background-color: #f6c23e;
+    color: #212529;
+  }
+  
+  .status-in_progress {
+    background-color: #4e73df;
+    color: white;
+  }
+  
+  .status-completed {
+    background-color: #1cc88a;
+    color: white;
+  }
+  
+  .status-cancelled {
+    background-color: #858796;
+    color: white;
+  }
+  
+  .status-descriptions {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .status-descriptions dt {
+    display: inline-block;
+    margin-right: 0.5rem;
+  }
+  
+  .status-descriptions dd {
+    display: inline;
+    margin-right: 1.5rem;
+  }
+  
+  .conditional-field {
+    display: none;
+  }
+  
+  .conditional-field.active {
+    display: block;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">
+      {% if form.instance.pk %}
+        Edit Maintenance Record
+      {% else %}
+        Add Maintenance Record
+      {% endif %}
+    </h1>
+  </div>
+  
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">
+        {% if form.instance.pk %}
+          Edit Maintenance Details
+        {% else %}
+          Enter Maintenance Details
+        {% endif %}
+      </h6>
+    </div>
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        
+        <!-- Vehicle and Maintenance Type Information -->
+        <div class="form-section">
+          <h5 class="form-section-title">Basic Information</h5>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.vehicle.id_for_label }}" class="form-label required-label">Vehicle</label>
+              {{ form.vehicle }}
+              {% if form.vehicle.errors %}
+                <div class="invalid-feedback d-block">{{ form.vehicle.errors }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.maintenance_type.id_for_label }}" class="form-label required-label">Maintenance Type</label>
+              {{ form.maintenance_type }}
+              {% if form.maintenance_type.errors %}
+                <div class="invalid-feedback d-block">{{ form.maintenance_type.errors }}</div>
+              {% endif %}
+              <div class="mt-2">
+                <a href="{% url 'maintenance_type_create' %}" class="btn btn-sm btn-outline-primary" target="_blank">
+                  <i class="fas fa-plus-circle"></i> Add New Type
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Status and Dates -->
+        <div class="form-section">
+          <h5 class="form-section-title">Status and Schedule</h5>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.date_reported.id_for_label }}" class="form-label required-label">Date Reported</label>
+              {{ form.date_reported }}
+              {% if form.date_reported.errors %}
+                <div class="invalid-feedback d-block">{{ form.date_reported.errors }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.status.id_for_label }}" class="form-label required-label">Status</label>
+              {{ form.status }}
+              {% if form.status.errors %}
+                <div class="invalid-feedback d-block">{{ form.status.errors }}</div>
+              {% endif %}
+              
+              <div class="status-descriptions">
+                <dl>
+                  <dt><span class="status-badge status-scheduled">Scheduled</span></dt>
+                  <dd>Maintenance is planned but not started</dd>
+                  
+                  <dt><span class="status-badge status-in_progress">In Progress</span></dt>
+                  <dd>Work is currently being done</dd>
+                  
+                  <dt><span class="status-badge status-completed">Completed</span></dt>
+                  <dd>Maintenance is finished</dd>
+                  
+                  <dt><span class="status-badge status-cancelled">Cancelled</span></dt>
+                  <dd>Maintenance was cancelled</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <div id="scheduled-date-container" class="conditional-field {% if form.instance.status == 'scheduled' %}active{% endif %}">
+                <label for="{{ form.scheduled_date.id_for_label }}" class="form-label {% if form.instance.status == 'scheduled' %}required-label{% endif %}">Scheduled Date</label>
+                {{ form.scheduled_date }}
+                {% if form.scheduled_date.errors %}
+                  <div class="invalid-feedback d-block">{{ form.scheduled_date.errors }}</div>
+                {% endif %}
+                <div class="form-text">Date when maintenance is scheduled to begin</div>
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <div id="completion-date-container" class="conditional-field {% if form.instance.status == 'completed' %}active{% endif %}">
+                <label for="{{ form.completion_date.id_for_label }}" class="form-label {% if form.instance.status == 'completed' %}required-label{% endif %}">Completion Date</label>
+                {{ form.completion_date }}
+                {% if form.completion_date.errors %}
+                  <div class="invalid-feedback d-block">{{ form.completion_date.errors }}</div>
+                {% endif %}
+                <div class="form-text">Date when maintenance was completed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Provider Information -->
+        <div class="form-section">
+          <h5 class="form-section-title">Service Provider</h5>
+          <div class="row">
+            <div class="col-md-12 mb-3">
+              <label for="{{ form.provider.id_for_label }}" class="form-label">Service Provider</label>
+              {{ form.provider }}
+              {% if form.provider.errors %}
+                <div class="invalid-feedback d-block">{{ form.provider.errors }}</div>
+              {% endif %}
+              <div class="mt-2">
+                <a href="{% url 'maintenance_provider_create' %}" class="btn btn-sm btn-outline-primary" target="_blank">
+                  <i class="fas fa-plus-circle"></i> Add New Provider
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Details and Cost -->
+        <div class="form-section">
+          <h5 class="form-section-title">Maintenance Details</h5>
+          <div class="row">
+            <div class="col-md-12 mb-3">
+              <label for="{{ form.description.id_for_label }}" class="form-label required-label">Description</label>
+              {{ form.description }}
+              {% if form.description.errors %}
+                <div class="invalid-feedback d-block">{{ form.description.errors }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.odometer_reading.id_for_label }}" class="form-label required-label">Odometer Reading (km)</label>
+              {{ form.odometer_reading }}
+              {% if form.odometer_reading.errors %}
+                <div class="invalid-feedback d-block">{{ form.odometer_reading.errors }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.cost.id_for_label }}" class="form-label">Cost</label>
+              {{ form.cost }}
+              {% if form.cost.errors %}
+                <div class="invalid-feedback d-block">{{ form.cost.errors }}</div>
+              {% endif %}
+              <div class="form-text">Cost of the maintenance service (if known)</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Documentation -->
+        <div class="form-section">
+          <h5 class="form-section-title">Documentation</h5>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.invoice_image.id_for_label }}" class="form-label">Invoice Image</label>
+              {{ form.invoice_image }}
+              {% if form.invoice_image.errors %}
+                <div class="invalid-feedback d-block">{{ form.invoice_image.errors }}</div>
+              {% endif %}
+              <img id="invoice-preview" class="invoice-preview" src="{% if form.instance.invoice_image %}{{ form.instance.invoice_image.url }}{% else %}#{% endif %}" alt="Invoice Preview">
+              {% if form.instance.invoice_image %}
+                <script>document.getElementById('invoice-preview').style.display = 'block';</script>
+              {% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.notes.id_for_label }}" class="form-label">Additional Notes</label>
+              {{ form.notes }}
+              {% if form.notes.errors %}
+                <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Form Actions -->
+        <div class="form-actions mt-4">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i> 
+            {% if form.instance.pk %}Update{% else %}Save{% endif %} Maintenance Record
+          </button>
+          <a href="{% if request.GET.back %}{{ request.GET.back }}{% else %}{% url 'maintenance_list' %}{% endif %}" class="btn btn-secondary ms-2">
+            <i class="fas fa-times me-1"></i> Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Style form controls
+    document.querySelectorAll('input, select, textarea').forEach(function(element) {
+      if (element.type !== 'file') {
+        element.classList.add('form-control');
+      } else {
+        element.classList.add('form-control');
+      }
+    });
+    
+    // Image preview
+    const invoiceInput = document.getElementById('{{ form.invoice_image.id_for_label }}');
+    const invoicePreview = document.getElementById('invoice-preview');
+    
+    if (invoiceInput && invoicePreview) {
+      invoiceInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+          const reader = new FileReader();
+          
+          reader.onload = function(e) {
+            invoicePreview.src = e.target.result;
+            invoicePreview.style.display = 'block';
+          };
+          
+          reader.readAsDataURL(this.files[0]);
+        }
+      });
+    }
+    
+    // Handle conditional fields based on status
+    const statusSelect = document.getElementById('{{ form.status.id_for_label }}');
+    const scheduledDateContainer = document.getElementById('scheduled-date-container');
+    const completionDateContainer = document.getElementById('completion-date-container');
+    const scheduledDateInput = document.getElementById('{{ form.scheduled_date.id_for_label }}');
+    const completionDateInput = document.getElementById('{{ form.completion_date.id_for_label }}');
+    const scheduledDateLabel = scheduledDateContainer.querySelector('label');
+    const completionDateLabel = completionDateContainer.querySelector('label');
+    
+    if (statusSelect) {
+      statusSelect.addEventListener('change', function() {
+        const status = this.value;
+        
+        // Handle scheduled date
+        if (status === 'scheduled') {
+          scheduledDateContainer.classList.add('active');
+          scheduledDateLabel.classList.add('required-label');
+          scheduledDateInput.required = true;
+        } else {
+          scheduledDateContainer.classList.remove('active');
+          scheduledDateLabel.classList.remove('required-label');
+          scheduledDateInput.required = false;
+        }
+        
+        // Handle completion date
+        if (status === 'completed') {
+          completionDateContainer.classList.add('active');
+          completionDateLabel.classList.add('required-label');
+          completionDateInput.required = true;
+        } else {
+          completionDateContainer.classList.remove('active');
+          completionDateLabel.classList.remove('required-label');
+          completionDateInput.required = false;
+        }
+      });
+    }
+    
+    // Set min date for date fields
+    const dateReportedInput = document.getElementById('{{ form.date_reported.id_for_label }}');
+    
+    if (dateReportedInput && scheduledDateInput) {
+      dateReportedInput.addEventListener('change', function() {
+        scheduledDateInput.min = this.value;
+      });
+      
+      // Set initial min value
+      if (dateReportedInput.value) {
+        scheduledDateInput.min = dateReportedInput.value;
+      }
+    }
+    
+    if (scheduledDateInput && completionDateInput) {
+      scheduledDateInput.addEventListener('change', function() {
+        completionDateInput.min = this.value;
+      });
+      
+      // Set initial min value
+      if (scheduledDateInput.value) {
+        completionDateInput.min = scheduledDateInput.value;
+      }
+    }
+    
+    // Vehicle change updates odometer reading
+    const vehicleSelect = document.getElementById('{{ form.vehicle.id_for_label }}');
+    const odometerInput = document.getElementById('{{ form.odometer_reading.id_for_label }}');
+    
+    if (vehicleSelect && odometerInput) {
+      vehicleSelect.addEventListener('change', function() {
+        const vehicleId = this.value;
+        if (vehicleId) {
+          // Fetch vehicle details via AJAX
+          fetch(`/api/vehicles/${vehicleId}/details/`)
+            .then(response => response.json())
+            .then(data => {
+              if (data.current_odometer) {
+                odometerInput.value = data.current_odometer;
+                odometerInput.min = data.current_odometer;
+              }
+            })
+            .catch(error => console.error('Error fetching vehicle details:', error));
+        }
+      });
+    }
+  });
+</script>
+{% endblock %}

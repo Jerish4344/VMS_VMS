@@ -1,0 +1,456 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load report_filters %}
+
+{% block title %}Vehicle Report - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap5.min.css">
+<style>
+  .vehicle-type-electric {
+    color: #1cc88a;
+  }
+  
+  .vehicle-type-fuel {
+    color: #4e73df;
+  }
+  
+  .efficiency-good {
+    color: #1cc88a;
+    font-weight: bold;
+  }
+  
+  .efficiency-medium {
+    color: #f6c23e;
+    font-weight: bold;
+  }
+  
+  .efficiency-poor {
+    color: #e74a3b;
+    font-weight: bold;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Report Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Vehicle Performance Report</h1>
+    <div class="btn-group">
+      <a href="{% url 'vehicle_report' %}?start_date={{ start_date }}&end_date={{ end_date }}&vehicle_type={{ request.GET.vehicle_type }}&export=csv" class="btn btn-sm btn-outline-primary">
+        <i class="fas fa-file-csv me-1"></i> Export CSV
+      </a>
+      <a href="{% url 'vehicle_report' %}?start_date={{ start_date }}&end_date={{ end_date }}&vehicle_type={{ request.GET.vehicle_type }}&export=excel" class="btn btn-sm btn-outline-success">
+        <i class="fas fa-file-excel me-1"></i> Export Excel
+      </a>
+    </div>
+  </div>
+  
+  <!-- Filters -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">Report Filters</h6>
+    </div>
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <label for="start_date" class="form-label">Start Date</label>
+          <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date }}">
+        </div>
+        <div class="col-md-3">
+          <label for="end_date" class="form-label">End Date</label>
+          <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date }}">
+        </div>
+        <div class="col-md-3">
+          <label for="vehicle_type" class="form-label">Vehicle Type</label>
+          <select class="form-select" id="vehicle_type" name="vehicle_type">
+            <option value="">All Types</option>
+            {% for type in vehicle_types %}
+            <option value="{{ type.vehicle_type__id }}" {% if request.GET.vehicle_type == type.vehicle_type__id|stringformat:"i" %}selected{% endif %}>{{ type.vehicle_type__name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fas fa-filter me-1"></i> Apply Filters
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Report Summary -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+      <h6 class="m-0 font-weight-bold text-primary">Vehicle Performance Summary</h6>
+      <span class="badge bg-primary">{{ vehicle_report|length }} Vehicles</span>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover" id="vehicleReportTable">
+          <thead>
+            <tr>
+              <th>License Plate</th>
+              <th>Make/Model</th>
+              <th>Type</th>
+              <th>Trip Count</th>
+              <th>Total Distance (km)</th>
+              <th>Fuel/Energy</th>
+              <th>Efficiency</th>
+              <th>Total Cost</th>
+              <th>Maintenance Cost</th>
+              <th>Cost per km</th>
+              <th>Accidents</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for vehicle in vehicle_report %}
+            <tr>
+              <td>
+                <strong>{{ vehicle.license_plate }}</strong>
+                {% if vehicle.is_electric %}
+                  <i class="fas fa-bolt text-success" title="Electric Vehicle"></i>
+                {% else %}
+                  <i class="fas fa-gas-pump text-primary" title="Fuel Vehicle"></i>
+                {% endif %}
+              </td>
+              <td>{{ vehicle.make }} {{ vehicle.model }}</td>
+              <td>{{ vehicle.vehicle_type }}</td>
+              <td>
+                <strong>{{ vehicle.trip_count }}</strong>
+                {% if vehicle.avg_distance > 0 %}
+                  <br><small class="text-muted">{{ vehicle.avg_distance }} km avg</small>
+                {% endif %}
+              </td>
+              <td>
+                <strong>{{ vehicle.total_distance }}</strong>
+              </td>
+              <td>
+                {% if vehicle.is_electric %}
+                  {{ vehicle.total_energy }} kWh
+                {% else %}
+                  {{ vehicle.total_fuel }} L
+                {% endif %}
+                <br><small class="text-muted">{{ vehicle.fuel_count }} transactions</small>
+              </td>
+              <td>
+                {% if vehicle.is_electric %}
+                  {% if vehicle.energy_efficiency > 5 %}
+                    <span class="efficiency-good">{{ vehicle.energy_efficiency }} km/kWh</span>
+                  {% elif vehicle.energy_efficiency > 3 %}
+                    <span class="efficiency-medium">{{ vehicle.energy_efficiency }} km/kWh</span>
+                  {% elif vehicle.energy_efficiency > 0 %}
+                    <span class="efficiency-poor">{{ vehicle.energy_efficiency }} km/kWh</span>
+                  {% else %}
+                    <span class="text-muted">N/A</span>
+                  {% endif %}
+                {% else %}
+                  {% if vehicle.fuel_efficiency > 12 %}
+                    <span class="efficiency-good">{{ vehicle.fuel_efficiency }} km/L</span>
+                  {% elif vehicle.fuel_efficiency > 8 %}
+                    <span class="efficiency-medium">{{ vehicle.fuel_efficiency }} km/L</span>
+                  {% elif vehicle.fuel_efficiency > 0 %}
+                    <span class="efficiency-poor">{{ vehicle.fuel_efficiency }} km/L</span>
+                  {% else %}
+                    <span class="text-muted">N/A</span>
+                  {% endif %}
+                {% endif %}
+              </td>
+              <td>₹{{ vehicle.total_fuel_cost }}</td>
+              <td>₹{{ vehicle.total_maintenance_cost }}</td>
+              <td>₹{{ vehicle.cost_per_km }}</td>
+              <td>{{ vehicle.accident_count }}</td>
+              <td>
+                <span class="badge bg-{{ vehicle.status|status_color }}">
+                  {{ vehicle.status|capfirst }}
+                </span>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="12" class="text-center">No data available for the selected period</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Charts -->
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Distance by Vehicle</h6>
+        </div>
+        <div class="card-body">
+          <canvas id="distanceChart" height="300"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Efficiency by Vehicle</h6>
+        </div>
+        <div class="card-body">
+          <canvas id="efficiencyChart" height="300"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Cost Distribution</h6>
+        </div>
+        <div class="card-body">
+          <canvas id="costChart" height="300"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Cost per Kilometer</h6>
+        </div>
+        <div class="card-body">
+          <canvas id="costPerKmChart" height="300"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing vehicle report...');
+    
+    // Initialize DataTable
+    $('#vehicleReportTable').DataTable({
+      responsive: true,
+      order: [[4, 'desc']],  // Order by total distance by default
+      pageLength: 10,
+      lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
+    });
+    
+    // Prepare data for charts
+    const vehicles = [];
+    const distances = [];
+    const efficiencies = [];
+    const fuelCosts = [];
+    const maintenanceCosts = [];
+    const costPerKm = [];
+    const isElectric = [];
+    
+    {% for vehicle in vehicle_report %}
+      vehicles.push('{{ vehicle.license_plate }}');
+      distances.push({{ vehicle.total_distance|default:0 }});
+      {% if vehicle.is_electric %}
+        efficiencies.push({{ vehicle.energy_efficiency|default:0 }});
+        isElectric.push(true);
+      {% else %}
+        efficiencies.push({{ vehicle.fuel_efficiency|default:0 }});
+        isElectric.push(false);
+      {% endif %}
+      fuelCosts.push({{ vehicle.total_fuel_cost|default:0 }});
+      maintenanceCosts.push({{ vehicle.total_maintenance_cost|default:0 }});
+      costPerKm.push({{ vehicle.cost_per_km|default:0 }});
+    {% endfor %}
+    
+    console.log('Vehicle data:', { vehicles, distances, efficiencies, fuelCosts, maintenanceCosts, costPerKm });
+    
+    // Check if Chart.js is loaded
+    if (typeof Chart === 'undefined') {
+      console.error('Chart.js is not loaded!');
+      return;
+    }
+    
+    // Distance Chart
+    const distanceCanvas = document.getElementById('distanceChart');
+    if (distanceCanvas && distances.length > 0) {
+      const distanceCtx = distanceCanvas.getContext('2d');
+      new Chart(distanceCtx, {
+        type: 'bar',
+        data: {
+          labels: vehicles,
+          datasets: [{
+            label: 'Total Distance (km)',
+            data: distances,
+            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Distance (km)'
+              }
+            }
+          }
+        }
+      });
+      console.log('Distance chart created');
+    }
+    
+    // Efficiency Chart
+    const efficiencyCanvas = document.getElementById('efficiencyChart');
+    if (efficiencyCanvas && efficiencies.length > 0) {
+      const efficiencyCtx = efficiencyCanvas.getContext('2d');
+      
+      // Create different colors for electric vs fuel vehicles
+      const backgroundColors = vehicles.map((_, index) => 
+        isElectric[index] ? 'rgba(28, 200, 138, 0.7)' : 'rgba(75, 192, 192, 0.7)'
+      );
+      const borderColors = vehicles.map((_, index) => 
+        isElectric[index] ? 'rgba(28, 200, 138, 1)' : 'rgba(75, 192, 192, 1)'
+      );
+      
+      new Chart(efficiencyCtx, {
+        type: 'bar',
+        data: {
+          labels: vehicles,
+          datasets: [{
+            label: 'Efficiency (km/L or km/kWh)',
+            data: efficiencies,
+            backgroundColor: backgroundColors,
+            borderColor: borderColors,
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Efficiency (km/L or km/kWh)'
+              }
+            }
+          }
+        }
+      });
+      console.log('Efficiency chart created');
+    }
+    
+    // Cost Distribution Chart
+    const costCanvas = document.getElementById('costChart');
+    if (costCanvas && (fuelCosts.length > 0 || maintenanceCosts.length > 0)) {
+      const costCtx = costCanvas.getContext('2d');
+      new Chart(costCtx, {
+        type: 'bar',
+        data: {
+          labels: vehicles,
+          datasets: [
+            {
+              label: 'Fuel/Energy Cost',
+              data: fuelCosts,
+              backgroundColor: 'rgba(255, 159, 64, 0.7)',
+              borderColor: 'rgba(255, 159, 64, 1)',
+              borderWidth: 1
+            },
+            {
+              label: 'Maintenance Cost',
+              data: maintenanceCosts,
+              backgroundColor: 'rgba(153, 102, 255, 0.7)',
+              borderColor: 'rgba(153, 102, 255, 1)',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Cost (₹)'
+              }
+            }
+          }
+        }
+      });
+      console.log('Cost chart created');
+    }
+    
+    // Cost per Km Chart
+    const costPerKmCanvas = document.getElementById('costPerKmChart');
+    if (costPerKmCanvas && costPerKm.length > 0) {
+      const costPerKmCtx = costPerKmCanvas.getContext('2d');
+      new Chart(costPerKmCtx, {
+        type: 'bar',
+        data: {
+          labels: vehicles,
+          datasets: [{
+            label: 'Cost per Km (₹)',
+            data: costPerKm,
+            backgroundColor: 'rgba(255, 99, 132, 0.7)',
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Cost per Km (₹)'
+              }
+            }
+          }
+        }
+      });
+      console.log('Cost per km chart created');
+    }
+    
+    console.log('All charts initialized');
+  });
+</script>
+{% endblock %}

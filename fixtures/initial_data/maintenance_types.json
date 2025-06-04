@@ -1,0 +1,66 @@
+[
+    {
+        "model": "maintenance.maintenancetype",
+        "pk": 1,
+        "fields": {
+            "name": "Oil Change",
+            "description": "Change engine oil and oil filter"
+        }
+    },
+    {
+        "model": "maintenance.maintenancetype",
+        "pk": 2,
+        "fields": {
+            "name": "Tire Rotation",
+            "description": "Rotate tires to ensure even wear"
+        }
+    },
+    {
+        "model": "maintenance.maintenancetype",
+        "pk": 3,
+        "fields": {
+            "name": "Brake Service",
+            "description": "Inspection and/or replacement of brake pads, rotors, etc."
+        }
+    },
+    {
+        "model": "maintenance.maintenancetype",
+        "pk": 4,
+        "fields": {
+            "name": "Air Filter Replacement",
+            "description": "Replace engine air filter"
+        }
+    },
+    {
+        "model": "maintenance.maintenancetype",
+        "pk": 5,
+        "fields": {
+            "name": "Battery Replacement",
+            "description": "Replace vehicle battery"
+        }
+    },
+    {
+        "model": "maintenance.maintenancetype",
+        "pk": 6,
+        "fields": {
+            "name": "Transmission Service",
+            "description": "Inspect and/or replace transmission fluid"
+        }
+    },
+    {
+        "model": "maintenance.maintenancetype",
+        "pk": 7,
+        "fields": {
+            "name": "Coolant Flush",
+            "description": "Flush and replace engine coolant"
+        }
+    },
+    {
+        "model": "maintenance.maintenancetype",
+        "pk": 8,
+        "fields": {
+            "name": "General Inspection",
+            "description": "Comprehensive vehicle inspection"
+        }
+    }
+]

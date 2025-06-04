@@ -1,0 +1,846 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Fuel & Energy Report - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .report-stats-card {
+    transition: transform 0.2s;
+    height: 100%;
+  }
+  
+  .report-stats-card:hover {
+    transform: translateY(-5px);
+  }
+  
+  .stats-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  
+  .stats-label {
+    color: #858796;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  
+  .date-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .filter-divider {
+    font-weight: bold;
+  }
+  
+  .btn-export {
+    margin-right: 0.5rem;
+  }
+  
+  .fuel-type-badge {
+    display: inline-block;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    color: #212529;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+  }
+  
+  .fuel-type-electric {
+    background-color: #1cc88a;
+    color: white;
+  }
+  
+  .chart-container {
+    position: relative;
+    margin: auto;
+    height: 300px;
+    width: 100%;
+  }
+  
+  .breakdown-table th {
+    white-space: nowrap;
+  }
+  
+  .progress {
+    height: 0.5rem;
+  }
+  
+  .efficiency-card {
+    border-left-width: 5px;
+    height: 100%;
+  }
+  
+  .efficiency-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  
+  .efficiency-label {
+    font-size: 0.8rem;
+    color: #858796;
+  }
+  
+  .efficiency-good {
+    border-left-color: #1cc88a;
+  }
+  
+  .efficiency-medium {
+    border-left-color: #f6c23e;
+  }
+  
+  .efficiency-poor {
+    border-left-color: #e74a3b;
+  }
+  
+  .vehicle-type-fuel {
+    color: #4e73df;
+  }
+  
+  .vehicle-type-electric {
+    color: #1cc88a;
+  }
+  
+  .vehicle-type-hybrid {
+    color: #f6c23e;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Fuel & Energy Report</h1>
+    
+    <div class="d-flex">
+      <a href="{% url 'fuel_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}export=excel" class="btn btn-sm btn-success shadow-sm btn-export">
+        <i class="fas fa-file-excel fa-sm text-white-50"></i> Export to Excel
+      </a>
+      <a href="{% url 'fuel_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}export=csv" class="btn btn-sm btn-primary shadow-sm btn-export">
+        <i class="fas fa-file-csv fa-sm text-white-50"></i> Export to CSV
+      </a>
+    </div>
+  </div>
+  
+  <!-- Filters Card -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">Report Filters</h6>
+    </div>
+    <div class="card-body">
+      <form id="report-filters" method="get" class="mb-0">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="mb-3">
+              <label class="form-label">Date Range</label>
+              <div class="date-filter-row">
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}" placeholder="Start Date">
+                <span class="filter-divider">to</span>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}" placeholder="End Date">
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-3">
+            <div class="mb-3">
+              <label for="vehicle-filter" class="form-label">Vehicle</label>
+              <select name="vehicle" id="vehicle-filter" class="form-select">
+                <option value="">All Vehicles</option>
+                {% for vehicle in vehicles %}
+                  <option value="{{ vehicle.id }}" {% if request.GET.vehicle == vehicle.id|stringformat:"i" %}selected{% endif %}>
+                    {{ vehicle.license_plate }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          
+          <div class="col-md-3">
+            <div class="mb-3">
+              <label for="fuel-type-filter" class="form-label">Energy Type</label>
+              <select name="fuel_type" id="fuel-type-filter" class="form-select">
+                <option value="">All Types</option>
+                {% for fuel_type in fuel_types %}
+                  <option value="{{ fuel_type }}" {% if request.GET.fuel_type == fuel_type %}selected{% endif %}>
+                    {{ fuel_type }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          
+          <div class="col-md-2 d-flex align-items-end">
+            <div class="mb-3 d-flex w-100">
+              <button type="submit" class="btn btn-primary flex-grow-1 me-2">
+                <i class="fas fa-filter"></i> Apply
+              </button>
+              <a href="{% url 'fuel_report' %}" class="btn btn-secondary">
+                <i class="fas fa-redo"></i> Reset
+              </a>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Summary Stats Cards -->
+  <div class="row mb-4">
+    <!-- Total Transactions -->
+    <div class="col-xl-2 col-md-4 mb-4">
+      <div class="card border-left-primary shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Transactions</div>
+              <div class="stats-value text-primary">
+                {{ summary.total_count }}
+              </div>
+              <div class="small text-muted">
+                {{ summary.fuel_transaction_count }} fuel / {{ summary.electric_transaction_count }} electric
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-gas-pump fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Total Fuel -->
+    <div class="col-xl-2 col-md-4 mb-4">
+      <div class="card border-left-success shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Fuel</div>
+              <div class="stats-value text-success">
+                {{ summary.total_quantity|floatformat:0 }} L
+              </div>
+              <div class="small text-muted">
+                ₹{{ summary.avg_cost_per_liter|floatformat:2 }}/L avg
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-tint fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Total Energy -->
+    <div class="col-xl-2 col-md-4 mb-4">
+      <div class="card border-left-info shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Energy</div>
+              <div class="stats-value text-info">
+                {{ summary.total_energy|floatformat:0 }} kWh
+              </div>
+              <div class="small text-muted">
+                ₹{{ summary.avg_cost_per_kwh|floatformat:2 }}/kWh avg
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-bolt fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Total Cost -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-warning shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Cost</div>
+              <div class="stats-value text-warning">
+                ₹{{ summary.total_cost|floatformat:2 }}
+              </div>
+              <div class="small text-muted">
+                ₹{{ summary.fuel_cost|floatformat:0 }} fuel / ₹{{ summary.electric_cost|floatformat:0 }} electric
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Average Charging Time -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-danger shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Avg Charging</div>
+              <div class="stats-value text-danger">
+                {{ summary.avg_charging_duration|floatformat:0 }} min
+              </div>
+              <div class="small text-muted">
+                Electric vehicles only
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-clock fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Charts Row -->
+  <div class="row mb-4">
+    <!-- Monthly Trend Chart -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Monthly Fuel & Energy Consumption</h6>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="monthlyConsumptionChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Fuel vs Electric Distribution -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Fuel vs Electric Distribution</h6>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="fuelTypeChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Breakdown Tables Row -->
+  <div class="row mb-4">
+    <!-- Energy Type Breakdown -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Energy Type Analysis</h6>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-bordered breakdown-table" width="100%" cellspacing="0">
+              <thead>
+                <tr>
+                  <th>Energy Type</th>
+                  <th>Fuel/Energy</th>
+                  <th>Avg Cost</th>
+                  <th>Total Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for fuel_type in summary.fuel_type_breakdown %}
+                  <tr>
+                    <td>
+                      <span class="fuel-type-badge {% if fuel_type.fuel_type == 'Electric' %}fuel-type-electric{% endif %}">
+                        {{ fuel_type.fuel_type }}
+                      </span>
+                    </td>
+                    <td>
+                      {% if fuel_type.fuel_type == 'Electric' %}
+                        {{ fuel_type.total_energy|default:0|floatformat:2 }} kWh
+                      {% else %}
+                        {{ fuel_type.total_quantity|default:0|floatformat:2 }} L
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if fuel_type.fuel_type == 'Electric' %}
+                        ₹{{ fuel_type.avg_cost_per_kwh|default:0|floatformat:2 }}/kWh
+                      {% else %}
+                        ₹{{ fuel_type.avg_cost_per_liter|default:0|floatformat:2 }}/L
+                      {% endif %}
+                    </td>
+                    <td>₹{{ fuel_type.total_cost|floatformat:2 }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Fuel Station Breakdown -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Station Analysis</h6>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-bordered breakdown-table" width="100%" cellspacing="0">
+              <thead>
+                <tr>
+                  <th>Station</th>
+                  <th>Transactions</th>
+                  <th>Fuel/Energy</th>
+                  <th>Total Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for station in summary.station_breakdown %}
+                  <tr>
+                    <td>{{ station.fuel_station__name|default:"Unknown Station" }}</td>
+                    <td>{{ station.count }}</td>
+                    <td>
+                      {% if station.total_quantity %}
+                        {{ station.total_quantity|floatformat:1 }}L
+                      {% endif %}
+                      {% if station.total_energy %}
+                        {% if station.total_quantity %} / {% endif %}{{ station.total_energy|floatformat:1 }}kWh
+                      {% endif %}
+                    </td>
+                    <td>₹{{ station.total_cost|floatformat:2 }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Vehicle Efficiency Section -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">Vehicle Efficiency Analysis</h6>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        {% for vehicle in vehicle_efficiency %}
+          <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card shadow efficiency-card {% if vehicle.fuel_efficiency > 12 or vehicle.energy_efficiency > 5 %}efficiency-good{% elif vehicle.fuel_efficiency > 8 or vehicle.energy_efficiency > 3 %}efficiency-medium{% else %}efficiency-poor{% endif %}">
+              <div class="card-body">
+                <div class="vehicle-name font-weight-bold mb-2">{{ vehicle.vehicle }}</div>
+                
+                <div class="row">
+                  <div class="col-6">
+                    <div class="text-center">
+                      <div class="efficiency-value vehicle-type-{{ vehicle.vehicle_type|lower }}">
+                        <i class="fas fa-car"></i> {{ vehicle.vehicle_type }}
+                      </div>
+                      <div class="efficiency-label">Vehicle Type</div>
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <div class="text-center">
+                      <div class="efficiency-value">₹{{ vehicle.total_cost|floatformat:0 }}</div>
+                      <div class="efficiency-label">Total Cost</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <hr>
+                
+                {% if vehicle.fuel_efficiency > 0 %}
+                  <div class="mb-2">
+                    <div class="efficiency-value text-primary">{{ vehicle.fuel_efficiency }} km/L</div>
+                    <div class="efficiency-label">Fuel Efficiency</div>
+                    <div class="small text-muted">{{ vehicle.fuel|floatformat:1 }}L fuel consumed</div>
+                  </div>
+                {% endif %}
+                
+                {% if vehicle.energy_efficiency > 0 %}
+                  <div class="mb-2">
+                    <div class="efficiency-value text-success">{{ vehicle.energy_efficiency }} km/kWh</div>
+                    <div class="efficiency-label">Energy Efficiency</div>
+                    <div class="small text-muted">{{ vehicle.energy|floatformat:1 }}kWh energy consumed</div>
+                  </div>
+                {% endif %}
+                
+                <div class="small text-muted">
+                  <div>Distance: {{ vehicle.distance|floatformat:0 }} km</div>
+                  <div>{{ vehicle.fuel_transactions }} fuel / {{ vehicle.electric_transactions }} electric transactions</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="col-12">
+            <div class="alert alert-info">
+              No efficiency data available for the selected period. This could be because there are no completed trips with corresponding fuel/energy transactions.
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Fuel & Energy Transactions Table -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+      <h6 class="m-0 font-weight-bold text-primary">Fuel & Energy Transactions</h6>
+      <span>Period: {{ start_date }} to {{ end_date }}</span>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Vehicle</th>
+              <th>Driver</th>
+              <th>Type</th>
+              <th>Station</th>
+              <th>Quantity/Energy</th>
+              <th>Unit Cost</th>
+              <th>Duration</th>
+              <th>Total Cost</th>
+              <th>Odometer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for transaction in fuel_report %}
+              <tr>
+                <td>{{ transaction.date|date:"M d, Y" }}</td>
+                <td>{{ transaction.vehicle }}</td>
+                <td>{{ transaction.driver }}</td>
+                <td>
+                  <span class="fuel-type-badge {% if transaction.is_electric %}fuel-type-electric{% endif %}">
+                    {{ transaction.fuel_type }}
+                  </span>
+                </td>
+                <td>{{ transaction.fuel_station }}</td>
+                <td>
+                  {% if transaction.is_electric %}
+                    {{ transaction.energy_consumed|floatformat:2 }} kWh
+                  {% else %}
+                    {{ transaction.quantity|floatformat:2 }} L
+                  {% endif %}
+                </td>
+                <td>
+                  {% if transaction.is_electric %}
+                    ₹{{ transaction.cost_per_kwh|floatformat:2 }}/kWh
+                  {% else %}
+                    ₹{{ transaction.cost_per_liter|floatformat:2 }}/L
+                  {% endif %}
+                </td>
+                <td>
+                  {% if transaction.is_electric and transaction.charging_duration_minutes %}
+                    {{ transaction.charging_duration_minutes }} min
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td>₹{{ transaction.total_cost|floatformat:2 }}</td>
+                <td>{{ transaction.odometer_reading }} km</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="10" class="text-center">No fuel/energy transactions found for the selected period.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing charts...');
+    
+    // Check if Chart.js is loaded
+    if (typeof Chart === 'undefined') {
+      console.error('Chart.js is not loaded!');
+      return;
+    }
+    
+    // Format dates
+    const today = new Date().toISOString().split('T')[0];
+    const startDateInput = document.querySelector('input[name="start_date"]');
+    const endDateInput = document.querySelector('input[name="end_date"]');
+    
+    if (startDateInput && endDateInput) {
+      endDateInput.max = today;
+      
+      startDateInput.addEventListener('change', function() {
+        endDateInput.min = this.value;
+        if (endDateInput.value && new Date(endDateInput.value) < new Date(this.value)) {
+          endDateInput.value = this.value;
+        }
+      });
+      
+      endDateInput.addEventListener('change', function() {
+        startDateInput.max = this.value;
+      });
+      
+      // Set initial constraints
+      if (startDateInput.value) {
+        endDateInput.min = startDateInput.value;
+      }
+      if (endDateInput.value) {
+        startDateInput.max = endDateInput.value;
+      } else {
+        startDateInput.max = today;
+      }
+    }
+    
+    // Style form controls
+    document.querySelectorAll('select').forEach(function(element) {
+      element.classList.add('form-select');
+    });
+    
+    // Initialize DataTable
+    if (typeof $ !== 'undefined' && $.fn.DataTable) {
+      $('#dataTable').DataTable({
+        order: [[0, 'desc']], // Sort by date
+        pageLength: 25
+      });
+    }
+    
+    // Prepare Monthly Data for Chart
+    const monthlyData = [
+      {% for month_data in monthly_data %}
+        {
+          month: "{{ month_data.month|date:'M Y' }}",
+          fuel_quantity: {{ month_data.total_quantity|default:0 }},
+          energy_consumed: {{ month_data.total_energy|default:0 }},
+          total_cost: {{ month_data.total_cost|default:0 }},
+          fuel_count: {{ month_data.fuel_count|default:0 }},
+          electric_count: {{ month_data.electric_count|default:0 }}
+        }{% if not forloop.last %},{% endif %}
+      {% endfor %}
+    ];
+    
+    console.log('Monthly Data:', monthlyData);
+    
+    // Prepare Fuel Type Data for Chart
+    const fuelTypeData = [
+      {% for type in summary.fuel_type_breakdown %}
+        {
+          type: "{{ type.fuel_type }}",
+          quantity: {% if type.fuel_type == 'Electric' %}{{ type.total_energy|default:0 }}{% else %}{{ type.total_quantity|default:0 }}{% endif %},
+          cost: {{ type.total_cost|default:0 }}
+        }{% if not forloop.last %},{% endif %}
+      {% endfor %}
+    ];
+    
+    console.log('Fuel Type Data:', fuelTypeData);
+    
+    // Colors for charts
+    const primaryColor = 'rgba(78, 115, 223, 1)';
+    const successColor = 'rgba(28, 200, 138, 1)';
+    const warningColor = 'rgba(246, 194, 62, 1)';
+    const dangerColor = 'rgba(231, 74, 59, 1)';
+    const infoColor = 'rgba(54, 185, 204, 1)';
+    
+    // Monthly Consumption Chart
+    const monthlyCanvas = document.getElementById('monthlyConsumptionChart');
+    if (monthlyCanvas) {
+      const monthlyCtx = monthlyCanvas.getContext('2d');
+      console.log('Creating monthly chart...');
+      
+      // Check if we have data
+      if (monthlyData.length > 0) {
+        try {
+          new Chart(monthlyCtx, {
+            type: 'bar',
+            data: {
+              labels: monthlyData.map(d => d.month),
+              datasets: [
+                {
+                  label: 'Fuel Quantity (L)',
+                  data: monthlyData.map(d => d.fuel_quantity || 0),
+                  backgroundColor: 'rgba(78, 115, 223, 0.8)',
+                  borderColor: primaryColor,
+                  borderWidth: 1,
+                  yAxisID: 'y'
+                },
+                {
+                  label: 'Energy Consumed (kWh)',
+                  data: monthlyData.map(d => d.energy_consumed || 0),
+                  backgroundColor: 'rgba(28, 200, 138, 0.8)',
+                  borderColor: successColor,
+                  borderWidth: 1,
+                  yAxisID: 'y'
+                },
+                {
+                  label: 'Total Cost (₹)',
+                  data: monthlyData.map(d => d.total_cost || 0),
+                  type: 'line',
+                  borderColor: warningColor,
+                  backgroundColor: 'rgba(0, 0, 0, 0)',
+                  pointBackgroundColor: warningColor,
+                  borderWidth: 2,
+                  yAxisID: 'y1',
+                  tension: 0.4
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: {
+                intersect: false,
+                mode: 'index'
+              },
+              scales: {
+                x: {
+                  grid: {
+                    display: false
+                  }
+                },
+                y: {
+                  type: 'linear',
+                  display: true,
+                  position: 'left',
+                  title: {
+                    display: true,
+                    text: 'Quantity (L) / Energy (kWh)'
+                  },
+                  beginAtZero: true
+                },
+                y1: {
+                  type: 'linear',
+                  display: true,
+                  position: 'right',
+                  title: {
+                    display: true,
+                    text: 'Cost (₹)'
+                  },
+                  beginAtZero: true,
+                  grid: {
+                    drawOnChartArea: false,
+                  }
+                }
+              },
+              plugins: {
+                legend: {
+                  position: 'top'
+                }
+              }
+            }
+          });
+          console.log('Monthly chart created successfully');
+        } catch (error) {
+          console.error('Error creating monthly chart:', error);
+          monthlyCanvas.parentNode.innerHTML = '<div class="text-center text-muted p-4">Error loading monthly chart</div>';
+        }
+      } else {
+        console.log('No monthly data available');
+        monthlyCanvas.parentNode.innerHTML = '<div class="text-center text-muted p-4">No monthly data available for the selected period</div>';
+      }
+    } else {
+      console.error('Monthly chart canvas not found');
+    }
+    
+    // Fuel Type Chart
+    const fuelTypeCanvas = document.getElementById('fuelTypeChart');
+    if (fuelTypeCanvas) {
+      const fuelTypeCtx = fuelTypeCanvas.getContext('2d');
+      console.log('Creating fuel type chart...');
+      
+      // Create a color array
+      const backgroundColors = [
+        'rgba(78, 115, 223, 0.8)',
+        'rgba(28, 200, 138, 0.8)',
+        'rgba(246, 194, 62, 0.8)',
+        'rgba(231, 74, 59, 0.8)',
+        'rgba(54, 185, 204, 0.8)',
+        'rgba(133, 135, 150, 0.8)'
+      ];
+      
+      // Check if we have data
+      if (fuelTypeData.length > 0 && fuelTypeData.some(d => d.cost > 0)) {
+        try {
+          new Chart(fuelTypeCtx, {
+            type: 'pie',
+            data: {
+              labels: fuelTypeData.map(d => d.type),
+              datasets: [{
+                data: fuelTypeData.map(d => d.cost || 0),
+                backgroundColor: backgroundColors.slice(0, fuelTypeData.length),
+                borderColor: backgroundColors.slice(0, fuelTypeData.length).map(color => color.replace('0.8', '1')),
+                borderWidth: 2,
+                hoverOffset: 4
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  position: 'right'
+                },
+                tooltip: {
+                  callbacks: {
+                    label: function(context) {
+                      let label = context.label || '';
+                      if (label) {
+                        label += ': ';
+                      }
+                      label += '₹' + context.raw.toFixed(2);
+                      
+                      // Calculate percentage
+                      const total = fuelTypeData.reduce((sum, item) => sum + (item.cost || 0), 0);
+                      if (total > 0) {
+                        const percentage = ((context.raw / total) * 100).toFixed(1);
+                        label += ' (' + percentage + '%)';
+                      }
+                      
+                      return label;
+                    },
+                    afterLabel: function(context) {
+                      const index = context.dataIndex;
+                      const quantity = fuelTypeData[index].quantity || 0;
+                      const unit = context.label === 'Electric' ? 'kWh' : 'L';
+                      return 'Quantity: ' + quantity.toFixed(2) + ' ' + unit;
+                    }
+                  }
+                }
+              }
+            }
+          });
+          console.log('Fuel type chart created successfully');
+        } catch (error) {
+          console.error('Error creating fuel type chart:', error);
+          fuelTypeCanvas.parentNode.innerHTML = '<div class="text-center text-muted p-4">Error loading fuel type chart</div>';
+        }
+      } else {
+        console.log('No fuel type data available');
+        fuelTypeCanvas.parentNode.innerHTML = '<div class="text-center text-muted p-4">No fuel type data available for the selected period</div>';
+      }
+    } else {
+      console.error('Fuel type chart canvas not found');
+    }
+    
+    console.log('Chart initialization complete');
+  });
+</script>
+{% endblock %}

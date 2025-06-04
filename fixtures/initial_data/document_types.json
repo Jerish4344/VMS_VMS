@@ -1,0 +1,74 @@
+[
+    {
+        "model": "documents.documenttype",
+        "pk": 1,
+        "fields": {
+            "name": "Vehicle Registration",
+            "description": "Official vehicle registration document",
+            "required": true
+        }
+    },
+    {
+        "model": "documents.documenttype",
+        "pk": 2,
+        "fields": {
+            "name": "Insurance Policy",
+            "description": "Vehicle insurance documentation",
+            "required": true
+        }
+    },
+    {
+        "model": "documents.documenttype",
+        "pk": 3,
+        "fields": {
+            "name": "Pollution Certificate",
+            "description": "Emissions compliance certificate",
+            "required": true
+        }
+    },
+    {
+        "model": "documents.documenttype",
+        "pk": 4,
+        "fields": {
+            "name": "Tax Receipt",
+            "description": "Proof of tax payment",
+            "required": true
+        }
+    },
+    {
+        "model": "documents.documenttype",
+        "pk": 5,
+        "fields": {
+            "name": "Fitness Certificate",
+            "description": "Vehicle fitness certification",
+            "required": true
+        }
+    },
+    {
+        "model": "documents.documenttype",
+        "pk": 6,
+        "fields": {
+            "name": "Permit",
+            "description": "Special vehicle permit",
+            "required": false
+        }
+    },
+    {
+        "model": "documents.documenttype",
+        "pk": 7,
+        "fields": {
+            "name": "Purchase Invoice",
+            "description": "Original purchase documentation",
+            "required": false
+        }
+    },
+    {
+        "model": "documents.documenttype",
+        "pk": 8,
+        "fields": {
+            "name": "Service Book",
+            "description": "Vehicle service history documentation",
+            "required": false
+        }
+    }
+]

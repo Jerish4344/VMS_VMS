@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Delete Transaction - {{ object.vehicle.license_plate }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .delete-warning {
+    color: #e74a3b;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+  }
+  
+  .transaction-info {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    margin-bottom: 1.5rem;
+  }
+  
+  .transaction-info-label {
+    font-weight: 600;
+    color: #5a5c69;
+    margin-bottom: 0.25rem;
+  }
+  
+  .delete-actions {
+    margin-top: 2rem;
+  }
+  
+  .transaction-type-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .electric-badge {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  
+  .fuel-badge {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Delete Transaction</h1>
+    <a href="{% url 'fuel_transaction_list' %}" class="btn btn-sm btn-secondary">
+      <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Transactions
+    </a>
+  </div>
+  
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3 bg-danger text-white">
+          <h6 class="m-0 font-weight-bold">Confirm Deletion</h6>
+        </div>
+        <div class="card-body">
+          <div class="delete-warning">
+            <i class="fas fa-exclamation-triangle mr-2"></i> 
+            Warning: This action cannot be undone. Are you sure you want to delete this transaction?
+          </div>
+          
+          <!-- Transaction Type Badge -->
+          <div class="text-center mb-3">
+            {% if object.vehicle.is_electric %}
+              <span class="badge transaction-type-badge electric-badge">
+                <i class="fas fa-bolt"></i> Charging Session
+              </span>
+            {% else %}
+              <span class="badge transaction-type-badge fuel-badge">
+                <i class="fas fa-gas-pump"></i> Fuel Transaction
+              </span>
+            {% endif %}
+          </div>
+          
+          <div class="transaction-info">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <div class="transaction-info-label">Vehicle</div>
+                  <div>{{ object.vehicle.make }} {{ object.vehicle.model }} ({{ object.vehicle.license_plate }})</div>
+                </div>
+                
+                <div class="mb-3">
+                  <div class="transaction-info-label">Driver</div>
+                  <div>{{ object.driver.get_full_name }}</div>
+                </div>
+                
+                <div class="mb-3">
+                  <div class="transaction-info-label">Date</div>
+                  <div>{{ object.date|date:"F j, Y" }}</div>
+                </div>
+                
+                {% if object.fuel_station %}
+                <div class="mb-3">
+                  <div class="transaction-info-label">Station</div>
+                  <div>{{ object.fuel_station.name }}</div>
+                </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6">
+                {% if object.vehicle.is_electric %}
+                  <!-- Electric Vehicle Information -->
+                  {% if object.energy_consumed %}
+                  <div class="mb-3">
+                    <div class="transaction-info-label">Energy Consumed</div>
+                    <div>{{ object.energy_consumed }} kWh</div>
+                  </div>
+                  {% endif %}
+                  
+                  {% if object.cost_per_kwh %}
+                  <div class="mb-3">
+                    <div class="transaction-info-label">Cost per kWh</div>
+                    <div>₹{{ object.cost_per_kwh }}</div>
+                  </div>
+                  {% endif %}
+                  
+                  {% if object.charging_duration_minutes %}
+                  <div class="mb-3">
+                    <div class="transaction-info-label">Charging Duration</div>
+                    <div>{{ object.charging_duration_minutes }} minutes</div>
+                  </div>
+                  {% endif %}
+                {% else %}
+                  <!-- Fuel Vehicle Information -->
+                  <div class="mb-3">
+                    <div class="transaction-info-label">Fuel Type</div>
+                    <div>{{ object.fuel_type }}</div>
+                  </div>
+                  
+                  {% if object.quantity %}
+                  <div class="mb-3">
+                    <div class="transaction-info-label">Quantity</div>
+                    <div>{{ object.quantity }} L</div>
+                  </div>
+                  {% endif %}
+                  
+                  {% if object.cost_per_liter %}
+                  <div class="mb-3">
+                    <div class="transaction-info-label">Cost per Liter</div>
+                    <div>₹{{ object.cost_per_liter }}</div>
+                  </div>
+                  {% endif %}
+                {% endif %}
+                
+                <div class="mb-3">
+                  <div class="transaction-info-label">Total Cost</div>
+                  <div class="font-weight-bold text-primary">₹{{ object.total_cost }}</div>
+                </div>
+                
+                <div class="mb-3">
+                  <div class="transaction-info-label">Odometer Reading</div>
+                  <div>{{ object.odometer_reading }} km</div>
+                </div>
+              </div>
+            </div>
+            
+            {% if object.notes %}
+            <div class="mb-3">
+              <div class="transaction-info-label">Notes</div>
+              <div>{{ object.notes }}</div>
+            </div>
+            {% endif %}
+            
+            {% if object.receipt_image %}
+            <div class="mb-3">
+              <div class="transaction-info-label">Receipt</div>
+              <div>
+                <img src="{{ object.receipt_image.url }}" alt="Receipt" style="max-width: 200px; max-height: 150px;" class="img-thumbnail">
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          
+          <form method="post">
+            {% csrf_token %}
+            <div class="delete-actions d-flex justify-content-between">
+              <a href="{% url 'fuel_transaction_detail' object.id %}" class="btn btn-secondary">
+                <i class="fas fa-times mr-2"></i> Cancel
+              </a>
+              <button type="submit" class="btn btn-danger">
+                <i class="fas fa-trash mr-2"></i> 
+                Delete {% if object.vehicle.is_electric %}Charging Session{% else %}Fuel Transaction{% endif %}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

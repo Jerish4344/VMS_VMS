@@ -1,0 +1,446 @@
+<!-- accounts/templates/accounts/pending_employees.html -->
+{% extends 'base.html' %}
+{% load static %}
+{% load approval_tags %}
+
+{% block title %}Pending Employee Approvals - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .employee-card {
+    transition: transform 0.2s;
+    border-left: 4px solid #ffc107;
+  }
+  
+  .employee-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  }
+  
+  .hr-badge {
+    background-color: #007bff;
+    color: white;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 10px;
+  }
+  
+  .urgent-badge {
+    background-color: #dc3545;
+    color: white;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 8px;
+    animation: pulse 2s infinite;
+  }
+  
+  .stats-card {
+    border-left: 4px solid #28a745;
+  }
+  
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Hidden CSRF token for AJAX requests -->
+  {% csrf_token %}
+  
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="fas fa-user-check me-2"></i>Employee Approval Management
+    </h1>
+    <div>
+      <a href="{% url 'all_employees' %}" class="btn btn-primary btn-sm me-2">
+        <i class="fas fa-list me-2"></i>View All Employees
+      </a>
+      <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+        <i class="fas fa-sync-alt me-2"></i>Refresh
+      </button>
+    </div>
+  </div>
+  
+  <!-- Statistics Cards -->
+  <div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-warning shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending Approval</div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ pending_employees|length }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-hourglass-half fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-success shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Approved</div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ approved_employees }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-danger shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Rejected</div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ rejected_employees }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-times-circle fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-info shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Employees</div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ approved_employees|add:rejected_employees|add:pending_employees|length }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-users fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Pending Employees List -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+      <h6 class="m-0 font-weight-bold text-primary">
+        <i class="fas fa-user-clock me-2"></i>Employees Pending Approval
+      </h6>
+      {% if pending_employees %}
+        <small class="text-muted">{{ pending_employees|length }} request{{ pending_employees|length|pluralize }}</small>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% if pending_employees %}
+        <div class="row">
+          {% for employee in pending_employees %}
+          <div class="col-lg-6 col-xl-4 mb-4">
+            <div class="card employee-card h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                  {% if employee.profile_picture %}
+                    <img src="{{ employee.profile_picture.url }}" class="rounded-circle me-3" width="50" height="50">
+                  {% else %}
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
+                      {% get_employee_display_name employee as display_name %}
+                      {{ display_name|first|upper }}
+                    </div>
+                  {% endif %}
+                  <div class="flex-grow-1">
+                    <h6 class="mb-1">{% get_employee_display_name employee %}</h6>
+                    <small class="text-muted">{{ employee.username }}</small>
+                    <div class="mt-1">
+                      <span class="hr-badge">HR Verified</span>
+                      {% if employee.hr_authenticated_at|is_urgent_request %}
+                        <span class="urgent-badge ms-1">
+                          <i class="fas fa-exclamation-triangle"></i> Urgent
+                        </span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <div class="row small">
+                    <div class="col-12 mb-2">
+                      <strong>HR Role:</strong><br>
+                      <span class="text-muted">{% get_employee_hr_role employee %}</span>
+                    </div>
+                    <div class="col-6">
+                      <strong>Email:</strong><br>
+                      <span class="text-muted">{{ employee.email|truncatechars:20 }}</span>
+                    </div>
+                    <div class="col-6">
+                      <strong>Phone:</strong><br>
+                      <span class="text-muted">{{ employee.phone_number|default:"Not provided" }}</span>
+                    </div>
+                    {% if employee.license_number %}
+                    <div class="col-6 mt-2">
+                      <strong>License:</strong><br>
+                      <span class="text-muted">{{ employee.license_number }}</span>
+                    </div>
+                    <div class="col-6 mt-2">
+                      <strong>License Expiry:</strong><br>
+                      <span class="text-muted">{{ employee.license_expiry|default:"Not set" }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="col-12 mt-2">
+                      <strong>Requested:</strong><br>
+                      <span class="text-muted {% if employee.hr_authenticated_at|is_urgent_request %}text-danger{% endif %}">
+                        {{ employee.hr_authenticated_at|time_since_request }}
+                        {% if employee.hr_authenticated_at|is_urgent_request %}
+                          <i class="fas fa-exclamation-triangle ms-1"></i>
+                        {% endif %}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                  <a href="{% url 'employee_approval' employee.id %}" class="btn btn-info btn-sm">
+                    <i class="fas fa-eye me-1"></i>Review Details
+                  </a>
+                  <div>
+                    <button class="btn btn-success btn-sm me-1" onclick="quickApprove({{ employee.id }}, '{% get_employee_display_name employee %}')" title="Quick Approve">
+                      <i class="fas fa-check"></i>
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="quickReject({{ employee.id }}, '{% get_employee_display_name employee %}')" title="Quick Reject">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        
+        <!-- Bulk Actions -->
+        {% if pending_employees|length > 1 %}
+        <div class="mt-3 pt-3 border-top">
+          <h6 class="text-muted mb-3">Bulk Actions:</h6>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-success btn-sm" onclick="bulkApprove()">
+              <i class="fas fa-check-double me-1"></i>Approve All
+            </button>
+            <button class="btn btn-outline-primary btn-sm" onclick="location.href='{% url 'all_employees' %}?status=pending'">
+              <i class="fas fa-list me-1"></i>Manage in List View
+            </button>
+          </div>
+        </div>
+        {% endif %}
+        
+      {% else %}
+        <div class="text-center py-5">
+          <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+          <h4 class="text-muted">No Pending Approvals!</h4>
+          <p class="text-muted mb-4">All employee access requests have been processed.</p>
+          <div>
+            <a href="{% url 'all_employees' %}" class="btn btn-primary">
+              <i class="fas fa-users me-2"></i>View All Employees
+            </a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Quick Rejection Modal -->
+<div class="modal fade" id="quickRejectModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Reject Employee Access</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to reject vehicle access for <strong id="rejectEmployeeName"></strong>?</p>
+        <div class="mb-3">
+          <label for="quickRejectReason" class="form-label">Reason (optional):</label>
+          <textarea class="form-control" id="quickRejectReason" rows="3" placeholder="Enter reason for rejection"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmReject">
+          <i class="fas fa-times me-2"></i>Reject Access
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Approve Modal -->
+<div class="modal fade" id="bulkApproveModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Bulk Approve All Employees</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to approve vehicle access for <strong>all {{ pending_employees|length }} pending employee{{ pending_employees|length|pluralize }}</strong>?</p>
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>
+          This action cannot be undone. Each employee will be granted immediate access to the vehicle system.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success" id="confirmBulkApprove">
+          <i class="fas fa-check-double me-2"></i>Approve All
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentEmployeeId = null;
+let currentEmployeeName = null;
+
+// Get CSRF token from the DOM
+function getCSRFToken() {
+  return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+function quickApprove(employeeId, employeeName) {
+  if (confirm(`Are you sure you want to approve vehicle access for ${employeeName}?`)) {
+    // Show loading state
+    const button = event.target.closest('button');
+    const originalHTML = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    button.disabled = true;
+    
+    fetch(`/accounts/employees/${employeeId}/toggle-status/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCSRFToken(),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'action=approve'
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data.success) {
+        // Show success message
+        alert(`${employeeName} has been approved successfully!`);
+        location.reload();
+      } else {
+        alert('Error: ' + (data.error || 'Unknown error occurred'));
+        // Restore button
+        button.innerHTML = originalHTML;
+        button.disabled = false;
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('An error occurred while processing the request. Please try again.');
+      // Restore button
+      button.innerHTML = originalHTML;
+      button.disabled = false;
+    });
+  }
+}
+
+function quickReject(employeeId, employeeName) {
+  currentEmployeeId = employeeId;
+  currentEmployeeName = employeeName;
+  document.getElementById('rejectEmployeeName').textContent = employeeName;
+  document.getElementById('quickRejectReason').value = '';
+  
+  const modal = new bootstrap.Modal(document.getElementById('quickRejectModal'));
+  modal.show();
+}
+
+document.getElementById('confirmReject').addEventListener('click', function() {
+  const reason = document.getElementById('quickRejectReason').value;
+  const button = this;
+  const originalHTML = button.innerHTML;
+  
+  // Show loading state
+  button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rejecting...';
+  button.disabled = true;
+  
+  fetch(`/accounts/employees/${currentEmployeeId}/toggle-status/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCSRFToken(),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: `action=reject&reason=${encodeURIComponent(reason)}`
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.success) {
+      alert(`${currentEmployeeName} access has been rejected.`);
+      location.reload();
+    } else {
+      alert('Error: ' + (data.error || 'Unknown error occurred'));
+      // Restore button
+      button.innerHTML = originalHTML;
+      button.disabled = false;
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('An error occurred while processing the request. Please try again.');
+    // Restore button
+    button.innerHTML = originalHTML;
+    button.disabled = false;
+  });
+});
+
+function bulkApprove() {
+  const modal = new bootstrap.Modal(document.getElementById('bulkApproveModal'));
+  modal.show();
+}
+
+document.getElementById('confirmBulkApprove').addEventListener('click', function() {
+  // This would require additional backend support for bulk operations
+  alert('Bulk approve feature coming soon! For now, please approve employees individually.');
+});
+
+// Auto-refresh page every 2 minutes to catch new requests
+setInterval(function() {
+  const currentCount = {{ pending_employees|length }};
+  fetch('/accounts/notifications/data/')
+    .then(response => response.json())
+    .then(data => {
+      if (data.total_count !== currentCount) {
+        location.reload();
+      }
+    })
+    .catch(error => console.log('Auto-refresh failed'));
+}, 120000); // 2 minutes
+
+// Debug function to check if CSRF token is available
+console.log('CSRF Token available:', !!getCSRFToken());
+</script>
+{% endblock %}

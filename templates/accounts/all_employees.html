@@ -1,0 +1,513 @@
+<!-- accounts/templates/accounts/all_employees.html -->
+{% extends 'base.html' %}
+{% load static %}
+{% load approval_tags %}
+
+{% block title %}All Employees - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .employee-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  
+  .employee-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #4e73df;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+  }
+  
+  .status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .hr-role-badge {
+    background-color: #17a2b8;
+    color: white;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 8px;
+  }
+  
+  .approval-actions {
+    white-space: nowrap;
+  }
+  
+  .filter-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
+  
+  .filter-card .form-control, .filter-card .form-select {
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+    color: white;
+  }
+  
+  .filter-card .form-control::placeholder {
+    color: rgba(255,255,255,0.7);
+  }
+  
+  .filter-card .form-control:focus, .filter-card .form-select:focus {
+    background: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.5);
+    color: white;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="fas fa-users me-2"></i>All Employees
+    </h1>
+    <div>
+      {% if pending_count > 0 %}
+        <a href="{% url 'pending_employees' %}" class="btn btn-warning btn-sm me-2">
+          <i class="fas fa-hourglass-half me-2"></i>{{ pending_count }} Pending
+        </a>
+      {% endif %}
+      <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+        <i class="fas fa-sync-alt me-2"></i>Refresh
+      </button>
+    </div>
+  </div>
+  
+  <!-- Statistics Cards -->
+  <div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-warning shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending</div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ pending_count }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-hourglass-half fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-success shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Approved</div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ approved_count }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-danger shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Rejected</div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ rejected_count }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-times-circle fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-info shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total</div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_employees }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-users fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Filters -->
+  <div class="card filter-card shadow mb-4">
+    <div class="card-body">
+      <form method="get" action="{% url 'all_employees' %}" class="row g-3">
+        <div class="col-md-4">
+          <label for="status" class="form-label">Filter by Status</label>
+          <select class="form-select" name="status" id="status">
+            <option value="">All Statuses</option>
+            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+            <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+            <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label for="department" class="form-label">Filter by Department</label>
+          <select class="form-select" name="department" id="department">
+            <option value="">All Departments</option>
+            {% for dept in departments %}
+              <option value="{{ dept }}" {% if department_filter == dept %}selected{% endif %}>{{ dept }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label for="search" class="form-label">Search</label>
+          <div class="input-group">
+            <input type="text" class="form-control" name="search" placeholder="Name, email, employee ID..." value="{{ request.GET.search }}">
+            <button class="btn btn-light" type="submit">
+              <i class="fas fa-search"></i>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Employees List -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+      <h6 class="m-0 font-weight-bold text-primary">
+        Employee List
+      </h6>
+      <span class="text-muted small">
+        Showing {{ employees|length }} employee{{ employees|length|pluralize }}
+        {% if status_filter or department_filter or request.GET.search %}
+          (filtered)
+        {% endif %}
+      </span>
+    </div>
+    <div class="card-body">
+      {% if employees %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>HR Role</th>
+                <th>Contact</th>
+                <th>License Status</th>
+                <th>Approval Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for employee in employees %}
+                <tr>
+                  <td>
+                    <div class="d-flex align-items-center">
+                      {% if employee.profile_picture %}
+                        <img src="{{ employee.profile_picture.url }}" alt="{{ employee.get_full_name }}" class="employee-avatar me-3">
+                      {% else %}
+                        <div class="employee-avatar-placeholder me-3">
+                          {{ employee.get_full_name|first }}
+                        </div>
+                      {% endif %}
+                      <div>
+                        <div class="font-weight-bold">{{ employee.get_full_name }}</div>
+                        <div class="small text-muted">{{ employee.username }}</div>
+                        {% if employee.hr_employee_id %}
+                          <div class="small text-muted">ID: {{ employee.hr_employee_id }}</div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="hr-role-badge">
+                      {% get_employee_hr_role employee %}
+                    </span>
+                    {% if employee.hr_department %}
+                      <br><small class="text-muted">{{ employee.hr_department }}</small>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div>{{ employee.email }}</div>
+                    {% if employee.phone_number %}
+                      <div class="small text-muted">{{ employee.phone_number }}</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if employee.has_driving_license %}
+                      <span class="badge bg-{% if employee.is_license_valid %}success{% else %}danger{% endif %} status-badge">
+                        {{ employee.license_status }}
+                      </span>
+                      {% if employee.license_expiry %}
+                        <br><small class="text-muted">Exp: {{ employee.license_expiry }}</small>
+                      {% endif %}
+                    {% else %}
+                      <span class="badge bg-secondary status-badge">No License Info</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if employee.approval_status == 'pending' %}
+                      <span class="badge bg-warning status-badge">
+                        <i class="fas fa-hourglass-half me-1"></i>Pending
+                      </span>
+                      {% if employee.hr_authenticated_at|is_urgent_request %}
+                        <br><small class="text-danger">
+                          <i class="fas fa-exclamation-triangle"></i> 
+                          {{ employee.hr_authenticated_at|time_since_request }}
+                        </small>
+                      {% else %}
+                        <br><small class="text-muted">{{ employee.hr_authenticated_at|time_since_request }}</small>
+                      {% endif %}
+                    {% elif employee.approval_status == 'approved' %}
+                      <span class="badge bg-success status-badge">
+                        <i class="fas fa-check me-1"></i>Approved
+                      </span>
+                      {% if employee.approved_at %}
+                        <br><small class="text-muted">{{ employee.approved_at|date:"M d, Y" }}</small>
+                      {% endif %}
+                    {% elif employee.approval_status == 'rejected' %}
+                      <span class="badge bg-danger status-badge">
+                        <i class="fas fa-times me-1"></i>Rejected
+                      </span>
+                      {% if employee.approved_at %}
+                        <br><small class="text-muted">{{ employee.approved_at|date:"M d, Y" }}</small>
+                      {% endif %}
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="approval-actions">
+                      {% if employee.approval_status == 'pending' %}
+                          <a href="{% url 'employee_approval' employee.id %}" class="btn btn-info" title="Review Details">
+                            <i class="fas fa-eye"></i>
+                          </a>
+                          <button class="btn btn-success" onclick="quickApprove({{ employee.id }}, '{{ employee.get_full_name|escapejs }}')" title="Quick Approve">
+                            <i class="fas fa-check"></i>
+                          </button>
+                          <button class="btn btn-danger" onclick="quickReject({{ employee.id }}, '{{ employee.get_full_name|escapejs }}')" title="Quick Reject">
+                            <i class="fas fa-times"></i>
+                          </button>
+                        </div>
+                      {% elif employee.approval_status == 'approved' %}
+                        <div class="btn-group btn-group-sm">
+                          <button class="btn btn-outline-warning" onclick="resetStatus({{ employee.id }}, '{{ employee.get_full_name|escapejs }}')" title="Reset to Pending">
+                            <i class="fas fa-undo"></i>
+                          </button>
+                          <button class="btn btn-outline-danger" onclick="quickReject({{ employee.id }}, '{{ employee.get_full_name|escapejs }}')" title="Reject">
+                            <i class="fas fa-times"></i>
+                          </button>
+                        </div>
+                      {% elif employee.approval_status == 'rejected' %}
+                        <div class="btn-group btn-group-sm">
+                          <button class="btn btn-outline-success" onclick="quickApprove({{ employee.id }}, '{{ employee.get_full_name|escapejs }}')" title="Approve">
+                            <i class="fas fa-check"></i>
+                          </button>
+                          <button class="btn btn-outline-warning" onclick="resetStatus({{ employee.id }}, '{{ employee.get_full_name|escapejs }}')" title="Reset to Pending">
+                            <i class="fas fa-undo"></i>
+                          </button>
+                        </div>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if is_paginated %}
+          <div class="mt-4">
+            <nav aria-label="Page navigation">
+              <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                  <li class="page-item">
+                    <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page=1">&laquo;&laquo;</a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">&laquo;</a>
+                  </li>
+                {% endif %}
+                
+                {% for num in page_obj.paginator.page_range %}
+                  {% if page_obj.number == num %}
+                    <li class="page-item active">
+                      <span class="page-link">{{ num }}</span>
+                    </li>
+                  {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                      <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+                    </li>
+                  {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                  <li class="page-item">
+                    <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">&raquo;</a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.paginator.num_pages }}">&raquo;&raquo;</a>
+                  </li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+        {% endif %}
+        
+      {% else %}
+        <div class="text-center py-5">
+          <i class="fas fa-search fa-4x text-muted mb-3"></i>
+          <h4 class="text-muted">No Employees Found</h4>
+          <p class="text-muted mb-4">
+            {% if status_filter or department_filter or request.GET.search %}
+              No employees match your current filters.
+              <br><a href="{% url 'all_employees' %}" class="btn btn-outline-primary mt-2">Clear Filters</a>
+            {% else %}
+              No employee access requests have been made yet.
+            {% endif %}
+          </p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Quick Action Modals -->
+<div class="modal fade" id="quickRejectModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Reject Employee Access</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to reject vehicle access for <strong id="rejectEmployeeName"></strong>?</p>
+        <div class="mb-3">
+          <label for="quickRejectReason" class="form-label">Reason (optional):</label>
+          <textarea class="form-control" id="quickRejectReason" rows="3" placeholder="Enter reason for rejection"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmReject">
+          <i class="fas fa-times me-2"></i>Reject Access
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentEmployeeId = null;
+let currentEmployeeName = null;
+
+function quickApprove(employeeId, employeeName) {
+  if (confirm(`Are you sure you want to approve vehicle access for ${employeeName}?`)) {
+    performAction(employeeId, 'approve', '');
+  }
+}
+
+function quickReject(employeeId, employeeName) {
+  currentEmployeeId = employeeId;
+  currentEmployeeName = employeeName;
+  document.getElementById('rejectEmployeeName').textContent = employeeName;
+  document.getElementById('quickRejectReason').value = '';
+  
+  const modal = new bootstrap.Modal(document.getElementById('quickRejectModal'));
+  modal.show();
+}
+
+function resetStatus(employeeId, employeeName) {
+  if (confirm(`Are you sure you want to reset ${employeeName}'s status to pending?`)) {
+    performAction(employeeId, 'reset', '');
+  }
+}
+
+document.getElementById('confirmReject').addEventListener('click', function() {
+  const reason = document.getElementById('quickRejectReason').value;
+  performAction(currentEmployeeId, 'reject', reason);
+  
+  const modal = bootstrap.Modal.getInstance(document.getElementById('quickRejectModal'));
+  modal.hide();
+});
+
+function performAction(employeeId, action, reason = '') {
+  const formData = new FormData();
+  formData.append('action', action);
+  if (reason) {
+    formData.append('reason', reason);
+  }
+  
+  fetch(`/accounts/employees/${employeeId}/toggle-status/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+    },
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Show success message
+      const alertDiv = document.createElement('div');
+      alertDiv.className = 'alert alert-success alert-dismissible fade show';
+      alertDiv.innerHTML = `
+        ${data.message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      
+      const container = document.querySelector('.container-fluid');
+      container.insertBefore(alertDiv, container.firstChild);
+      
+      // Reload page after short delay
+      setTimeout(() => {
+        location.reload();
+      }, 1500);
+    } else {
+      alert('Error: ' + (data.error || 'Unknown error occurred'));
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('An error occurred while processing the request.');
+  });
+}
+
+// Auto-submit filter form when dropdowns change
+document.getElementById('status').addEventListener('change', function() {
+  this.form.submit();
+});
+
+document.getElementById('department').addEventListener('change', function() {
+  this.form.submit();
+});
+
+// CSRF token for all AJAX requests
+const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+if (!csrfToken) {
+  // Create CSRF token input if it doesn't exist
+  const tokenInput = document.createElement('input');
+  tokenInput.type = 'hidden';
+  tokenInput.name = 'csrfmiddlewaretoken';
+  tokenInput.value = '{{ csrf_token }}';
+  document.body.appendChild(tokenInput);
+}
+</script>
+{% endblock %}

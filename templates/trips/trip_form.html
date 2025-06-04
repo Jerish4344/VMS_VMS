@@ -1,0 +1,796 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Start Trip - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Mobile-optimized styles */
+  .form-container {
+    padding: 0 0.5rem;
+  }
+  
+  .form-step {
+    display: none;
+  }
+  
+  .form-step.active {
+    display: block;
+  }
+  
+  .step-indicator {
+    display: flex;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+  
+  .step {
+    flex: 1;
+    padding: 0.5rem 0.25rem;
+    text-align: center;
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+  
+  @media (max-width: 576px) {
+    .step {
+      font-size: 0.75rem;
+      padding: 0.4rem 0.2rem;
+    }
+  }
+  
+  .step.active {
+    background-color: #4e73df;
+    color: white;
+    border-color: #4e73df;
+  }
+  
+  .step.completed {
+    background-color: #1cc88a;
+    color: white;
+    border-color: #1cc88a;
+  }
+  
+  .license-expired-alert {
+    font-size: 0.875rem;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Vehicle selector dropdown styling */
+  .vehicle-select {
+    padding: 0.75rem;
+    border-radius: 0.35rem;
+    border: 1px solid #d1d3e2;
+    width: 100%;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%234e73df' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 16px 12px;
+  }
+  
+  .vehicle-select:focus {
+    outline: none;
+    border-color: #bac8f3;
+    box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
+  }
+  
+  .vehicle-info-card {
+    background-color: #f8f9fc;
+    border-radius: 0.35rem;
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+  
+  .vehicle-info-card p {
+    margin-bottom: 0.5rem;
+  }
+  
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+  
+  .form-label {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .form-control {
+    padding: 0.75rem;
+    border-radius: 0.35rem;
+    border: 1px solid #d1d3e2;
+  }
+  
+  .form-text {
+    font-size: 0.75rem;
+    color: #858796;
+    margin-top: 0.25rem;
+  }
+  
+  .btn-container {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1.5rem;
+  }
+  
+  .btn-container .btn {
+    padding: 0.5rem 1rem;
+  }
+  
+  @media (max-width: 576px) {
+    .btn-container .btn {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+    }
+  }
+  
+  .confirmation-section {
+    margin-bottom: 1.5rem;
+    background-color: #fff;
+    border-radius: 0.35rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+    padding: 1rem;
+  }
+  
+  .confirmation-section h6 {
+    color: #4e73df;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid #e3e6f0;
+    padding-bottom: 0.5rem;
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 2rem 1rem;
+    background-color: #f8f9fc;
+    border-radius: 0.5rem;
+    margin: 1.5rem 0;
+  }
+  
+  .empty-state i {
+    font-size: 2.5rem;
+    color: #d1d3e2;
+    margin-bottom: 1rem;
+  }
+  
+  .empty-state h5 {
+    font-weight: 700;
+    color: #5a5c69;
+    margin-bottom: 0.5rem;
+  }
+  
+  .empty-state p {
+    color: #858796;
+  }
+  
+  /* Language selector styles */
+  .language-selector {
+    margin-bottom: 1rem;
+    text-align: right;
+  }
+  
+  .language-btn {
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.35rem;
+    margin-left: 0.25rem;
+    background-color: #f8f9fc;
+    border: 1px solid #d1d3e2;
+    color: #6e707e;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+  
+  .language-btn.active {
+    background-color: #4e73df;
+    color: white;
+    border-color: #4e73df;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid form-container">
+  <!-- Language Selector -->
+  <div class="language-selector">
+    <button type="button" class="language-btn active" data-lang="en">English</button>
+    <button type="button" class="language-btn" data-lang="ta">தமிழ்</button>
+    <button type="button" class="language-btn" data-lang="ml">മലയാളം</button>
+  </div>
+  
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-3">
+    <h1 class="h3 mb-0 text-gray-800 lang-text" data-lang-key="start_trip">Start Trip</h1>
+  </div>
+  
+  {% if not user.is_license_valid %}
+  <div class="alert alert-danger license-expired-alert mb-3">
+    <i class="fas fa-exclamation-circle me-2"></i>
+    <strong class="lang-text" data-lang-key="warning">Warning:</strong> 
+    <span class="lang-text" data-lang-key="license_expired">Your driver's license has expired or is not on file. Please contact your manager.</span>
+  </div>
+  {% endif %}
+  
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary lang-text" data-lang-key="new_trip_details">New Trip Details</h6>
+    </div>
+    <div class="card-body">
+      <div class="step-indicator">
+        <div class="step active" id="step1-indicator">
+          <span class="lang-text" data-lang-key="step1">1. Select Vehicle</span>
+        </div>
+        <div class="step" id="step2-indicator">
+          <span class="lang-text" data-lang-key="step2">2. Trip Details</span>
+        </div>
+        <div class="step" id="step3-indicator">
+          <span class="lang-text" data-lang-key="step3">3. Confirm</span>
+        </div>
+      </div>
+      
+      <form method="post" id="tripForm">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        
+        <!-- Step 1: Select Vehicle (Dropdown Version) -->
+        <div class="form-step active" id="step1">
+          <h5 class="mb-3 lang-text" data-lang-key="select_vehicle">Select a Vehicle</h5>
+          
+          {% if available_vehicles %}
+            <div class="form-group">
+              <label for="vehicleDropdown" class="form-label lang-text" data-lang-key="available_vehicles">Available Vehicles</label>
+              <select id="vehicleDropdown" class="vehicle-select">
+                <option value="" class="lang-text" data-lang-key="select_vehicle_option">-- Select a vehicle --</option>
+                {% for vehicle in available_vehicles %}
+                <option value="{{ vehicle.id }}" data-odometer="{{ vehicle.current_odometer }}" data-make="{{ vehicle.make }}" data-model="{{ vehicle.model }}" data-license="{{ vehicle.license_plate }}" data-type="{{ vehicle.vehicle_type.name }}" data-fuel="{{ vehicle.fuel_type }}">
+                  {{ vehicle.make }} {{ vehicle.model }} ({{ vehicle.license_plate }})
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div id="selectedVehicleDetails" style="display: none;" class="vehicle-info-card">
+              <h6 class="mb-2 lang-text" data-lang-key="vehicle_details">Vehicle Details</h6>
+              <p>
+                <strong class="lang-text" data-lang-key="make_model">Make & Model:</strong> 
+                <span id="vehicleModelInfo"></span>
+              </p>
+              <p>
+                <strong class="lang-text" data-lang-key="license_plate">License Plate:</strong> 
+                <span id="vehicleLicenseInfo"></span>
+              </p>
+              <p>
+                <strong class="lang-text" data-lang-key="type">Type:</strong> 
+                <span id="vehicleTypeInfo"></span>
+              </p>
+              <p>
+                <strong class="lang-text" data-lang-key="odometer">Odometer:</strong> 
+                <span id="vehicleOdometerInfo"></span> 
+                <span class="lang-text" data-lang-key="km">km</span>
+              </p>
+              <p>
+                <strong class="lang-text" data-lang-key="fuel_type">Fuel Type:</strong> 
+                <span id="vehicleFuelInfo"></span>
+              </p>
+            </div>
+          
+            <div class="d-none">
+              {{ form.vehicle }}
+            </div>
+            
+            <div class="mt-4 text-end">
+              <button type="button" class="btn btn-primary" id="step1Next" disabled>
+                <span class="lang-text" data-lang-key="next">Next</span> 
+                <i class="fas fa-arrow-right ms-1"></i>
+              </button>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <i class="fas fa-car-side"></i>
+              <h5 class="lang-text" data-lang-key="no_vehicles">No Available Vehicles</h5>
+              <p class="lang-text" data-lang-key="no_vehicles_message">There are no vehicles available for use at the moment. Please try again later or contact your manager.</p>
+            </div>
+          {% endif %}
+        </div>
+        
+        <!-- Step 2: Trip Details -->
+        <div class="form-step" id="step2">
+          <h5 class="mb-3 lang-text" data-lang-key="trip_details">Trip Details</h5>
+          
+          <div class="form-group">
+            <label for="{{ form.start_odometer.id_for_label }}" class="form-label lang-text" data-lang-key="start_odometer">Start Odometer Reading (km)</label>
+            {{ form.start_odometer }}
+            {% if form.start_odometer.errors %}
+            <div class="invalid-feedback d-block">{{ form.start_odometer.errors }}</div>
+            {% endif %}
+            <div class="form-text lang-text" data-lang-key="odometer_help">
+              Verify the current odometer reading matches the vehicle's display
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="{{ form.purpose.id_for_label }}" class="form-label lang-text" data-lang-key="purpose">Purpose of Trip</label>
+            {{ form.purpose }}
+            {% if form.purpose.errors %}
+            <div class="invalid-feedback d-block">{{ form.purpose.errors }}</div>
+            {% endif %}
+            <div class="form-text lang-text" data-lang-key="purpose_help">
+              Briefly describe the purpose of this trip
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="{{ form.notes.id_for_label }}" class="form-label lang-text" data-lang-key="notes">Additional Notes</label>
+            {{ form.notes }}
+            {% if form.notes.errors %}
+            <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+            {% endif %}
+          </div>
+          
+          {{ form.start_time }}
+          
+          <div class="btn-container">
+            <button type="button" class="btn btn-secondary" id="step2Back">
+              <i class="fas fa-arrow-left me-1"></i> 
+              <span class="lang-text" data-lang-key="back">Back</span>
+            </button>
+            <button type="button" class="btn btn-primary" id="step2Next">
+              <span class="lang-text" data-lang-key="next">Next</span> 
+              <i class="fas fa-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Step 3: Confirm -->
+        <div class="form-step" id="step3">
+          <h5 class="mb-3 lang-text" data-lang-key="confirm_details">Confirm Trip Details</h5>
+          
+          <div class="confirmation-section">
+            <h6 class="lang-text" data-lang-key="selected_vehicle">Selected Vehicle</h6>
+            <div id="selectedVehicleInfo">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+          
+          <div class="confirmation-section">
+            <h6 class="lang-text" data-lang-key="trip_information">Trip Information</h6>
+            <div id="tripDetailsSummary">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+          
+          <div class="confirmation-section">
+            <h6 class="lang-text" data-lang-key="driver_information">Driver Information</h6>
+            <div id="driverInfo">
+              <p>
+                <strong class="lang-text" data-lang-key="driver">Driver:</strong> 
+                {{ user.get_full_name }}
+              </p>
+              <p>
+                <strong class="lang-text" data-lang-key="license">License:</strong> 
+                {{ user.license_number }}
+              </p>
+              <p>
+                <strong class="lang-text" data-lang-key="license_expiry">License Expiry:</strong> 
+                {{ user.license_expiry }}
+              </p>
+            </div>
+          </div>
+          
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong class="lang-text" data-lang-key="note">Note:</strong> 
+            <span class="lang-text" data-lang-key="confirmation_note">By submitting this form, you confirm that the vehicle is in good condition for use.</span>
+          </div>
+          
+          <div class="btn-container">
+            <button type="button" class="btn btn-secondary" id="step3Back">
+              <i class="fas fa-arrow-left me-1"></i> 
+              <span class="lang-text" data-lang-key="back">Back</span>
+            </button>
+            <button type="submit" class="btn btn-success">
+              <i class="fas fa-play me-1"></i> 
+              <span class="lang-text" data-lang-key="start_trip_btn">Start Trip</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Language translations
+    const translations = {
+      // English (default)
+      en: {
+        start_trip: "Start Trip",
+        warning: "Warning:",
+        license_expired: "Your driver's license has expired or is not on file. Please contact your manager.",
+        new_trip_details: "New Trip Details",
+        step1: "1. Select Vehicle",
+        step2: "2. Trip Details",
+        step3: "3. Confirm",
+        select_vehicle: "Select a Vehicle",
+        available_vehicles: "Available Vehicles",
+        select_vehicle_option: "-- Select a vehicle --",
+        vehicle_details: "Vehicle Details",
+        make_model: "Make & Model:",
+        license_plate: "License Plate:",
+        type: "Type:",
+        odometer: "Odometer:",
+        km: "km",
+        fuel_type: "Fuel Type:",
+        next: "Next",
+        back: "Back",
+        trip_details: "Trip Details",
+        start_odometer: "Start Odometer Reading (km)",
+        odometer_help: "Verify the current odometer reading matches the vehicle's display",
+        purpose: "Purpose of Trip",
+        purpose_help: "Briefly describe the purpose of this trip",
+        notes: "Additional Notes",
+        confirm_details: "Confirm Trip Details",
+        selected_vehicle: "Selected Vehicle",
+        trip_information: "Trip Information",
+        driver_information: "Driver Information",
+        driver: "Driver:",
+        license: "License:",
+        license_expiry: "License Expiry:",
+        note: "Note:",
+        confirmation_note: "By submitting this form, you confirm that the vehicle is in good condition for use.",
+        start_trip_btn: "Start Trip",
+        no_vehicles: "No Available Vehicles",
+        no_vehicles_message: "There are no vehicles available for use at the moment. Please try again later or contact your manager.",
+        error_odometer: "Please enter the start odometer reading.",
+        error_purpose: "Please enter the purpose of the trip.",
+        vehicle: "Vehicle:",
+        start_odometer_display: "Start Odometer:",
+        purpose_display: "Purpose:",
+        notes_display: "Notes:",
+        start_time: "Start Time:",
+        none: "None"
+      },
+      // Tamil
+      ta: {
+        start_trip: "பயணத்தை தொடங்கு",
+        warning: "எச்சரிக்கை:",
+        license_expired: "உங்கள் ஓட்டுநர் உரிமம் காலாவதியாகிவிட்டது அல்லது கோப்பில் இல்லை. உங்கள் மேலாளரை தொடர்பு கொள்ளவும்.",
+        new_trip_details: "புதிய பயண விவரங்கள்",
+        step1: "1. வாகனத்தைத் தேர்ந்தெடுக்கவும்",
+        step2: "2. பயண விவரங்கள்",
+        step3: "3. உறுதிப்படுத்தவும்",
+        select_vehicle: "ஒரு வாகனத்தைத் தேர்ந்தெடுக்கவும்",
+        available_vehicles: "கிடைக்கும் வாகனங்கள்",
+        select_vehicle_option: "-- வாகனத்தைத் தேர்ந்தெடுக்கவும் --",
+        vehicle_details: "வாகன விவரங்கள்",
+        make_model: "தயாரிப்பு & மாடல்:",
+        license_plate: "வாகன எண்:",
+        type: "வகை:",
+        odometer: "ஓடோமீட்டர்:",
+        km: "கி.மீ",
+        fuel_type: "எரிபொருள் வகை:",
+        next: "அடுத்து",
+        back: "பின்னால்",
+        trip_details: "பயண விவரங்கள்",
+        start_odometer: "தொடக்க ஓடோமீட்டர் அளவீடு (கி.மீ)",
+        odometer_help: "வாகனத்தின் காட்சியுடன் தற்போதைய ஓடோமீட்டர் அளவீடு பொருந்துகிறதா என சரிபார்க்கவும்",
+        purpose: "பயணத்தின் நோக்கம்",
+        purpose_help: "இந்த பயணத்தின் நோக்கத்தை சுருக்கமாக விவரிக்கவும்",
+        notes: "கூடுதல் குறிப்புகள்",
+        confirm_details: "பயண விவரங்களை உறுதிப்படுத்தவும்",
+        selected_vehicle: "தேர்ந்தெடுக்கப்பட்ட வாகனம்",
+        trip_information: "பயண தகவல்",
+        driver_information: "ஓட்டுநர் தகவல்",
+        driver: "ஓட்டுநர்:",
+        license: "உரிமம்:",
+        license_expiry: "உரிமம் காலாவதி:",
+        note: "குறிப்பு:",
+        confirmation_note: "இந்த படிவத்தைச் சமர்ப்பிப்பதன் மூலம், வாகனம் பயன்படுத்த நல்ல நிலையில் உள்ளது என்பதை உறுதிப்படுத்துகிறீர்கள்.",
+        start_trip_btn: "பயணத்தை தொடங்கு",
+        no_vehicles: "வாகனங்கள் எதுவும் இல்லை",
+        no_vehicles_message: "தற்போது பயன்படுத்த வாகனங்கள் எதுவும் இல்லை. பிறகு முயற்சிக்கவும் அல்லது உங்கள் மேலாளரைத் தொடர்பு கொள்ளவும்.",
+        error_odometer: "தொடக்க ஓடோமீட்டர் அளவீட்டை உள்ளிடவும்.",
+        error_purpose: "பயணத்தின் நோக்கத்தை உள்ளிடவும்.",
+        vehicle: "வாகனம்:",
+        start_odometer_display: "தொடக்க ஓடோமீட்டர்:",
+        purpose_display: "நோக்கம்:",
+        notes_display: "குறிப்புகள்:",
+        start_time: "தொடக்க நேரம்:",
+        none: "எதுவுமில்லை"
+      },
+      // Malayalam
+      ml: {
+        start_trip: "യാത്ര ആരംഭിക്കുക",
+        warning: "മുന്നറിയിപ്പ്:",
+        license_expired: "നിങ്ങളുടെ ഡ്രൈവിംഗ് ലൈസൻസ് കാലഹരണപ്പെട്ടു അല്ലെങ്കിൽ ഫയലിൽ ഇല്ല. നിങ്ങളുടെ മാനേജരെ ബന്ധപ്പെടുക.",
+        new_trip_details: "പുതിയ യാത്രാ വിശദാംശങ്ങൾ",
+        step1: "1. വാഹനം തിരഞ്ഞെടുക്കുക",
+        step2: "2. യാത്രാ വിശദാംശങ്ങൾ",
+        step3: "3. സ്ഥിരീകരിക്കുക",
+        select_vehicle: "വാഹനം തിരഞ്ഞെടുക്കുക",
+        available_vehicles: "ലഭ്യമായ വാഹനങ്ങൾ",
+        select_vehicle_option: "-- വാഹനം തിരഞ്ഞെടുക്കുക --",
+        vehicle_details: "വാഹന വിശദാംശങ്ങൾ",
+        make_model: "നിർമ്മാതാവ് & മോഡൽ:",
+        license_plate: "രജിസ്ട്രേഷൻ നമ്പർ:",
+        type: "തരം:",
+        odometer: "ഓഡോമീറ്റർ:",
+        km: "കി.മീ",
+        fuel_type: "ഇന്ധന തരം:",
+        next: "അടുത്തത്",
+        back: "തിരികെ",
+        trip_details: "യാത്രാ വിശദാംശങ്ങൾ",
+        start_odometer: "ആരംഭ ഓഡോമീറ്റർ റീഡിംഗ് (കി.മീ)",
+        odometer_help: "നിലവിലെ ഓഡോമീറ്റർ റീഡിംഗ് വാഹനത്തിന്റെ ഡിസ്പ്ലേയുമായി പൊരുത്തപ്പെടുന്നുണ്ടോ എന്ന് പരിശോധിക്കുക",
+        purpose: "യാത്രയുടെ ഉദ്ദേശ്യം",
+        purpose_help: "ഈ യാത്രയുടെ ഉദ്ദേശ്യം ചുരുക്കി വിവരിക്കുക",
+        notes: "അധിക കുറിപ്പുകൾ",
+        confirm_details: "യാത്രാ വിശദാംശങ്ങൾ സ്ഥിരീകരിക്കുക",
+        selected_vehicle: "തിരഞ്ഞെടുത്ത വാഹനം",
+        trip_information: "യാത്രാ വിവരങ്ങൾ",
+        driver_information: "ഡ്രൈവർ വിവരങ്ങൾ",
+        driver: "ഡ്രൈവർ:",
+        license: "ലൈസൻസ്:",
+        license_expiry: "ലൈസൻസ് കാലാവധി:",
+        note: "കുറിപ്പ്:",
+        confirmation_note: "ഈ ഫോം സമർപ്പിക്കുന്നതിലൂടെ, വാഹനം ഉപയോഗിക്കാൻ നല്ല അവസ്ഥയിലാണെന്ന് നിങ്ങൾ സ്ഥിരീകരിക്കുന്നു.",
+        start_trip_btn: "യാത്ര ആരംഭിക്കുക",
+        no_vehicles: "വാഹനങ്ങൾ ഒന്നും ലഭ്യമല്ല",
+        no_vehicles_message: "നിലവിൽ ഉപയോഗിക്കാൻ വാഹനങ്ങൾ ഒന്നും ലഭ്യമല്ല. പിന്നീട് വീണ്ടും ശ്രമിക്കുക അല്ലെങ്കിൽ നിങ്ങളുടെ മാനേജരെ ബന്ധപ്പെടുക.",
+        error_odometer: "ആരംഭ ഓഡോമീറ്റർ റീഡിംഗ് നൽകുക.",
+        error_purpose: "യാത്രയുടെ ഉദ്ദേശ്യം നൽകുക.",
+        vehicle: "വാഹനം:",
+        start_odometer_display: "ആരംഭ ഓഡോമീറ്റർ:",
+        purpose_display: "ഉദ്ദേശ്യം:",
+        notes_display: "കുറിപ്പുകൾ:",
+        start_time: "ആരംഭ സമയം:",
+        none: "ഒന്നുമില്ല"
+      }
+    };
+
+    // Current language - default to English
+    let currentLang = 'en';
+    
+    // Language selector buttons
+    const languageButtons = document.querySelectorAll('.language-btn');
+    
+    // Apply translations based on selected language
+    function applyTranslations(lang) {
+      const langTexts = document.querySelectorAll('.lang-text');
+      
+      langTexts.forEach(element => {
+        const key = element.getAttribute('data-lang-key');
+        if (key && translations[lang] && translations[lang][key]) {
+          element.textContent = translations[lang][key];
+        }
+      });
+      
+      // Update select placeholder
+      if (document.getElementById('vehicleDropdown')) {
+        const firstOption = document.getElementById('vehicleDropdown').querySelector('option:first-child');
+        if (firstOption && translations[lang]['select_vehicle_option']) {
+          firstOption.textContent = translations[lang]['select_vehicle_option'];
+        }
+      }
+      
+      // Update current language
+      currentLang = lang;
+      
+      // Update language buttons active state
+      languageButtons.forEach(button => {
+        if (button.getAttribute('data-lang') === lang) {
+          button.classList.add('active');
+        } else {
+          button.classList.remove('active');
+        }
+      });
+    }
+    
+    // Event listeners for language buttons
+    languageButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        const lang = this.getAttribute('data-lang');
+        applyTranslations(lang);
+      });
+    });
+    
+    // Form variables and elements
+    const step1 = document.getElementById('step1');
+    const step2 = document.getElementById('step2');
+    const step3 = document.getElementById('step3');
+    
+    const step1Indicator = document.getElementById('step1-indicator');
+    const step2Indicator = document.getElementById('step2-indicator');
+    const step3Indicator = document.getElementById('step3-indicator');
+    
+    const step1Next = document.getElementById('step1Next');
+    const step2Back = document.getElementById('step2Back');
+    const step2Next = document.getElementById('step2Next');
+    const step3Back = document.getElementById('step3Back');
+    
+    const vehicleField = document.getElementById('{{ form.vehicle.id_for_label }}');
+    const startOdometerField = document.getElementById('{{ form.start_odometer.id_for_label }}');
+    const purposeField = document.getElementById('{{ form.purpose.id_for_label }}');
+    const notesField = document.getElementById('{{ form.notes.id_for_label }}');
+    
+    // Vehicle dropdown elements
+    const vehicleDropdown = document.getElementById('vehicleDropdown');
+    const selectedVehicleDetails = document.getElementById('selectedVehicleDetails');
+    const vehicleModelInfo = document.getElementById('vehicleModelInfo');
+    const vehicleLicenseInfo = document.getElementById('vehicleLicenseInfo');
+    const vehicleTypeInfo = document.getElementById('vehicleTypeInfo');
+    const vehicleOdometerInfo = document.getElementById('vehicleOdometerInfo');
+    const vehicleFuelInfo = document.getElementById('vehicleFuelInfo');
+    
+    // Variables to store selected vehicle info
+    let selectedVehicle = null;
+    let selectedVehicleOdometer = 0;
+    
+    // Vehicle selection from dropdown
+    if (vehicleDropdown) {
+      vehicleDropdown.addEventListener('change', function() {
+        if (this.value) {
+          // Show vehicle details
+          selectedVehicleDetails.style.display = 'block';
+          
+          // Get selected option
+          const selectedOption = this.options[this.selectedIndex];
+          
+          // Update vehicle details
+          vehicleModelInfo.textContent = `${selectedOption.dataset.make} ${selectedOption.dataset.model}`;
+          vehicleLicenseInfo.textContent = selectedOption.dataset.license;
+          vehicleTypeInfo.textContent = selectedOption.dataset.type;
+          vehicleOdometerInfo.textContent = selectedOption.dataset.odometer;
+          vehicleFuelInfo.textContent = selectedOption.dataset.fuel;
+          
+          // Set form field value
+          vehicleField.value = this.value;
+          selectedVehicleOdometer = selectedOption.dataset.odometer;
+          
+          // Set initial odometer value
+          startOdometerField.value = selectedVehicleOdometer;
+          startOdometerField.min = selectedVehicleOdometer;
+          
+          // Enable next button
+          step1Next.disabled = false;
+          
+          // Store selected vehicle info for confirmation page
+          selectedVehicle = {
+            id: this.value,
+            make: selectedOption.dataset.make,
+            model: selectedOption.dataset.model,
+            license: selectedOption.dataset.license,
+            type: selectedOption.dataset.type,
+            odometer: selectedOption.dataset.odometer,
+            fuel: selectedOption.dataset.fuel
+          };
+        } else {
+          // Hide vehicle details if no selection
+          selectedVehicleDetails.style.display = 'none';
+          
+          // Disable next button
+          step1Next.disabled = true;
+          
+          // Clear selected vehicle
+          selectedVehicle = null;
+        }
+      });
+    }
+    
+    // Navigation between steps
+    if (step1Next) {
+      step1Next.addEventListener('click', function() {
+        step1.classList.remove('active');
+        step2.classList.add('active');
+        
+        step1Indicator.classList.remove('active');
+        step1Indicator.classList.add('completed');
+        step2Indicator.classList.add('active');
+      });
+    }
+    
+    if (step2Back) {
+      step2Back.addEventListener('click', function() {
+        step2.classList.remove('active');
+        step1.classList.add('active');
+        
+        step2Indicator.classList.remove('active');
+        step1Indicator.classList.remove('completed');
+        step1Indicator.classList.add('active');
+      });
+    }
+    
+    if (step2Next) {
+      step2Next.addEventListener('click', function() {
+        // Validate step 2 fields
+        if (startOdometerField.value === '') {
+          alert(translations[currentLang].error_odometer);
+          startOdometerField.focus();
+          return;
+        }
+        
+        if (purposeField.value === '') {
+          alert(translations[currentLang].error_purpose);
+          purposeField.focus();
+          return;
+        }
+        
+        // Update confirmation page
+        updateConfirmationPage();
+        
+        // Navigate to step 3
+        step2.classList.remove('active');
+        step3.classList.add('active');
+        
+        step2Indicator.classList.remove('active');
+        step2Indicator.classList.add('completed');
+        step3Indicator.classList.add('active');
+      });
+    }
+    
+    if (step3Back) {
+      step3Back.addEventListener('click', function() {
+        step3.classList.remove('active');
+        step2.classList.add('active');
+        
+        step3Indicator.classList.remove('active');
+        step2Indicator.classList.remove('completed');
+        step2Indicator.classList.add('active');
+      });
+    }
+    
+    // Update confirmation page with translated content
+    function updateConfirmationPage() {
+      const selectedVehicleInfo = document.getElementById('selectedVehicleInfo');
+      const tripDetailsSummary = document.getElementById('tripDetailsSummary');
+      const t = translations[currentLang];
+      
+      if (selectedVehicle) {
+        // Update vehicle info with translated labels
+        selectedVehicleInfo.innerHTML = `
+          <p><strong>${t.vehicle}</strong> ${selectedVehicle.make} ${selectedVehicle.model}</p>
+          <p><strong>${t.license_plate}</strong> ${selectedVehicle.license}</p>
+          <p><strong>${t.type}</strong> ${selectedVehicle.type}</p>
+          <p><strong>${t.odometer}</strong> ${selectedVehicle.odometer} ${t.km}</p>
+          <p><strong>${t.fuel_type}</strong> ${selectedVehicle.fuel}</p>
+        `;
+      }
+      
+      // Update trip details with translated labels
+      tripDetailsSummary.innerHTML = `
+        <p><strong>${t.start_odometer_display}</strong> ${startOdometerField.value} ${t.km}</p>
+        <p><strong>${t.purpose_display}</strong> ${purposeField.value}</p>
+        <p><strong>${t.notes_display}</strong> ${notesField.value || t.none}</p>
+        <p><strong>${t.start_time}</strong> ${new Date().toLocaleString()}</p>
+      `;
+    }
+    
+    // Additional form styling
+    function styleFormControls() {
+      const formControls = document.querySelectorAll('input, select, textarea');
+      
+      formControls.forEach(control => {
+        if (control.type !== 'checkbox' && control.type !== 'radio') {
+          control.classList.add('form-control');
+        } else {
+          control.classList.add('form-check-input');
+        }
+      });
+    }
+    
+    // Apply initial translations
+    applyTranslations(currentLang);
+    
+    // Style form controls
+    styleFormControls();
+  });
+</script>
+{% endblock %}

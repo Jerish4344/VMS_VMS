@@ -1,0 +1,699 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Bulk Trip Upload - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .upload-area {
+    border: 2px dashed #d1d3e2;
+    border-radius: 0.5rem;
+    padding: 3rem 2rem;
+    text-align: center;
+    background-color: #f8f9fc;
+    margin-bottom: 2rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  
+  .upload-area:hover {
+    border-color: #4e73df;
+    background-color: #eef2ff;
+  }
+  
+  .upload-area.dragover {
+    border-color: #4e73df;
+    background-color: #eef2ff;
+    transform: scale(1.02);
+  }
+  
+  .upload-icon {
+    font-size: 3rem;
+    color: #858796;
+    margin-bottom: 1rem;
+  }
+  
+  .file-info {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-top: 1rem;
+    display: none;
+  }
+  
+  .sample-format {
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .csv-table {
+    font-size: 0.875rem;
+    overflow-x: auto;
+  }
+  
+  .csv-table table {
+    white-space: nowrap;
+  }
+  
+  .progress-container {
+    display: none;
+    margin-top: 1rem;
+  }
+  
+  .upload-results {
+    margin-top: 2rem;
+  }
+  
+  .error-list {
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.25rem;
+    padding: 1rem;
+  }
+  
+  .validation-rules {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .file-requirements {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{% url 'manual_trip_list' %}">Manual Trips</a></li>
+          <li class="breadcrumb-item active">Bulk Upload</li>
+        </ol>
+      </nav>
+      <h1 class="h3 mb-0 text-gray-800">Bulk Trip Upload</h1>
+      <p class="text-muted">Upload multiple trips from CSV or Excel files</p>
+    </div>
+    <div>
+      <a href="{% url 'manual_trip_create' %}" class="btn btn-info">
+        <i class="fas fa-plus me-1"></i>Single Trip Entry
+      </a>
+      <a href="{% url 'manual_trip_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Back to List
+      </a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <!-- Upload Form -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-upload me-2"></i>Upload Trip Data
+          </h6>
+        </div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data" id="uploadForm">
+            {% csrf_token %}
+            
+            <!-- File Requirements -->
+            <div class="file-requirements">
+              <h6 class="text-success mb-3">
+                <i class="fas fa-check-circle me-2"></i>File Requirements
+              </h6>
+              <ul class="mb-0">
+                <li>Supported formats: CSV (.csv), Excel (.xlsx, .xls)</li>
+                <li>Maximum file size: 10MB</li>
+                <li>First row must contain column headers</li>
+                <li>Required columns: Driver Email, Vehicle License Plate, Origin, Destination, Start Date, Start Time, Start Odometer, Purpose</li>
+                <li>Optional columns: End Date, End Time, End Odometer, Notes</li>
+              </ul>
+            </div>
+            
+            <!-- Validation Rules -->
+            <div class="validation-rules">
+              <h6 class="text-warning mb-3">
+                <i class="fas fa-exclamation-triangle me-2"></i>Validation Rules
+              </h6>
+              <ul class="mb-0">
+                <li>Driver email must exist in the system with 'driver' role</li>
+                <li>Vehicle license plate must exist in the system</li>
+                <li>End odometer must be greater than start odometer (if provided)</li>
+                <li>End time must be after start time (if provided)</li>
+                <li>Date format: YYYY-MM-DD or MM/DD/YYYY or DD/MM/YYYY</li>
+                <li>Time format: HH:MM or HH:MM:SS (24-hour format)</li>
+              </ul>
+            </div>
+            
+            <!-- File Upload Area -->
+            <div class="upload-area" id="uploadArea">
+              <i class="fas fa-cloud-upload-alt upload-icon"></i>
+              <h5>Drag and drop your file here</h5>
+              <p class="text-muted">or click to browse files</p>
+              <input type="file" id="fileInput" name="file" accept=".csv,.xlsx,.xls" style="display: none;">
+              <button type="button" class="btn btn-primary" id="browseBtn">
+                <i class="fas fa-folder-open me-1"></i>Browse Files
+              </button>
+            </div>
+            
+            <!-- File Info Display -->
+            <div class="file-info" id="fileInfo">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h6 class="mb-1" id="fileName"></h6>
+                  <small class="text-muted" id="fileSize"></small>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="removeFile">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="progress-container" id="progressContainer">
+              <label class="form-label">Upload Progress</label>
+              <div class="progress">
+                <div class="progress-bar" id="progressBar" role="progressbar" style="width: 0%"></div>
+              </div>
+              <small class="text-muted" id="progressText">Preparing upload...</small>
+            </div>
+            
+            <!-- Upload Options -->
+            <div class="mt-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="skipErrors" name="skip_errors" checked>
+                <label class="form-check-label" for="skipErrors">
+                  Skip rows with errors and continue processing
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="validateOnly" name="validate_only">
+                <label class="form-check-label" for="validateOnly">
+                  Validate only (don't save data)
+                </label>
+              </div>
+            </div>
+            
+            <!-- Upload Button -->
+            <div class="mt-4">
+              <button type="submit" class="btn btn-success" id="uploadBtn" disabled>
+                <i class="fas fa-upload me-1"></i>Upload Trips
+              </button>
+              <button type="button" class="btn btn-secondary" id="cancelBtn" style="display: none;" onclick="cancelUpload()">
+                <i class="fas fa-times me-1"></i>Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <!-- Upload Results -->
+      <div class="upload-results" id="uploadResults" style="display: none;">
+        <div class="card shadow">
+          <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-success">
+              <i class="fas fa-check-circle me-2"></i>Upload Results
+            </h6>
+          </div>
+          <div class="card-body">
+            <div id="resultsContent">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      <!-- Sample Format Card -->
+      <div class="card shadow mb-4">
+        <div class="card-header bg-info text-white">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-table me-2"></i>Sample CSV Format
+          </h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="csv-table">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  {% for header in sample_csv_headers %}
+                  <th style="font-size: 0.75rem;">{{ header }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>driver@company.com</td>
+                  <td>ABC-123</td>
+                  <td>Main Office</td>
+                  <td>Client Site</td>
+                  <td>2024-01-15</td>
+                  <td>09:00</td>
+                  <td>2024-01-15</td>
+                  <td>17:00</td>
+                  <td>15000</td>
+                  <td>15120</td>
+                  <td>Client Meeting</td>
+                  <td>Regular visit</td>
+                </tr>
+                <tr>
+                  <td>john@company.com</td>
+                  <td>XYZ-789</td>
+                  <td>Warehouse</td>
+                  <td>Delivery Point</td>
+                  <td>2024-01-16</td>
+                  <td>08:30</td>
+                  <td></td>
+                  <td></td>
+                  <td>8500</td>
+                  <td></td>
+                  <td>Delivery</td>
+                  <td>Ongoing trip</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-3">
+            <small class="text-muted">
+              <strong>Note:</strong> Empty End Date/Time and End Odometer indicates an ongoing trip.
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Download Template -->
+      <div class="card shadow mb-4">
+        <div class="card-header bg-success text-white">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-download me-2"></i>Download Templates
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <button type="button" class="btn btn-outline-primary" onclick="downloadCSVTemplate()">
+              <i class="fas fa-file-csv me-2"></i>Download CSV Template
+            </button>
+            <button type="button" class="btn btn-outline-success" onclick="downloadExcelTemplate()">
+              <i class="fas fa-file-excel me-2"></i>Download Excel Template
+            </button>
+            <a href="{% url 'trip_sheet_template' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-file-pdf me-2"></i>Printable Trip Sheet
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Reference -->
+      <div class="card shadow mb-4">
+        <div class="card-header bg-warning text-white">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-database me-2"></i>Data Reference
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="accordion" id="dataAccordion">
+            <!-- Drivers -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="driversHeading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#driversCollapse">
+                  Drivers ({{ drivers.count }})
+                </button>
+              </h2>
+              <div id="driversCollapse" class="accordion-collapse collapse" data-bs-parent="#dataAccordion">
+                <div class="accordion-body">
+                  {% for driver in drivers|slice:":10" %}
+                  <div class="mb-1">
+                    <small><strong>{{ driver.get_full_name }}</strong><br>
+                    <span class="text-muted">{{ driver.email }}</span></small>
+                  </div>
+                  {% endfor %}
+                  {% if drivers.count > 10 %}
+                  <small class="text-muted">... and {{ drivers.count|add:"-10" }} more</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Vehicles -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="vehiclesHeading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#vehiclesCollapse">
+                  Vehicles ({{ vehicles.count }})
+                </button>
+              </h2>
+              <div id="vehiclesCollapse" class="accordion-collapse collapse" data-bs-parent="#dataAccordion">
+                <div class="accordion-body">
+                  {% for vehicle in vehicles|slice:":10" %}
+                  <div class="mb-1">
+                    <small><strong>{{ vehicle.license_plate }}</strong><br>
+                    <span class="text-muted">{{ vehicle.make }} {{ vehicle.model }}</span></small>
+                  </div>
+                  {% endfor %}
+                  {% if vehicles.count > 10 %}
+                  <small class="text-muted">... and {{ vehicles.count|add:"-10" }} more</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tips -->
+      <div class="card shadow mb-4">
+        <div class="card-header bg-primary text-white">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-lightbulb me-2"></i>Upload Tips
+          </h6>
+        </div>
+        <div class="card-body">
+          <ul class="mb-0">
+            <li class="mb-2">Start with a small test file (5-10 rows) to verify format</li>
+            <li class="mb-2">Use the validation-only option to check data before importing</li>
+            <li class="mb-2">Ensure driver emails exactly match system records</li>
+            <li class="mb-2">Vehicle license plates are case-sensitive</li>
+            <li class="mb-2">Leave end time/odometer empty for ongoing trips</li>
+            <li class="mb-0">Check the error log if upload fails</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // File upload elements
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const browseBtn = document.getElementById('browseBtn');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const removeFileBtn = document.getElementById('removeFile');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadForm = document.getElementById('uploadForm');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const uploadResults = document.getElementById('uploadResults');
+    const resultsContent = document.getElementById('resultsContent');
+    
+    let selectedFile = null;
+    
+    // Browse button click
+    browseBtn.addEventListener('click', function() {
+      fileInput.click();
+    });
+    
+    // Upload area click
+    uploadArea.addEventListener('click', function() {
+      fileInput.click();
+    });
+    
+    // File input change
+    fileInput.addEventListener('change', function(e) {
+      handleFileSelection(e.target.files[0]);
+    });
+    
+    // Drag and drop handlers
+    uploadArea.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', function(e) {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        handleFileSelection(files[0]);
+      }
+    });
+    
+    // Remove file button
+    removeFileBtn.addEventListener('click', function() {
+      clearFileSelection();
+    });
+    
+    // Handle file selection
+    function handleFileSelection(file) {
+      if (!file) return;
+      
+      // Validate file type
+      const allowedTypes = ['.csv', '.xlsx', '.xls'];
+      const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+      
+      if (!allowedTypes.includes(fileExtension)) {
+        alert('Please select a CSV or Excel file (.csv, .xlsx, .xls)');
+        return;
+      }
+      
+      // Validate file size (10MB limit)
+      const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+      if (file.size > maxSize) {
+        alert('File size must be less than 10MB');
+        return;
+      }
+      
+      selectedFile = file;
+      
+      // Update UI
+      fileName.textContent = file.name;
+      fileSize.textContent = formatFileSize(file.size);
+      fileInfo.style.display = 'block';
+      uploadBtn.disabled = false;
+      
+      // Hide upload area
+      uploadArea.style.display = 'none';
+    }
+    
+    // Clear file selection
+    function clearFileSelection() {
+      selectedFile = null;
+      fileInput.value = '';
+      fileInfo.style.display = 'none';
+      uploadBtn.disabled = true;
+      uploadArea.style.display = 'block';
+      progressContainer.style.display = 'none';
+      uploadResults.style.display = 'none';
+    }
+    
+    // Format file size
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    // Form submission
+    uploadForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      if (!selectedFile) {
+        alert('Please select a file to upload');
+        return;
+      }
+      
+      uploadFile();
+    });
+    
+    // Upload file with progress tracking
+    function uploadFile() {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+      formData.append('skip_errors', document.getElementById('skipErrors').checked);
+      formData.append('validate_only', document.getElementById('validateOnly').checked);
+      
+      // Show progress
+      progressContainer.style.display = 'block';
+      uploadBtn.disabled = true;
+      progressText.textContent = 'Uploading file...';
+      
+      // Create XMLHttpRequest for progress tracking
+      const xhr = new XMLHttpRequest();
+      
+      // Progress handler
+      xhr.upload.addEventListener('progress', function(e) {
+        if (e.lengthComputable) {
+          const percentComplete = (e.loaded / e.total) * 100;
+          progressBar.style.width = percentComplete + '%';
+          progressText.textContent = `Uploading... ${Math.round(percentComplete)}%`;
+        }
+      });
+      
+      // Success handler
+      xhr.addEventListener('load', function() {
+        if (xhr.status === 200) {
+          progressText.textContent = 'Processing data...';
+          progressBar.style.width = '100%';
+          
+          // Simulate processing time
+          setTimeout(function() {
+            handleUploadResponse();
+            progressContainer.style.display = 'none';
+            uploadBtn.disabled = false;
+          }, 1000);
+        } else {
+          handleUploadError('Upload failed. Please try again.');
+        }
+      });
+      
+      // Error handler
+      xhr.addEventListener('error', function() {
+        handleUploadError('Network error occurred. Please check your connection and try again.');
+      });
+      
+      // Send request
+      xhr.open('POST', uploadForm.action);
+      xhr.send(formData);
+    }
+    
+    // Handle upload response (simulated - in real implementation, parse server response)
+    function handleUploadResponse() {
+      // This would normally parse the actual server response
+      // For now, showing a sample success response
+      const sampleResponse = {
+        success: true,
+        created: 15,
+        errors: 2,
+        error_details: [
+          'Row 3: Driver with email nonexistent@company.com not found',
+          'Row 7: End odometer (14500) must be greater than start odometer (15000)'
+        ]
+      };
+      
+      displayResults(sampleResponse);
+    }
+    
+    // Handle upload error
+    function handleUploadError(message) {
+      progressContainer.style.display = 'none';
+      uploadBtn.disabled = false;
+      
+      resultsContent.innerHTML = `
+        <div class="alert alert-danger">
+          <h6><i class="fas fa-exclamation-triangle me-2"></i>Upload Failed</h6>
+          <p class="mb-0">${message}</p>
+        </div>
+      `;
+      uploadResults.style.display = 'block';
+    }
+    
+    // Display upload results
+    function displayResults(response) {
+      let html = '';
+      
+      if (response.success) {
+        html += `
+          <div class="alert alert-success">
+            <h6><i class="fas fa-check-circle me-2"></i>Upload Completed</h6>
+            <p class="mb-2">Successfully processed <strong>${response.created}</strong> trips.</p>
+            ${response.errors > 0 ? `<p class="mb-0">${response.errors} rows had errors and were skipped.</p>` : ''}
+          </div>
+        `;
+        
+        if (response.errors > 0 && response.error_details && response.error_details.length > 0) {
+          html += `
+            <div class="alert alert-warning">
+              <h6><i class="fas fa-exclamation-triangle me-2"></i>Errors Encountered</h6>
+              <div class="error-list">
+                <ul class="mb-0">
+                  ${response.error_details.map(error => `<li>${error}</li>`).join('')}
+                </ul>
+              </div>
+            </div>
+          `;
+        }
+        
+        html += `
+          <div class="mt-3">
+            <a href="/trips/manual/" class="btn btn-primary">
+              <i class="fas fa-list me-1"></i>View All Trips
+            </a>
+            <button type="button" class="btn btn-success" onclick="uploadAnother()">
+              <i class="fas fa-upload me-1"></i>Upload Another File
+            </button>
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="alert alert-danger">
+            <h6><i class="fas fa-times-circle me-2"></i>Upload Failed</h6>
+            <p class="mb-0">${response.message || 'An error occurred during upload.'}</p>
+          </div>
+        `;
+      }
+      
+      resultsContent.innerHTML = html;
+      uploadResults.style.display = 'block';
+    }
+    
+    // Global functions
+    window.uploadAnother = function() {
+      clearFileSelection();
+    };
+    
+    window.cancelUpload = function() {
+      // In a real implementation, this would cancel the ongoing upload
+      progressContainer.style.display = 'none';
+      uploadBtn.disabled = false;
+    };
+    
+    // Download templates
+    window.downloadCSVTemplate = function() {
+      const csvContent = [
+        {% for header in sample_csv_headers %}'{{ header }}'{% if not forloop.last %},{% endif %}{% endfor %}
+      ].join(',') + '\n' +
+      'driver@company.com,ABC-123,Main Office,Client Site,2024-01-15,09:00,2024-01-15,17:00,15000,15120,Client Meeting,Regular visit\n' +
+      'john@company.com,XYZ-789,Warehouse,Delivery Point,2024-01-16,08:30,,,8500,,Delivery,Ongoing trip';
+      
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'trip_upload_template.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    };
+    
+    window.downloadExcelTemplate = function() {
+      // In a real implementation, you would generate an actual Excel file
+      // For now, we'll download the CSV version
+      alert('Excel template download would be implemented here. Using CSV template instead.');
+      downloadCSVTemplate();
+    };
+  });
+</script>
+{% endblock %}

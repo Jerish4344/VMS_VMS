@@ -1,0 +1,963 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Trips - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .trip-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  .trip-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+  }
+  
+  .route-display {
+    background-color: #f8f9fc;
+    border-left: 4px solid #4e73df;
+    padding: 0.75rem 1rem;
+    margin: 0.5rem 0;
+    border-radius: 0.25rem;
+  }
+  
+  .route-arrow {
+    color: #4e73df;
+    margin: 0 0.5rem;
+    font-weight: bold;
+  }
+  
+  .location-point {
+    display: inline-flex;
+    align-items: center;
+    margin: 0.25rem 0;
+  }
+  
+  .location-icon {
+    margin-right: 0.5rem;
+    width: 16px;
+  }
+  
+  .trip-status {
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.875rem;
+  }
+  
+  .status-ongoing {
+    background-color: #1cc88a;
+    color: white;
+  }
+  
+  .status-completed {
+    background-color: #36b9cc;
+    color: white;
+  }
+  
+  .status-cancelled {
+    background-color: #e74a3b;
+    color: white;
+  }
+  
+  .filter-section {
+    background-color: #f8f9fc;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .stats-card {
+    border: none;
+    border-radius: 0.75rem;
+    transition: transform 0.2s ease;
+  }
+  
+  .stats-card:hover {
+    transform: translateY(-2px);
+  }
+  
+  .no-trips-message {
+    text-align: center;
+    padding: 3rem 1rem;
+    background-color: #f8f9fc;
+    border-radius: 0.5rem;
+    color: #858796;
+  }
+  
+  .trip-duration {
+    font-size: 0.875rem;
+    color: #858796;
+  }
+  
+  .trip-distance {
+    font-size: 0.875rem;
+    color: #1cc88a;
+    font-weight: 600;
+  }
+
+  .completed-trips-table {
+    font-size: 0.875rem;
+  }
+  
+  .completed-trips-table th {
+    background-color: #f8f9fc;
+    color: #5a5c69;
+    font-weight: 600;
+    border-bottom: 2px solid #e3e6f0;
+    padding: 0.75rem;
+  }
+  
+  .completed-trips-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #e3e6f0;
+    vertical-align: middle;
+  }
+  
+  .completed-trips-table tbody tr:hover {
+    background-color: #f8f9fc;
+  }
+  
+  .vehicle-info {
+    font-weight: 600;
+    color: #4e73df;
+  }
+  
+  .route-info {
+    font-size: 0.8rem;
+    color: #858796;
+  }
+  
+  .section-header {
+    background: linear-gradient(45deg, #4e73df, #36b9cc);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 0.5rem 0.5rem 0 0;
+    margin-bottom: 0;
+  }
+
+  .export-dropdown {
+    position: relative;
+    display: inline-block;
+  }
+
+  .export-dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: #f9f9f9;
+    min-width: 200px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 1;
+    border-radius: 0.375rem;
+    right: 0;
+    top: 100%;
+    margin-top: 0.25rem;
+  }
+
+  .export-dropdown-content.show {
+    display: block;
+  }
+
+  .export-dropdown-content a {
+    color: black;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+    border-radius: 0.375rem;
+  }
+
+  .export-dropdown-content a:hover {
+    background-color: #f1f1f1;
+  }
+
+  .dropdown-divider {
+    height: 1px;
+    background-color: #e3e6f0;
+    margin: 0.5rem 0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Trip Management</h1>
+    <div class="d-flex gap-2">
+      {% if user.user_type == 'driver' %}
+      <a href="{% url 'start_trip' %}" class="btn btn-primary btn-icon-split">
+        <span class="icon text-white-50">
+          <i class="fas fa-play"></i>
+        </span>
+        <span class="text">Start New Trip</span>
+      </a>
+      {% endif %}
+      
+      {% if user.user_type == 'admin' or user.user_type == 'manager' or user.user_type == 'vehicle_manager' %}
+      <a href="{% url 'manual_trip_list' %}" class="btn btn-info btn-icon-split">
+        <span class="icon text-white-50">
+          <i class="fas fa-list-alt"></i>
+        </span>
+        <span class="text">Manual Trips</span>
+      </a>
+      
+      <div class="export-dropdown">
+        <button class="btn btn-success btn-icon-split" type="button" onclick="toggleExportDropdown()">
+          <span class="icon text-white-50">
+            <i class="fas fa-download"></i>
+          </span>
+          <span class="text">Export</span>
+          <i class="fas fa-chevron-down ms-1"></i>
+        </button>
+        <div id="exportDropdown" class="export-dropdown-content">
+          <a href="#" onclick="showExportModal('csv')">
+            <i class="fas fa-file-csv me-2"></i>Export as CSV
+          </a>
+          <a href="#" onclick="showExportModal('excel')">
+            <i class="fas fa-file-excel me-2"></i>Export as Excel
+          </a>
+          <a href="#" onclick="showExportModal('pdf')">
+            <i class="fas fa-file-pdf me-2"></i>Export as PDF
+          </a>
+          <div class="dropdown-divider"></div>
+          <a href="#" onclick="exportQuick('today')">
+            <i class="fas fa-calendar-day me-2"></i>Export Today
+          </a>
+          <a href="#" onclick="exportQuick('week')">
+            <i class="fas fa-calendar-week me-2"></i>Export This Week
+          </a>
+          <a href="#" onclick="exportQuick('month')">
+            <i class="fas fa-calendar-alt me-2"></i>Export This Month
+          </a>
+          <a href="#" onclick="exportCurrentFilters()">
+            <i class="fas fa-filter me-2"></i>Export Current View
+          </a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card border-left-success shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                Ongoing Trips
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ ongoing_count }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-road fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card border-left-info shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                Completed Trips
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ completed_count }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card border-left-danger shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                Cancelled Trips
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">{{ cancelled_count }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-times-circle fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card border-left-warning shadow h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                Total Trips
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800">
+                {{ ongoing_count|add:completed_count|add:cancelled_count }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-list fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Section -->
+  <div class="filter-section">
+    <h6 class="font-weight-bold text-primary mb-3">
+      <i class="fas fa-filter me-2"></i>Filter Trips
+    </h6>
+    <form method="get" class="row g-3" id="filterForm">
+      <div class="col-md-3">
+        <label for="search" class="form-label">Search</label>
+        <input type="text" class="form-control" id="search" name="search" 
+               value="{{ search_params.search }}" 
+               placeholder="Search by vehicle, driver, route, or purpose...">
+      </div>
+      
+      <div class="col-md-2">
+        <label for="vehicle" class="form-label">Vehicle</label>
+        <select class="form-select" id="vehicle" name="vehicle">
+          <option value="">All Vehicles</option>
+          {% for vehicle in vehicles %}
+          <option value="{{ vehicle.id }}" 
+                  {% if search_params.vehicle == vehicle.id|stringformat:"s" %}selected{% endif %}>
+            {{ vehicle.license_plate }} - {{ vehicle.make }} {{ vehicle.model }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <div class="col-md-2">
+        <label for="status" class="form-label">Status</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">All Statuses</option>
+          <option value="ongoing" {% if search_params.status == 'ongoing' %}selected{% endif %}>Ongoing</option>
+          <option value="completed" {% if search_params.status == 'completed' %}selected{% endif %}>Completed</option>
+          <option value="cancelled" {% if search_params.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+        </select>
+      </div>
+
+      <div class="col-md-2">
+        <label for="date_from" class="form-label">From Date</label>
+        <input type="date" class="form-control" id="date_from" name="date_from" 
+               value="{{ search_params.date_from }}">
+      </div>
+
+      <div class="col-md-2">
+        <label for="date_to" class="form-label">To Date</label>
+        <input type="date" class="form-control" id="date_to" name="date_to" 
+               value="{{ search_params.date_to }}">
+      </div>
+      
+      <div class="col-md-1 d-flex align-items-end">
+        <div class="d-flex flex-column gap-2 w-100">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="fas fa-search me-1"></i>Filter
+          </button>
+          <a href="{% url 'trip_list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-times me-1"></i>Clear
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Ongoing Trips Section -->
+  {% if ongoing_trips %}
+  <div class="card shadow mb-4">
+    <div class="section-header">
+      <h6 class="m-0 font-weight-bold">
+        <i class="fas fa-play me-2"></i>Ongoing Trips ({{ ongoing_trips|length }})
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        {% for trip in ongoing_trips %}
+        <div class="col-lg-6 mb-4">
+          <div class="card trip-card h-100 shadow-sm">
+            <div class="card-body">
+              <!-- Trip Header -->
+              <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                  <h6 class="card-title mb-1">
+                    <i class="fas fa-car text-primary me-2"></i>
+                    {{ trip.vehicle.license_plate }}
+                  </h6>
+                  <small class="text-muted">{{ trip.vehicle.make }} {{ trip.vehicle.model }}</small>
+                </div>
+                <span class="trip-status status-ongoing">
+                  <i class="fas fa-play me-1"></i>Ongoing
+                </span>
+              </div>
+
+              <!-- Route Information -->
+              <div class="route-display">
+                <div class="location-point">
+                  <i class="fas fa-map-marker-alt text-success location-icon"></i>
+                  <strong>From:</strong> {{ trip.origin }}
+                </div>
+                <div class="text-center my-2">
+                  <span class="route-arrow">
+                    <i class="fas fa-long-arrow-alt-down"></i>
+                  </span>
+                </div>
+                <div class="location-point">
+                  <i class="fas fa-map-marker-alt text-danger location-icon"></i>
+                  <strong>To:</strong> {{ trip.destination }}
+                </div>
+              </div>
+
+              <!-- Trip Details -->
+              <div class="row mt-3">
+                <div class="col-6">
+                  <small class="text-muted">Driver</small>
+                  <div class="font-weight-bold">
+                    <i class="fas fa-user me-1"></i>
+                    {{ trip.driver.get_full_name }}
+                  </div>
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Purpose</small>
+                  <div class="font-weight-bold">
+                    <i class="fas fa-tag me-1"></i>
+                    {{ trip.purpose }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="row mt-2">
+                <div class="col-6">
+                  <small class="text-muted">Start Time</small>
+                  <div class="small">
+                    <i class="fas fa-clock me-1"></i>
+                    {{ trip.start_time|date:"M d, Y H:i" }}
+                  </div>
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Duration</small>
+                  <div class="small trip-duration">
+                    <i class="fas fa-hourglass-half me-1"></i>
+                    In progress...
+                  </div>
+                </div>
+              </div>
+
+              {% if trip.distance_traveled > 0 %}
+              <div class="row mt-2">
+                <div class="col-12">
+                  <small class="text-muted">Distance</small>
+                  <div class="trip-distance">
+                    <i class="fas fa-route me-1"></i>
+                    {{ trip.distance_traveled }} km
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+
+              <!-- Action Buttons -->
+              <div class="mt-3 d-flex justify-content-between">
+                <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-outline-primary btn-sm">
+                  <i class="fas fa-eye me-1"></i>View Details
+                </a>
+                
+                {% if user == trip.driver or user.user_type == 'admin' or user.user_type == 'manager' or user.user_type == 'vehicle_manager' %}
+                <div>
+                  <a href="{% url 'end_trip' trip.pk %}" class="btn btn-success btn-sm">
+                    <i class="fas fa-stop me-1"></i>End Trip
+                  </a>
+                  <a href="{% url 'track_trip' trip.pk %}" class="btn btn-info btn-sm">
+                    <i class="fas fa-map me-1"></i>Track
+                  </a>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Completed Trips Section -->
+  {% if completed_trips %}
+  <div class="card shadow mb-4">
+    <div class="section-header">
+      <h6 class="m-0 font-weight-bold">
+        <i class="fas fa-check-circle me-2"></i>Completed Trips ({{ completed_trips|length }})
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover completed-trips-table">
+          <thead>
+            <tr>
+              <th>Vehicle</th>
+              <th>Route</th>
+              <th>Driver</th>
+              <th>Purpose</th>
+              <th>Date</th>
+              <th>Duration</th>
+              <th>Distance</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for trip in completed_trips %}
+            <tr>
+              <td>
+                <div class="vehicle-info">{{ trip.vehicle.license_plate }}</div>
+                <div class="route-info">{{ trip.vehicle.make }} {{ trip.vehicle.model }}</div>
+              </td>
+              <td>
+                <div><i class="fas fa-map-marker-alt text-success me-1"></i>{{ trip.origin }}</div>
+                <div class="route-info"><i class="fas fa-arrow-down me-1"></i></div>
+                <div><i class="fas fa-map-marker-alt text-danger me-1"></i>{{ trip.destination }}</div>
+              </td>
+              <td>
+                <i class="fas fa-user me-1"></i>{{ trip.driver.get_full_name }}
+              </td>
+              <td>
+                <i class="fas fa-tag me-1"></i>{{ trip.purpose }}
+              </td>
+              <td>
+                <div>{{ trip.start_time|date:"M d, Y" }}</div>
+                <div class="route-info">{{ trip.start_time|date:"H:i" }} - {{ trip.end_time|date:"H:i" }}</div>
+              </td>
+              <td>
+                <i class="fas fa-stopwatch me-1"></i>
+                {% if trip.duration %}
+                  {{ trip.duration }}
+                {% else %}
+                  <span class="text-muted">N/A</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if trip.distance_traveled > 0 %}
+                  <span class="trip-distance">
+                    <i class="fas fa-route me-1"></i>{{ trip.distance_traveled }} km
+                  </span>
+                {% else %}
+                  <span class="text-muted">N/A</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-outline-primary btn-sm">
+                  <i class="fas fa-eye"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Cancelled Trips Section -->
+  {% if cancelled_trips %}
+  <div class="card shadow mb-4">
+    <div class="section-header" style="background: linear-gradient(45deg, #e74a3b, #dc3545);">
+      <h6 class="m-0 font-weight-bold">
+        <i class="fas fa-times-circle me-2"></i>Cancelled Trips ({{ cancelled_trips|length }})
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover completed-trips-table">
+          <thead>
+            <tr>
+              <th>Vehicle</th>
+              <th>Route</th>
+              <th>Driver</th>
+              <th>Purpose</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for trip in cancelled_trips %}
+            <tr>
+              <td>
+                <div class="vehicle-info">{{ trip.vehicle.license_plate }}</div>
+                <div class="route-info">{{ trip.vehicle.make }} {{ trip.vehicle.model }}</div>
+              </td>
+              <td>
+                <div><i class="fas fa-map-marker-alt text-success me-1"></i>{{ trip.origin }}</div>
+                <div class="route-info"><i class="fas fa-arrow-down me-1"></i></div>
+                <div><i class="fas fa-map-marker-alt text-danger me-1"></i>{{ trip.destination }}</div>
+              </td>
+              <td>
+                <i class="fas fa-user me-1"></i>{{ trip.driver.get_full_name }}
+              </td>
+              <td>
+                <i class="fas fa-tag me-1"></i>{{ trip.purpose }}
+              </td>
+              <td>
+                <div>{{ trip.start_time|date:"M d, Y" }}</div>
+                <div class="route-info">{{ trip.start_time|date:"H:i" }}</div>
+              </td>
+              <td>
+                <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-outline-primary btn-sm">
+                  <i class="fas fa-eye"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- No Trips Message -->
+  {% if not ongoing_trips and not completed_trips and not cancelled_trips %}
+  <div class="card shadow mb-4">
+    <div class="card-body">
+      <div class="no-trips-message">
+        <i class="fas fa-route fa-3x mb-3"></i>
+        <h5>No Trips Found</h5>
+        <p>{% if search_params.search or search_params.vehicle or search_params.status %}
+           No trips match your current filters. Try adjusting your search criteria.
+           {% else %}
+           No trips have been recorded yet.
+           {% if user.user_type == 'driver' %}
+           <a href="{% url 'start_trip' %}" class="btn btn-primary mt-2">
+             <i class="fas fa-play me-1"></i>Start Your First Trip
+           </a>
+           {% endif %}
+           {% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Pagination -->
+  {% if is_paginated %}
+  <nav aria-label="Trips pagination">
+    <ul class="pagination justify-content-center">
+      {% if page_obj.has_previous %}
+      <li class="page-item">
+        <a class="page-link" href="?{% for key, value in search_params.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">
+          <i class="fas fa-chevron-left"></i>
+        </a>
+      </li>
+      {% endif %}
+      
+      {% for num in page_obj.paginator.page_range %}
+      {% if page_obj.number == num %}
+      <li class="page-item active">
+        <span class="page-link">{{ num }}</span>
+      </li>
+      {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+      <li class="page-item">
+        <a class="page-link" href="?{% for key, value in search_params.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+      </li>
+      {% endif %}
+      {% endfor %}
+      
+      {% if page_obj.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?{% for key, value in search_params.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">
+          <i class="fas fa-chevron-right"></i>
+        </a>
+      </li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exportModalLabel">
+          <i class="fas fa-download me-2"></i>Export Trips Data
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="exportForm">
+          <input type="hidden" id="exportFormat" name="format" value="">
+          
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="exportDateFrom" class="form-label">From Date</label>
+              <input type="date" class="form-control" id="exportDateFrom" name="date_from">
+            </div>
+            <div class="col-md-6">
+              <label for="exportDateTo" class="form-label">To Date</label>
+              <input type="date" class="form-control" id="exportDateTo" name="date_to">
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="exportStatus" class="form-label">Status</label>
+              <select class="form-select" id="exportStatus" name="status">
+                <option value="">All Statuses</option>
+                <option value="ongoing">Ongoing</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="exportSearch" class="form-label">Search Term</label>
+              <input type="text" class="form-control" id="exportSearch" name="search" 
+                     placeholder="Optional search term...">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Export Options</label>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="includeDriver" name="include_driver" checked>
+              <label class="form-check-label" for="includeDriver">
+                Include Driver Information
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="includeVehicle" name="include_vehicle" checked>
+              <label class="form-check-label" for="includeVehicle">
+                Include Vehicle Information
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="includeNotes" name="include_notes">
+              <label class="form-check-label" for="includeNotes">
+                Include Notes
+              </label>
+            </div>
+          </div>
+
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Export Info:</strong> The export will include all trips matching your criteria. 
+            Large datasets may take a moment to process.
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="fas fa-times me-1"></i>Cancel
+        </button>
+        <button type="button" class="btn btn-primary" onclick="executeExport()">
+          <i class="fas fa-download me-1"></i>Download Export
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Toggle export dropdown
+  function toggleExportDropdown() {
+    const dropdown = document.getElementById('exportDropdown');
+    dropdown.classList.toggle('show');
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('exportDropdown');
+    const button = event.target.closest('.export-dropdown');
+    
+    if (!button && dropdown.classList.contains('show')) {
+      dropdown.classList.remove('show');
+    }
+  });
+
+  // Show export modal with specific format
+  function showExportModal(format) {
+    document.getElementById('exportFormat').value = format;
+    
+    // Update modal title based on format
+    const modalTitle = document.getElementById('exportModalLabel');
+    const formatNames = {
+      'csv': 'Export as CSV',
+      'excel': 'Export as Excel',
+      'pdf': 'Export as PDF'
+    };
+    modalTitle.innerHTML = `<i class="fas fa-download me-2"></i>${formatNames[format]}`;
+    
+    // Pre-fill current filter values
+    const currentForm = document.getElementById('filterForm');
+    if (currentForm) {
+      document.getElementById('exportDateFrom').value = currentForm.querySelector('#date_from').value || '';
+      document.getElementById('exportDateTo').value = currentForm.querySelector('#date_to').value || '';
+      document.getElementById('exportStatus').value = currentForm.querySelector('#status').value || '';
+      document.getElementById('exportSearch').value = currentForm.querySelector('#search').value || '';
+    }
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('exportModal'));
+    modal.show();
+    
+    // Close dropdown
+    document.getElementById('exportDropdown').classList.remove('show');
+  }
+
+  // Execute export
+  function executeExport() {
+    const form = document.getElementById('exportForm');
+    const formData = new FormData(form);
+    
+    // Build query string
+    const params = new URLSearchParams();
+    
+    for (let [key, value] of formData.entries()) {
+      if (value && value.trim() !== '') {
+        params.append(key, value);
+      }
+    }
+    
+    // Add checkbox values
+    params.append('include_driver', document.getElementById('includeDriver').checked ? 'true' : 'false');
+    params.append('include_vehicle', document.getElementById('includeVehicle').checked ? 'true' : 'false');
+    params.append('include_notes', document.getElementById('includeNotes').checked ? 'true' : 'false');
+    
+    // Create export URL
+    const exportUrl = `{% url 'export_trips' %}?${params.toString()}`;
+    
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('exportModal'));
+    modal.hide();
+    
+    // Trigger download
+    window.open(exportUrl, '_blank');
+  }
+
+  // Quick export functions
+  function exportQuick(period) {
+    const today = new Date();
+    let dateFrom = '';
+    let dateTo = today.toISOString().split('T')[0];
+    
+    switch(period) {
+      case 'today':
+        dateFrom = dateTo;
+        break;
+      case 'week':
+        const weekAgo = new Date(today);
+        weekAgo.setDate(today.getDate() - 7);
+        dateFrom = weekAgo.toISOString().split('T')[0];
+        break;
+      case 'month':
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(today.getMonth() - 1);
+        dateFrom = monthAgo.toISOString().split('T')[0];
+        break;
+      case 'all':
+        dateFrom = '';
+        dateTo = '';
+        break;
+    }
+    
+    // Build export URL with date parameters
+    const params = new URLSearchParams({
+      format: 'excel', // Default to Excel for quick exports
+      include_driver: 'true',
+      include_vehicle: 'true',
+      include_notes: 'false'
+    });
+    
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    
+    const exportUrl = `{% url 'export_trips' %}?${params.toString()}`;
+    window.open(exportUrl, '_blank');
+  }
+
+  // Export current filtered results
+  function exportCurrentFilters() {
+    const form = document.getElementById('filterForm');
+    const params = new URLSearchParams({
+      format: 'excel',
+      include_driver: 'true',
+      include_vehicle: 'true',
+      include_notes: 'false'
+    });
+    
+    // Add current filter values
+    if (form) {
+      const search = form.querySelector('#search').value;
+      const vehicle = form.querySelector('#vehicle').value;
+      const status = form.querySelector('#status').value;
+      const dateFrom = form.querySelector('#date_from').value;
+      const dateTo = form.querySelector('#date_to').value;
+      
+      if (search) params.append('search', search);
+      if (vehicle) params.append('vehicle', vehicle);
+      if (status) params.append('status', status);
+      if (dateFrom) params.append('date_from', dateFrom);
+      if (dateTo) params.append('date_to', dateTo);
+    }
+    
+    const exportUrl = `{% url 'export_trips' %}?${params.toString()}`;
+    window.open(exportUrl, '_blank');
+  }
+
+  // Auto-submit form on filter change (optional)
+  document.addEventListener('DOMContentLoaded', function() {
+    const filterSelects = document.querySelectorAll('#vehicle, #status');
+    
+    filterSelects.forEach(select => {
+      select.addEventListener('change', function() {
+        // Auto-submit form when filter changes
+        // this.form.submit();
+      });
+    });
+
+    // Set max date to today for date inputs
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('date_from').setAttribute('max', today);
+    document.getElementById('date_to').setAttribute('max', today);
+    
+    // Date validation
+    document.getElementById('date_from').addEventListener('change', function() {
+      const dateFrom = this.value;
+      const dateTo = document.getElementById('date_to').value;
+      
+      if (dateFrom && dateTo && dateFrom > dateTo) {
+        document.getElementById('date_to').value = dateFrom;
+      }
+      
+      document.getElementById('date_to').setAttribute('min', dateFrom);
+    });
+    
+    document.getElementById('date_to').addEventListener('change', function() {
+      const dateTo = this.value;
+      const dateFrom = document.getElementById('date_from').value;
+      
+      if (dateFrom && dateTo && dateTo < dateFrom) {
+        document.getElementById('date_from').value = dateTo;
+      }
+      
+      document.getElementById('date_from').setAttribute('max', dateTo);
+    });
+  });
+</script>
+{% endblock %}

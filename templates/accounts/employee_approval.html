@@ -1,0 +1,397 @@
+<!-- accounts/templates/accounts/employee_approval.html -->
+{% extends 'base.html' %}
+{% load static %}
+{% load approval_tags %}
+
+{% block title %}Review Employee - {{ employee.get_full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .employee-profile-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+  }
+  
+  .profile-image {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid rgba(255,255,255,0.3);
+  }
+  
+  .profile-image-placeholder {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background-color: rgba(255,255,255,0.2);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: 600;
+    border: 4px solid rgba(255,255,255,0.3);
+  }
+  
+  .hr-data-card {
+    background: #f8f9fa;
+    border-left: 4px solid #007bff;
+  }
+  
+  .approval-card {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+  }
+  
+  .rejection-card {
+    background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+    color: white;
+  }
+  
+  .info-label {
+    font-weight: 600;
+    color: #495057;
+  }
+  
+  .urgent-indicator {
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="fas fa-user-check me-2"></i>Review Employee Application
+    </h1>
+    <div>
+      <a href="{% url 'pending_employees' %}" class="btn btn-secondary btn-sm me-2">
+        <i class="fas fa-arrow-left me-2"></i>Back to Pending List
+      </a>
+      <a href="{% url 'all_employees' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-list me-2"></i>All Employees
+      </a>
+    </div>
+  </div>
+  
+  <div class="row">
+    <!-- Employee Profile Card -->
+    <div class="col-lg-4 mb-4">
+      <div class="card employee-profile-card shadow">
+        <div class="card-body text-center">
+          {% if employee.profile_picture %}
+            <img src="{{ employee.profile_picture.url }}" alt="{{ employee.get_full_name }}" class="profile-image mb-3">
+          {% else %}
+            <div class="profile-image-placeholder mx-auto mb-3">
+              {{ employee.get_full_name|first }}
+            </div>
+          {% endif %}
+          
+          <h4 class="mb-2">{{ employee.get_full_name }}</h4>
+          <p class="mb-2">{{ employee.username }}</p>
+          
+          <div class="mb-3">
+            <span class="badge bg-warning text-dark">
+              <i class="fas fa-hourglass-half me-1"></i>Pending Approval
+            </span>
+            {% if employee.hr_authenticated_at|is_urgent_request %}
+              <span class="badge bg-danger urgent-indicator ms-2">
+                <i class="fas fa-exclamation-triangle me-1"></i>Urgent
+              </span>
+            {% endif %}
+          </div>
+          
+          <div class="text-center">
+            <small>
+              <i class="fas fa-clock me-1"></i>
+              Requested {{ employee.hr_authenticated_at|time_since_request }}
+              {% if employee.hr_authenticated_at %}
+                <br>{{ employee.hr_authenticated_at|date:"F j, Y, g:i a" }}
+              {% endif %}
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Employee Details -->
+    <div class="col-lg-8">
+      <div class="row">
+        <!-- Personal Information -->
+        <div class="col-md-6 mb-4">
+          <div class="card shadow h-100">
+            <div class="card-header py-3">
+              <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-user me-2"></i>Personal Information
+              </h6>
+            </div>
+            <div class="card-body">
+              <div class="row mb-3">
+                <div class="col-sm-5 info-label">Full Name:</div>
+                <div class="col-sm-7">{{ employee.get_full_name }}</div>
+              </div>
+              
+              <div class="row mb-3">
+                <div class="col-sm-5 info-label">Username:</div>
+                <div class="col-sm-7">{{ employee.username }}</div>
+              </div>
+              
+              <div class="row mb-3">
+                <div class="col-sm-5 info-label">Email:</div>
+                <div class="col-sm-7">
+                  <a href="mailto:{{ employee.email }}">{{ employee.email }}</a>
+                </div>
+              </div>
+              
+              <div class="row mb-3">
+                <div class="col-sm-5 info-label">Phone:</div>
+                <div class="col-sm-7">
+                  {% if employee.phone_number %}
+                    <a href="tel:{{ employee.phone_number }}">{{ employee.phone_number }}</a>
+                  {% else %}
+                    <span class="text-muted">Not provided</span>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <div class="row mb-3">
+                <div class="col-sm-5 info-label">Address:</div>
+                <div class="col-sm-7">
+                  {% if employee.address %}
+                    {{ employee.address }}
+                  {% else %}
+                    <span class="text-muted">Not provided</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- License Information -->
+        <div class="col-md-6 mb-4">
+          <div class="card shadow h-100">
+            <div class="card-header py-3">
+              <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-id-card me-2"></i>License Information
+              </h6>
+            </div>
+            <div class="card-body">
+              <div class="row mb-3">
+                <div class="col-sm-5 info-label">License Number:</div>
+                <div class="col-sm-7">
+                  {% if employee.license_number %}
+                    {{ employee.license_number }}
+                  {% else %}
+                    <span class="text-muted">Not provided</span>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <div class="row mb-3">
+                <div class="col-sm-5 info-label">License Expiry:</div>
+                <div class="col-sm-7">
+                  {% if employee.license_expiry %}
+                    {{ employee.license_expiry|date:"F j, Y" }}
+                    {% if not employee.is_license_valid %}
+                      <span class="text-danger ms-2">
+                        <i class="fas fa-exclamation-triangle"></i> Expired
+                      </span>
+                    {% elif employee.license_expiry|timeuntil:now < '30 days' %}
+                      <span class="text-warning ms-2">
+                        <i class="fas fa-exclamation-circle"></i> Expiring soon
+                      </span>
+                    {% else %}
+                      <span class="text-success ms-2">
+                        <i class="fas fa-check-circle"></i> Valid
+                      </span>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-muted">Not provided</span>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <div class="row mb-3">
+                <div class="col-sm-5 info-label">License Status:</div>
+                <div class="col-sm-7">
+                  <span class="badge bg-{% if employee.is_license_valid %}success{% elif employee.license_expiry %}danger{% else %}secondary{% endif %}">
+                    {{ employee.license_status }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- HR System Data -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card shadow">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-building me-2"></i>HR System Information
+          </h6>
+        </div>
+        <div class="card-body hr-data-card">
+          {% if hr_data %}
+            <div class="row">
+              <div class="col-md-6">
+                <div class="row mb-2">
+                  <div class="col-sm-4 info-label">Employee ID:</div>
+                  <div class="col-sm-8">{{ employee.hr_employee_id|default:"Not available" }}</div>
+                </div>
+                <div class="row mb-2">
+                  <div class="col-sm-4 info-label">Department:</div>
+                  <div class="col-sm-8">{{ employee.hr_department|default:"Not specified" }}</div>
+                </div>
+                <div class="row mb-2">
+                  <div class="col-sm-4 info-label">Designation:</div>
+                  <div class="col-sm-8">{{ employee.hr_designation|default:"Not specified" }}</div>
+                </div>
+              </div>
+              <!-- <div class="col-md-6">
+                <div class="small">
+                  <strong>Additional HR Data:</strong>
+                  <div class="mt-2" style="max-height: 150px; overflow-y: auto;">
+                    {% for key, value in hr_data.items %}
+                      <div class="mb-1">
+                        <strong>{{ key|title }}:</strong> {{ value }}
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div> -->
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No additional HR data available.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Approval Decision -->
+  <div class="row">
+    <div class="col-md-8 mx-auto">
+      <div class="card shadow">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-gavel me-2"></i>Approval Decision
+          </h6>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <div class="card approval-card h-100">
+                  <div class="card-body text-center">
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" name="action" value="approve" id="approve" checked>
+                      <label class="form-check-label text-white" for="approve">
+                        <i class="fas fa-check-circle fa-3x mb-2 d-block"></i>
+                        <h5>Approve Access</h5>
+                        <p class="mb-0">Grant vehicle system access to this employee</p>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-6 mb-3">
+                <div class="card rejection-card h-100">
+                  <div class="card-body text-center">
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" name="action" value="reject" id="reject">
+                      <label class="form-check-label text-white" for="reject">
+                        <i class="fas fa-times-circle fa-3x mb-2 d-block"></i>
+                        <h5>Reject Access</h5>
+                        <p class="mb-0">Deny vehicle system access for this employee</p>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="mb-3" id="rejection-reason" style="display: none;">
+              <label for="rejection_reason" class="form-label">
+                <i class="fas fa-comment-alt me-2"></i>Reason for Rejection:
+              </label>
+              <textarea class="form-control" name="rejection_reason" rows="3" placeholder="Please explain why access is being rejected (optional but recommended)"></textarea>
+              <div class="form-text">This reason will be shown to the employee and logged for audit purposes.</div>
+            </div>
+            
+            <div class="text-center">
+              <button type="submit" class="btn btn-primary btn-lg px-5">
+                <i class="fas fa-save me-2"></i>Submit Decision
+              </button>
+              <a href="{% url 'pending_employees' %}" class="btn btn-secondary btn-lg px-5 ms-3">
+                <i class="fas fa-times me-2"></i>Cancel
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const approveRadio = document.getElementById('approve');
+  const rejectRadio = document.getElementById('reject');
+  const rejectionReason = document.getElementById('rejection-reason');
+  
+  function toggleRejectionReason() {
+    if (rejectRadio.checked) {
+      rejectionReason.style.display = 'block';
+      rejectionReason.querySelector('textarea').focus();
+    } else {
+      rejectionReason.style.display = 'none';
+    }
+  }
+  
+  approveRadio.addEventListener('change', toggleRejectionReason);
+  rejectRadio.addEventListener('change', toggleRejectionReason);
+  
+  // Add visual feedback for radio selection
+  const cards = document.querySelectorAll('.approval-card, .rejection-card');
+  const radios = document.querySelectorAll('input[name="action"]');
+  
+  radios.forEach(radio => {
+    radio.addEventListener('change', function() {
+      cards.forEach(card => {
+        card.style.transform = 'scale(1)';
+        card.style.boxShadow = '';
+      });
+      
+      if (this.checked) {
+        const card = this.closest('.card');
+        card.style.transform = 'scale(1.05)';
+        card.style.boxShadow = '0 8px 25px rgba(0,0,0,0.3)';
+      }
+    });
+  });
+  
+  // Initial state
+  toggleRejectionReason();
+});
+</script>
+{% endblock %}

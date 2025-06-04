@@ -1,0 +1,450 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Edit Trip - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-section {
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.375rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .form-section-title {
+    font-weight: 700;
+    color: #5a5c69;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #4e73df;
+  }
+  
+  .required-label::after {
+    content: " *";
+    color: #e74a3b;
+  }
+  
+  .edit-indicator {
+    background: linear-gradient(135deg, #f6d55c, #ffad0a);
+    color: white;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .manual-trip-indicator {
+    background: linear-gradient(135deg, #4e73df, #36b9cc);
+    color: white;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .readonly-section {
+    background-color: #f8f9fc;
+    border: 1px solid #d1d3e2;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .readonly-field {
+    background-color: #e9ecef;
+    color: #6c757d;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          {% if trip.entry_type == 'manual' %}
+          <li class="breadcrumb-item"><a href="{% url 'manual_trip_list' %}">Manual Trips</a></li>
+          {% else %}
+          <li class="breadcrumb-item"><a href="{% url 'trip_list' %}">Trips</a></li>
+          {% endif %}
+          <li class="breadcrumb-item"><a href="{% url 'trip_detail' trip.pk %}">Trip #{{ trip.id }}</a></li>
+          <li class="breadcrumb-item active">Edit</li>
+        </ol>
+      </nav>
+      <h1 class="h3 mb-0 text-gray-800">Edit Trip</h1>
+      <p class="text-muted">Modify trip details for Trip #{{ trip.id }}</p>
+    </div>
+    <div>
+      {% if trip.entry_type == 'manual' %}
+      <a href="{% url 'manual_trip_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Back to Manual Trips
+      </a>
+      {% else %}
+      <a href="{% url 'trip_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Back to Trips
+      </a>
+      {% endif %}
+      <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-info">
+        <i class="fas fa-eye me-1"></i>View Details
+      </a>
+    </div>
+  </div>
+
+  <!-- Trip Type Indicator -->
+  {% if trip.entry_type == 'manual' %}
+  <div class="manual-trip-indicator">
+    <i class="fas fa-clipboard-list fa-lg"></i>
+    <div>
+      <strong>Manual Trip Entry</strong>
+      <div style="font-size: 0.9rem; opacity: 0.9;">
+        This trip was manually entered. All fields can be edited.
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="edit-indicator">
+    <i class="fas fa-satellite-dish fa-lg"></i>
+    <div>
+      <strong>Auto-Tracked Trip</strong>
+      <div style="font-size: 0.9rem; opacity: 0.9;">
+        This trip was automatically tracked. Some fields are read-only.
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="row">
+    <div class="col-lg-8">
+      <form method="post" id="editTripForm">
+        {% csrf_token %}
+        
+        <!-- Form Errors -->
+        {% if form.errors %}
+        <div class="alert alert-danger">
+          <h5>Please correct the following errors:</h5>
+          {% for field, errors in form.errors.items %}
+            <p><strong>{{ field }}:</strong> {{ errors|join:", " }}</p>
+          {% endfor %}
+        </div>
+        {% endif %}
+        
+        <!-- Driver & Vehicle Selection (Always Editable) -->
+        <div class="form-section">
+          <h5 class="form-section-title">
+            <i class="fas fa-users me-2"></i>Driver & Vehicle Selection
+          </h5>
+          
+          {% if trip.entry_type != 'manual' %}
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            This trip was auto-tracked, but you can modify the driver and vehicle assignments if needed.
+          </div>
+          {% endif %}
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="id_driver" class="form-label required-label">Driver</label>
+              <select class="form-select" id="id_driver" name="driver" required>
+                <option value="">Select a driver...</option>
+                {% for driver in drivers %}
+                <option value="{{ driver.id }}" {% if driver.id == trip.driver.id %}selected{% endif %}>
+                  {{ driver.get_full_name|default:driver.username }} 
+                  {% if driver.email %}({{ driver.email }}){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="id_vehicle" class="form-label required-label">Vehicle</label>
+              <select class="form-select" id="id_vehicle" name="vehicle" required>
+                <option value="">Select a vehicle...</option>
+                {% for vehicle in vehicles %}
+                <option value="{{ vehicle.id }}" {% if vehicle.id == trip.vehicle.id %}selected{% endif %}>
+                  {{ vehicle.license_plate }} - {{ vehicle.make }} {{ vehicle.model }}
+                  {% if vehicle.status %} ({{ vehicle.status }}){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Route Information -->
+        <div class="form-section">
+          <h5 class="form-section-title">
+            <i class="fas fa-route me-2"></i>Route Information
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="id_origin" class="form-label required-label">
+                <i class="fas fa-map-marker-alt text-success me-1"></i>Origin (From)
+              </label>
+              <input type="text" class="form-control" id="id_origin" name="origin" 
+                     value="{{ trip.origin }}" placeholder="Starting location" required>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="id_destination" class="form-label required-label">
+                <i class="fas fa-map-marker-alt text-danger me-1"></i>Destination (To)
+              </label>
+              <input type="text" class="form-control" id="id_destination" name="destination" 
+                     value="{{ trip.destination }}" placeholder="Destination location" required>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trip Timing (Always Editable) -->
+        <div class="form-section">
+          <h5 class="form-section-title">
+            <i class="fas fa-clock me-2"></i>Trip Timing
+          </h5>
+          
+          {% if trip.entry_type != 'manual' %}
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Note:</strong> This trip was auto-tracked. Modifying times may affect system calculations.
+          </div>
+          {% endif %}
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="id_start_time" class="form-label required-label">Start Date & Time</label>
+              <input type="datetime-local" class="form-control" id="id_start_time" 
+                     name="start_time" value="{{ trip.start_time|date:'Y-m-d\TH:i' }}" required>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="id_end_time" class="form-label">End Date & Time</label>
+              <input type="datetime-local" class="form-control" id="id_end_time" 
+                     name="end_time" value="{% if trip.end_time %}{{ trip.end_time|date:'Y-m-d\TH:i' }}{% endif %}">
+              <div class="form-text">Leave empty if trip is still ongoing</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Odometer Readings (Always Editable) -->
+        <div class="form-section">
+          <h5 class="form-section-title">
+            <i class="fas fa-tachometer-alt me-2"></i>Odometer Readings
+          </h5>
+          
+          {% if trip.entry_type != 'manual' %}
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Note:</strong> This trip was auto-tracked. Modifying odometer readings may affect distance calculations.
+          </div>
+          {% endif %}
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="id_start_odometer" class="form-label required-label">Start Odometer (km)</label>
+              <input type="number" class="form-control" id="id_start_odometer" 
+                     name="start_odometer" value="{{ trip.start_odometer }}" min="0" required>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="id_end_odometer" class="form-label">End Odometer (km)</label>
+              <input type="number" class="form-control" id="id_end_odometer" 
+                     name="end_odometer" value="{% if trip.end_odometer %}{{ trip.end_odometer }}{% endif %}" min="0">
+              <div class="form-text">Leave empty if trip is ongoing</div>
+            </div>
+          </div>
+          
+          {% if trip.distance_traveled %}
+          <div class="mt-2 text-info">
+            <i class="fas fa-route me-1"></i>
+            <strong>Current Distance: {{ trip.distance_traveled }} km</strong>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Trip Details (Always Editable) -->
+        <div class="form-section">
+          <h5 class="form-section-title">
+            <i class="fas fa-clipboard me-2"></i>Trip Details
+          </h5>
+          
+          <div class="mb-3">
+            <label for="id_purpose" class="form-label required-label">Purpose of Trip</label>
+            <input type="text" class="form-control" id="id_purpose" name="purpose" 
+                   value="{{ trip.purpose }}" placeholder="e.g., Client Meeting, Delivery, Maintenance" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="id_notes" class="form-label">Additional Notes</label>
+            <textarea class="form-control" id="id_notes" name="notes" rows="3"
+                      placeholder="Any additional details about the trip...">{{ trip.notes }}</textarea>
+          </div>
+          
+          <div class="mb-3">
+            <label for="id_status" class="form-label">Trip Status</label>
+            <select class="form-select" id="id_status" name="status">
+              <option value="ongoing" {% if trip.status == 'ongoing' %}selected{% endif %}>Ongoing</option>
+              <option value="completed" {% if trip.status == 'completed' %}selected{% endif %}>Completed</option>
+              <option value="cancelled" {% if trip.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-section">
+          <div class="d-flex justify-content-between">
+            {% if trip.entry_type == 'manual' %}
+            <a href="{% url 'manual_trip_list' %}" class="btn btn-secondary">
+              <i class="fas fa-times me-1"></i>Cancel
+            </a>
+            {% else %}
+            <a href="{% url 'trip_list' %}" class="btn btn-secondary">
+              <i class="fas fa-times me-1"></i>Cancel
+            </a>
+            {% endif %}
+            <div>
+              <button type="button" class="btn btn-info me-2" onclick="previewChanges()">
+                <i class="fas fa-eye me-1"></i>Preview Changes
+              </button>
+              <button type="submit" class="btn btn-success">
+                <i class="fas fa-save me-1"></i>Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Sidebar Information -->
+    <div class="col-lg-4">
+      <!-- Current Trip Info -->
+      <div class="card shadow mb-4">
+        <div class="card-header bg-info text-white">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-info-circle me-2"></i>Trip Information
+          </h6>
+        </div>
+        <div class="card-body">
+          <p><strong>Trip ID:</strong> #{{ trip.id }}</p>
+          <p><strong>Driver:</strong> {{ trip.driver.get_full_name }}</p>
+          <p><strong>Vehicle:</strong> {{ trip.vehicle.license_plate }}</p>
+          <p><strong>Entry Type:</strong> 
+            {% if trip.entry_type == 'manual' %}
+              <span class="badge bg-warning">Manual Entry</span>
+            {% else %}
+              <span class="badge bg-success">Auto Tracked</span>
+            {% endif %}
+          </p>
+          <p><strong>Current Status:</strong> 
+            <span class="badge bg-{% if trip.status == 'ongoing' %}success{% elif trip.status == 'completed' %}info{% else %}danger{% endif %}">
+              {{ trip.get_status_display }}
+            </span>
+          </p>
+          <p><strong>Created:</strong> {{ trip.created_at|date:"M d, Y H:i" }}</p>
+          {% if trip.updated_at != trip.created_at %}
+          <p><strong>Last Modified:</strong> {{ trip.updated_at|date:"M d, Y H:i" }}</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="card shadow mb-4">
+        <div class="card-header bg-success text-white">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-tools me-2"></i>Quick Actions
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-outline-primary">
+              <i class="fas fa-eye me-2"></i>View Full Details
+            </a>
+            {% if trip.status == 'ongoing' %}
+            <a href="{% url 'end_trip' trip.pk %}" class="btn btn-outline-success">
+              <i class="fas fa-stop me-2"></i>End Trip
+            </a>
+            {% endif %}
+            <button type="button" class="btn btn-outline-warning" onclick="duplicateTrip()">
+              <i class="fas fa-copy me-2"></i>Duplicate Trip
+            </button>
+            <button type="button" class="btn btn-outline-danger" onclick="deleteTrip()">
+              <i class="fas fa-trash me-2"></i>Delete Trip
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Edit Guidelines -->
+      <div class="card shadow mb-4">
+        <div class="card-header bg-warning text-white">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-lightbulb me-2"></i>Edit Guidelines
+          </h6>
+        </div>
+        <div class="card-body">
+          <ul class="mb-0">
+            <li class="mb-2">All fields can be edited for any trip type</li>
+            <li class="mb-2">End odometer must be greater than start odometer</li>
+            <li class="mb-2">End time must be after start time</li>
+            <li class="mb-2">Leave end fields empty for ongoing trips</li>
+            {% if trip.entry_type != 'manual' %}
+            <li class="mb-2"><strong>Warning:</strong> Modifying auto-tracked data may affect system calculations</li>
+            {% endif %}
+          </ul>
+          <hr>
+          <small class="text-muted">All changes are permanent and cannot be undone.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function previewChanges() {
+    // Show a preview of the changes
+    alert('Preview functionality would show the changes before saving.');
+  }
+  
+  function duplicateTrip() {
+    if (confirm('Create a duplicate of this trip?')) {
+      // Logic to duplicate the trip
+      alert('Trip duplication functionality would be implemented here.');
+    }
+  }
+  
+  function deleteTrip() {
+    if (confirm('Are you sure you want to delete this trip? This action cannot be undone.')) {
+      window.location.href = '{% url "trip_delete" trip.pk %}';
+    }
+  }
+  
+  // Form validation (Apply to all trip types)
+  document.getElementById('editTripForm').addEventListener('submit', function(e) {
+    const startTime = new Date(document.getElementById('id_start_time').value);
+    const endTime = document.getElementById('id_end_time').value ? new Date(document.getElementById('id_end_time').value) : null;
+    
+    if (endTime && endTime <= startTime) {
+      e.preventDefault();
+      alert('End time must be after start time.');
+      return false;
+    }
+    
+    const startOdometer = parseInt(document.getElementById('id_start_odometer').value) || 0;
+    const endOdometer = parseInt(document.getElementById('id_end_odometer').value) || 0;
+    
+    if (endOdometer && startOdometer && endOdometer <= startOdometer) {
+      e.preventDefault();
+      alert('End odometer must be greater than start odometer.');
+      return false;
+    }
+  });
+</script>
+{% endblock %}

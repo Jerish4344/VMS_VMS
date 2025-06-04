@@ -1,0 +1,569 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Trip Details - {{ trip.vehicle.license_plate }} - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .route-map {
+    background: linear-gradient(135deg, #f8f9fc 0%, #e3e6f0 100%);
+    border-radius: 1rem;
+    padding: 2rem;
+    margin: 1.5rem 0;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .route-map::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23e3e6f0" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>') repeat;
+    opacity: 0.3;
+    z-index: 1;
+  }
+  
+  .route-content {
+    position: relative;
+    z-index: 2;
+  }
+  
+  .location-marker {
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin: 1rem 0;
+    border-left: 4px solid;
+  }
+  
+  .location-marker.origin {
+    border-left-color: #1cc88a;
+  }
+  
+  .location-marker.destination {
+    border-left-color: #e74a3b;
+  }
+  
+  .route-line {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 3rem;
+    position: relative;
+  }
+  
+  .route-line::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(to bottom, #1cc88a, #e74a3b);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  
+  .route-arrow {
+    background: white;
+    border-radius: 50%;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    color: #4e73df;
+    font-size: 1.25rem;
+    position: relative;
+    z-index: 3;
+  }
+  
+  .info-card {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    transition: all 0.3s;
+  }
+  
+  .info-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 2rem 0 rgba(58, 59, 69, 0.2);
+  }
+  
+  .stat-item {
+    text-align: center;
+    padding: 1rem;
+    border-right: 1px solid #e3e6f0;
+  }
+  
+  .stat-item:last-child {
+    border-right: none;
+  }
+  
+  .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #4e73df;
+  }
+  
+  .stat-label {
+    font-size: 0.875rem;
+    color: #858796;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  
+  .timeline {
+    position: relative;
+    padding-left: 2rem;
+  }
+  
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.75rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e3e6f0;
+  }
+  
+  .timeline-item {
+    position: relative;
+    margin-bottom: 2rem;
+    padding-left: 2rem;
+  }
+  
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -0.5rem;
+    top: 0.25rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #4e73df;
+  }
+  
+  .timeline-item.completed::before {
+    background: #1cc88a;
+    border-color: #1cc88a;
+  }
+  
+  .status-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  .status-ongoing {
+    background: #1cc88a;
+    color: white;
+  }
+  
+  .status-completed {
+    background: #36b9cc;
+    color: white;
+  }
+  
+  .status-cancelled {
+    background: #e74a3b;
+    color: white;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{% url 'trip_list' %}">Trips</a></li>
+          <li class="breadcrumb-item active">Trip #{{ trip.id }}</li>
+        </ol>
+      </nav>
+      <h1 class="h3 mb-0 text-gray-800">Trip Details</h1>
+    </div>
+    <div>
+      {% if trip.status == 'ongoing' %}
+        {% if user == trip.driver or user.user_type == 'admin' or user.user_type == 'manager' or user.user_type == 'vehicle_manager' %}
+        <a href="{% url 'end_trip' trip.pk %}" class="btn btn-success">
+          <i class="fas fa-stop me-1"></i>End Trip
+        </a>
+        <a href="{% url 'track_trip' trip.pk %}" class="btn btn-info">
+          <i class="fas fa-map me-1"></i>Track Trip
+        </a>
+        {% endif %}
+      {% endif %}
+      <a href="{% url 'trip_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Back to List
+      </a>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Main Trip Information -->
+    <div class="col-lg-8">
+      <!-- Route Information -->
+      <div class="card info-card mb-4">
+        <div class="card-header bg-primary text-white">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-route me-2"></i>Route Information
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="route-map">
+            <div class="route-content">
+              <!-- Origin -->
+              <div class="location-marker origin">
+                <div class="me-3">
+                  <i class="fas fa-map-marker-alt fa-2x text-success"></i>
+                </div>
+                <div>
+                  <h6 class="mb-1 text-success">Starting Point</h6>
+                  <p class="mb-0 font-weight-bold">{{ trip.origin }}</p>
+                  <small class="text-muted">{{ trip.start_time|date:"M d, Y H:i" }}</small>
+                </div>
+              </div>
+
+              <!-- Route Line -->
+              <div class="route-line">
+                <div class="route-arrow">
+                  <i class="fas fa-arrow-down"></i>
+                </div>
+              </div>
+
+              <!-- Destination -->
+              <div class="location-marker destination">
+                <div class="me-3">
+                  <i class="fas fa-map-marker-alt fa-2x text-danger"></i>
+                </div>
+                <div>
+                  <h6 class="mb-1 text-danger">Destination</h6>
+                  <p class="mb-0 font-weight-bold">{{ trip.destination }}</p>
+                  {% if trip.end_time %}
+                  <small class="text-muted">{{ trip.end_time|date:"M d, Y H:i" }}</small>
+                  {% else %}
+                  <small class="text-muted">In progress...</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trip Statistics -->
+      <div class="card info-card mb-4">
+        <div class="card-header bg-info text-white">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-chart-line me-2"></i>Trip Statistics
+          </h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="row no-gutters">
+            <div class="col-md-3">
+              <div class="stat-item">
+                <div class="stat-value">
+                  {% if trip.distance_traveled > 0 %}
+                    {{ trip.distance_traveled }}
+                  {% else %}
+                    --
+                  {% endif %}
+                </div>
+                <div class="stat-label">Distance (km)</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-item">
+                <div class="stat-value">
+                  {% if trip.duration %}
+                    {{ trip.duration }}
+                  {% else %}
+                    In Progress
+                  {% endif %}
+                </div>
+                <div class="stat-label">Duration</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-item">
+                <div class="stat-value">{{ trip.start_odometer }}</div>
+                <div class="stat-label">Start Odometer</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-item">
+                <div class="stat-value">
+                  {% if trip.end_odometer %}
+                    {{ trip.end_odometer }}
+                  {% else %}
+                    --
+                  {% endif %}
+                </div>
+                <div class="stat-label">End Odometer</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trip Timeline -->
+      <div class="card info-card mb-4">
+        <div class="card-header bg-success text-white">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-history me-2"></i>Trip Timeline
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="timeline">
+            <div class="timeline-item completed">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <h6 class="mb-1">Trip Started</h6>
+                  <p class="mb-1">Started journey from {{ trip.origin }}</p>
+                  <small class="text-muted">
+                    <i class="fas fa-clock me-1"></i>
+                    {{ trip.start_time|date:"M d, Y H:i A" }}
+                  </small>
+                </div>
+                <span class="badge bg-success">
+                  <i class="fas fa-check me-1"></i>Completed
+                </span>
+              </div>
+            </div>
+
+            {% if trip.end_time %}
+            <div class="timeline-item completed">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <h6 class="mb-1">Trip Completed</h6>
+                  <p class="mb-1">Arrived at {{ trip.destination }}</p>
+                  <small class="text-muted">
+                    <i class="fas fa-clock me-1"></i>
+                    {{ trip.end_time|date:"M d, Y H:i A" }}
+                  </small>
+                </div>
+                <span class="badge bg-success">
+                  <i class="fas fa-check me-1"></i>Completed
+                </span>
+              </div>
+            </div>
+            {% else %}
+            <div class="timeline-item">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <h6 class="mb-1">En Route</h6>
+                  <p class="mb-1">Traveling to {{ trip.destination }}</p>
+                  <small class="text-muted">
+                    <i class="fas fa-spinner fa-spin me-1"></i>
+                    In progress...
+                  </small>
+                </div>
+                <span class="badge bg-warning">
+                  <i class="fas fa-clock me-1"></i>Ongoing
+                </span>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes Section -->
+      {% if trip.notes %}
+      <div class="card info-card mb-4">
+        <div class="card-header bg-warning text-white">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-sticky-note me-2"></i>Trip Notes
+          </h6>
+        </div>
+        <div class="card-body">
+          <p class="mb-0">{{ trip.notes|linebreaks }}</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Sidebar Information -->
+    <div class="col-lg-4">
+      <!-- Trip Status -->
+      <div class="card info-card mb-4">
+        <div class="card-body text-center">
+          <h6 class="card-title">Trip Status</h6>
+          <span class="status-badge status-{{ trip.status }}">
+            {% if trip.status == 'ongoing' %}
+              <i class="fas fa-play me-2"></i>Ongoing
+            {% elif trip.status == 'completed' %}
+              <i class="fas fa-check me-2"></i>Completed
+            {% else %}
+              <i class="fas fa-times me-2"></i>Cancelled
+            {% endif %}
+          </span>
+        </div>
+      </div>
+
+      <!-- Vehicle Information -->
+      <div class="card info-card mb-4">
+        <div class="card-header">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-car me-2"></i>Vehicle Details
+          </h6>
+        </div>
+        <div class="card-body">
+          {% if trip.vehicle.image %}
+          <img src="{{ trip.vehicle.image.url }}" class="img-fluid rounded mb-3" alt="{{ trip.vehicle.license_plate }}">
+          {% endif %}
+          
+          <div class="mb-2">
+            <strong>License Plate:</strong><br>
+            <span class="badge bg-primary">{{ trip.vehicle.license_plate }}</span>
+          </div>
+          
+          <div class="mb-2">
+            <strong>Vehicle:</strong><br>
+            {{ trip.vehicle.make }} {{ trip.vehicle.model }}
+          </div>
+          
+          <div class="mb-2">
+            <strong>Type:</strong><br>
+            {{ trip.vehicle.vehicle_type.name }}
+          </div>
+          
+          <div class="mb-2">
+            <strong>Fuel Type:</strong><br>
+            {{ trip.vehicle.fuel_type|title }}
+          </div>
+          
+          <div class="mb-0">
+            <strong>Current Odometer:</strong><br>
+            {{ trip.vehicle.current_odometer }} km
+          </div>
+        </div>
+      </div>
+
+      <!-- Driver Information -->
+      <div class="card info-card mb-4">
+        <div class="card-header">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-user me-2"></i>Driver Details
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="mb-2">
+            <strong>Name:</strong><br>
+            {{ trip.driver.get_full_name }}
+          </div>
+          
+          <div class="mb-2">
+            <strong>Email:</strong><br>
+            {{ trip.driver.email }}
+          </div>
+          
+          {% if trip.driver.license_number %}
+          <div class="mb-2">
+            <strong>License Number:</strong><br>
+            {{ trip.driver.license_number }}
+          </div>
+          {% endif %}
+          
+          {% if trip.driver.phone %}
+          <div class="mb-0">
+            <strong>Phone:</strong><br>
+            {{ trip.driver.phone }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Trip Purpose -->
+      <div class="card info-card mb-4">
+        <div class="card-header">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-tag me-2"></i>Trip Purpose
+          </h6>
+        </div>
+        <div class="card-body">
+          <p class="mb-0">{{ trip.purpose }}</p>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      {% if trip.status == 'ongoing' %}
+        {% if user == trip.driver or user.user_type == 'admin' or user.user_type == 'manager' or user.user_type == 'vehicle_manager' %}
+        <div class="card info-card mb-4">
+          <div class="card-header">
+            <h6 class="m-0 font-weight-bold text-primary">
+              <i class="fas fa-tools me-2"></i>Quick Actions
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="d-grid gap-2">
+              <a href="{% url 'end_trip' trip.pk %}" class="btn btn-success">
+                <i class="fas fa-stop me-2"></i>End Trip
+              </a>
+              <a href="{% url 'track_trip' trip.pk %}" class="btn btn-info">
+                <i class="fas fa-map me-2"></i>Live Tracking
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      {% endif %}
+
+      <!-- Location Tracking -->
+      {% if locations %}
+      <div class="card info-card mb-4">
+        <div class="card-header">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-map-marked-alt me-2"></i>Location History
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="list-group list-group-flush">
+            {% for location in locations|slice:":5" %}
+            <div class="list-group-item px-0">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <h6 class="mb-1">{{ location.address|default:"Unknown Location" }}</h6>
+                  <small class="text-muted">{{ location.timestamp|date:"H:i" }}</small>
+                </div>
+                <small class="text-muted">
+                  <i class="fas fa-map-marker-alt"></i>
+                </small>
+              </div>
+            </div>
+            {% empty %}
+            <p class="text-muted mb-0">No location data available</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Auto-refresh for ongoing trips
+  {% if trip.status == 'ongoing' %}
+  setInterval(function() {
+    // You can add AJAX calls here to update trip status
+    // or refresh specific parts of the page
+  }, 30000); // Refresh every 30 seconds
+  {% endif %}
+</script>
+{% endblock %}

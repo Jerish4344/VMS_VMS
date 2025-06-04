@@ -1,0 +1,473 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Driver Report - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .report-stats-card {
+    transition: transform 0.2s;
+    height: 100%;
+  }
+  
+  .report-stats-card:hover {
+    transform: translateY(-5px);
+  }
+  
+  .stats-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  
+  .stats-label {
+    color: #858796;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  
+  .date-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .filter-divider {
+    font-weight: bold;
+  }
+  
+  .license-expired {
+    color: #e74a3b;
+  }
+  
+  .license-expiring-soon {
+    color: #f6c23e;
+  }
+  
+  .license-valid {
+    color: #1cc88a;
+  }
+  
+  .btn-export {
+    margin-right: 0.5rem;
+  }
+  
+  .report-table th {
+    white-space: nowrap;
+  }
+  
+  .chart-container {
+    position: relative;
+    margin: auto;
+    height: 300px;
+    width: 100%;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Driver Report</h1>
+    
+    <div class="d-flex">
+      <a href="{% url 'driver_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}export=excel" class="btn btn-sm btn-success shadow-sm btn-export">
+        <i class="fas fa-file-excel fa-sm text-white-50"></i> Export to Excel
+      </a>
+      <a href="{% url 'driver_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}export=csv" class="btn btn-sm btn-primary shadow-sm btn-export">
+        <i class="fas fa-file-csv fa-sm text-white-50"></i> Export to CSV
+      </a>
+    </div>
+  </div>
+  
+  <!-- Filters Card -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">Report Filters</h6>
+    </div>
+    <div class="card-body">
+      <form id="report-filters" method="get" class="mb-0">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label">Date Range</label>
+              <div class="date-filter-row">
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}" placeholder="Start Date">
+                <span class="filter-divider">to</span>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}" placeholder="End Date">
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-3 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-filter"></i> Apply Filters
+            </button>
+          </div>
+          
+          <div class="col-md-3 d-flex align-items-end justify-content-end">
+            <a href="{% url 'driver_report' %}" class="btn btn-secondary">
+              <i class="fas fa-redo"></i> Reset
+            </a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Summary Stats Cards -->
+  <div class="row mb-4">
+    <!-- Total Drivers -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-primary shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Drivers</div>
+              <div class="stats-value text-primary">
+                {{ driver_report|length }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-users fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Total Trips -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-success shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Trips</div>
+              <div class="stats-value text-success">
+                {{ total_trips|default:0 }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-route fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Total Distance -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-info shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Distance</div>
+              <div class="stats-value text-info">
+                {{ total_distance|floatformat:0 }} km
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-tachometer-alt fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Total Accidents -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-danger shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Accidents</div>
+              <div class="stats-value text-danger">
+                {{ total_accidents|default:0 }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-car-crash fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Charts Row -->
+  <div class="row mb-4">
+    <!-- Distance by Driver Chart -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Distance by Driver</h6>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="distanceByDriverChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Trips by Driver Chart -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Trips by Driver</h6>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="tripsByDriverChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Driver Report Table -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+      <h6 class="m-0 font-weight-bold text-primary">Driver Performance Report</h6>
+      <span>Period: {{ start_date }} to {{ end_date }}</span>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-bordered report-table" id="dataTable" width="100%" cellspacing="0">
+          <thead>
+            <tr>
+              <th>Driver</th>
+              <th>License Info</th>
+              <th>Trips</th>
+              <th>Distance</th>
+              <th>Driving Time</th>
+              <th>Fuel</th>
+              <th>Accidents</th>
+              <th>Performance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for driver in driver_report %}
+              <tr>
+                <td>
+                  <div class="font-weight-bold">{{ driver.name }}</div>
+                  <div class="small text-muted">@{{ driver.username }}</div>
+                </td>
+                <td>
+                  <div>{{ driver.license_number|default:"Not specified" }}</div>
+                  {% load report_filters %}
+                  {% if driver.license_expiry < now.date %}
+                    <div class="small license-expired">
+                      <i class="fas fa-exclamation-circle"></i> Expired on {{ driver.license_expiry|date:"M d, Y" }}
+                    </div>
+                  {% elif driver.license_expiry < now.date|add_days:30 %}
+                    <div class="small license-expiring-soon">
+                      <i class="fas fa-exclamation-triangle"></i> Expires on {{ driver.license_expiry|date:"M d, Y" }}
+                    </div>
+                  {% else %}
+                    <div class="small license-valid">
+                      <i class="fas fa-check-circle"></i> Valid until {{ driver.license_expiry|date:"M d, Y" }}
+                    </div>
+                  {% endif %}
+                </td>
+                <!-- Trips column in the table -->
+                <td>
+                  <div class="font-weight-bold">
+                    {{ driver.trip_count|default:"0" }} trip{{ driver.trip_count|default:"0"|pluralize }}
+                  </div>
+                  <div class="small text-muted">
+                    Avg: {{ driver.avg_distance|default:"0"|floatformat:"1" }} km/trip
+                  </div>
+                  
+                  <!-- Debug info - remove after fixing -->
+                  {% if debug %}
+                  <div class="small text-info">
+                    Debug: trip_count={{ driver.trip_count|default:"None" }}
+                  </div>
+                  {% endif %}
+                </td>
+                <td>
+                  <div>{{ driver.total_distance|default:"0"|floatformat:1 }} km</div>
+                </td>
+                <td>
+                  <div>{{ driver.total_hours|default:"0"|floatformat:1 }} hours</div>
+                  <div class="small text-muted">
+                    Avg speed: {{ driver.avg_speed|default:"0"|floatformat:1 }} km/h
+                  </div>
+                </td>
+                <td>
+                  <div>{{ driver.fuel_count|default:"0" }} refuels</div>
+                  <div class="small text-muted">
+                    {{ driver.total_fuel|default:"0"|floatformat:1 }} L
+                    (${{ driver.total_fuel_cost|default:"0"|floatformat:2 }})
+                  </div>
+                </td>
+                <td>
+                  <div>{{ driver.accident_count|default:"0" }} accidents</div>
+                  <div class="small text-muted">
+                    {{ driver.accidents_per_1000km|default:"0"|floatformat:2 }} per 1000 km
+                  </div>
+                </td>
+                <td>
+                  {% if driver.total_distance > 0 %}
+                    {% if driver.accidents_per_1000km < 0.5 %}
+                      <span class="badge bg-success">Excellent</span>
+                    {% elif driver.accidents_per_1000km < 1 %}
+                      <span class="badge bg-primary">Good</span>
+                    {% elif driver.accidents_per_1000km < 2 %}
+                      <span class="badge bg-warning text-dark">Fair</span>
+                    {% else %}
+                      <span class="badge bg-danger">Poor</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="badge bg-secondary">No Data</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="8" class="text-center">No driver data available for the selected period.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Format dates
+    const today = new Date().toISOString().split('T')[0];
+    const startDateInput = document.querySelector('input[name="start_date"]');
+    const endDateInput = document.querySelector('input[name="end_date"]');
+    
+    if (startDateInput && endDateInput) {
+      endDateInput.max = today;
+      
+      startDateInput.addEventListener('change', function() {
+        endDateInput.min = this.value;
+        if (endDateInput.value && new Date(endDateInput.value) < new Date(this.value)) {
+          endDateInput.value = this.value;
+        }
+      });
+      
+      endDateInput.addEventListener('change', function() {
+        startDateInput.max = this.value;
+      });
+      
+      // Set initial constraints
+      if (startDateInput.value) {
+        endDateInput.min = startDateInput.value;
+      }
+      if (endDateInput.value) {
+        startDateInput.max = endDateInput.value;
+      } else {
+        startDateInput.max = today;
+      }
+    }
+    
+    // Initialize DataTable
+    $('#dataTable').DataTable({
+      order: [[3, 'desc']], // Sort by total distance
+      pageLength: 25,
+      columnDefs: [
+        { orderable: false, targets: [7] } // Disable sorting on performance column
+      ]
+    });
+    
+    // Prepare chart data
+    const driverData = [
+      {% for driver in driver_report %}
+        {
+          name: "{{ driver.name }}",
+          distance: {{ driver.total_distance|default:0|floatformat:0 }},
+          trips: {{ driver.trip_count|default:0 }}
+        },
+      {% endfor %}
+    ];
+    
+    // Sort by distance
+    driverData.sort((a, b) => b.distance - a.distance);
+    
+    // Take top 10 drivers for chart
+    const topDrivers = driverData.slice(0, 10);
+    
+    // Distance by Driver Chart
+    const distanceCtx = document.getElementById('distanceByDriverChart').getContext('2d');
+    new Chart(distanceCtx, {
+      type: 'bar',
+      data: {
+        labels: topDrivers.map(d => d.name),
+        datasets: [{
+          label: 'Total Distance (km)',
+          data: topDrivers.map(d => d.distance),
+          backgroundColor: 'rgba(78, 115, 223, 0.8)',
+          borderColor: 'rgba(78, 115, 223, 1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Distance (km)'
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'Driver'
+            }
+          }
+        }
+      }
+    });
+    
+    // Trips by Driver Chart
+    const tripsCtx = document.getElementById('tripsByDriverChart').getContext('2d');
+    new Chart(tripsCtx, {
+      type: 'bar',
+      data: {
+        labels: topDrivers.map(d => d.name),
+        datasets: [{
+          label: 'Number of Trips',
+          data: topDrivers.map(d => d.trips),
+          backgroundColor: 'rgba(28, 200, 138, 0.8)',
+          borderColor: 'rgba(28, 200, 138, 1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Number of Trips'
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'Driver'
+            }
+          }
+        }
+      }
+    });
+  });
+</script>
+{% endblock %}

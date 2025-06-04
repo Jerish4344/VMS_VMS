@@ -1,0 +1,476 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}User Management - Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+  .user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  
+  .user-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #4e73df;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+  }
+  
+  .status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .user-role {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  
+  .role-admin {
+    background-color: #4e73df;
+    color: white;
+  }
+  
+  .role-manager {
+    background-color: #1cc88a;
+    color: white;
+  }
+  
+  .role-vehicle_manager {
+    background-color: #36b9cc;
+    color: white;
+  }
+  
+  .role-driver {
+    background-color: #f6c23e;
+    color: #212529;
+  }
+  
+  .license-expired {
+    color: #e74a3b;
+  }
+  
+  .filter-card {
+    margin-bottom: 1rem;
+  }
+  
+  .filter-section {
+    margin-bottom: 1rem;
+  }
+  
+  .filter-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .filter-option {
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+  
+  .filter-checkbox {
+    margin-right: 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">User Management</h1>
+    <a href="{% url 'user_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+      <i class="fas fa-user-plus fa-sm text-white-50"></i> Add New User
+    </a>
+  </div>
+  
+  <div class="row">
+    <!-- Filters Column -->
+    <div class="col-xl-3 col-lg-4">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Filters</h6>
+        </div>
+        <div class="card-body">
+          <form id="filter-form" method="get" action="{% url 'user_list' %}">
+            <!-- Search -->
+            <div class="mb-3">
+              <label for="search" class="form-label">Search Users</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="search" name="search" 
+                       placeholder="Name, username, email..." value="{{ request.GET.search|default:'' }}">
+                <button class="btn btn-primary" type="submit">
+                  <i class="fas fa-search"></i>
+                </button>
+              </div>
+            </div>
+            
+            <!-- User Type Filter -->
+            <div class="filter-section">
+              <div class="filter-title">User Type</div>
+              <div class="form-check filter-option">
+                <input class="form-check-input filter-checkbox" type="checkbox" name="user_type" value="admin" id="type-admin"
+                      {% if 'admin' in request.GET.user_type %}checked{% endif %}>
+                <label class="form-check-label" for="type-admin">
+                  Administrators
+                </label>
+              </div>
+              <div class="form-check filter-option">
+                <input class="form-check-input filter-checkbox" type="checkbox" name="user_type" value="manager" id="type-manager"
+                      {% if 'manager' in request.GET.user_type %}checked{% endif %}>
+                <label class="form-check-label" for="type-manager">
+                  Managers
+                </label>
+              </div>
+              <div class="form-check filter-option">
+                <input class="form-check-input filter-checkbox" type="checkbox" name="user_type" value="vehicle_manager" id="type-vehicle-manager"
+                      {% if 'vehicle_manager' in request.GET.user_type %}checked{% endif %}>
+                <label class="form-check-label" for="type-vehicle-manager">
+                  Vehicle Managers
+                </label>
+              </div>
+              <div class="form-check filter-option">
+                <input class="form-check-input filter-checkbox" type="checkbox" name="user_type" value="driver" id="type-driver"
+                      {% if 'driver' in request.GET.user_type %}checked{% endif %}>
+                <label class="form-check-label" for="type-driver">
+                  Drivers
+                </label>
+              </div>
+            </div>
+            
+            <!-- Status Filter -->
+            <div class="filter-section">
+              <div class="filter-title">Status</div>
+              <div class="form-check filter-option">
+                <input class="form-check-input filter-checkbox" type="checkbox" name="status" value="active" id="status-active"
+                      {% if 'active' in request.GET.status %}checked{% endif %}>
+                <label class="form-check-label" for="status-active">
+                  Active
+                </label>
+              </div>
+              <div class="form-check filter-option">
+                <input class="form-check-input filter-checkbox" type="checkbox" name="status" value="inactive" id="status-inactive"
+                      {% if 'inactive' in request.GET.status %}checked{% endif %}>
+                <label class="form-check-label" for="status-inactive">
+                  Inactive
+                </label>
+              </div>
+            </div>
+            
+            <!-- Driver License Filter (for drivers) -->
+            <div class="filter-section">
+              <div class="filter-title">Driver License</div>
+              <div class="form-check filter-option">
+                <input class="form-check-input filter-checkbox" type="checkbox" name="license" value="valid" id="license-valid"
+                      {% if 'valid' in request.GET.license %}checked{% endif %}>
+                <label class="form-check-label" for="license-valid">
+                  Valid License
+                </label>
+              </div>
+              <div class="form-check filter-option">
+                <input class="form-check-input filter-checkbox" type="checkbox" name="license" value="expired" id="license-expired"
+                      {% if 'expired' in request.GET.license %}checked{% endif %}>
+                <label class="form-check-label" for="license-expired">
+                  Expired License
+                </label>
+              </div>
+              <div class="form-check filter-option">
+                <input class="form-check-input filter-checkbox" type="checkbox" name="license" value="expiring_soon" id="license-expiring"
+                      {% if 'expiring_soon' in request.GET.license %}checked{% endif %}>
+                <label class="form-check-label" for="license-expiring">
+                  Expiring Soon
+                </label>
+              </div>
+            </div>
+            
+            <!-- Filter Buttons -->
+            <div class="mt-3">
+              <button type="submit" class="btn btn-primary btn-sm me-2">
+                <i class="fas fa-filter"></i> Apply Filters
+              </button>
+              <a href="{% url 'user_list' %}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-redo"></i> Reset
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Users List Column -->
+    <div class="col-xl-9 col-lg-8">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">All Users</h6>
+          <span class="text-muted small">Showing {{ users|length }} users</span>
+        </div>
+        <div class="card-body">
+          {% if users %}
+            <div class="table-responsive">
+              <table class="table table-hover" id="users-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Contact</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for user in users %}
+                    <tr>
+                      <td>
+                        <div class="d-flex align-items-center">
+                          {% if user.profile_picture %}
+                            <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}" class="user-avatar me-3">
+                          {% else %}
+                            <div class="user-avatar-placeholder me-3">
+                              {{ user.get_full_name|first }}
+                            </div>
+                          {% endif %}
+                          <div>
+                            <div class="font-weight-bold">{{ user.get_full_name }}</div>
+                            <div class="small text-muted">@{{ user.username }}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="user-role role-{{ user.user_type }}">
+                          {{ user.get_user_type_display }}
+                        </span>
+                      </td>
+                      <td>
+                        <div>{{ user.email }}</div>
+                        {% if user.phone_number %}
+                          <div class="small text-muted">{{ user.phone_number }}</div>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if user.is_active %}
+                          <span class="badge bg-success status-badge">Active</span>
+                        {% else %}
+                          <span class="badge bg-secondary status-badge">Inactive</span>
+                        {% endif %}
+                        
+                        {% if user.user_type == 'driver' %}
+                          {% if not user.is_license_valid %}
+                            <span class="badge bg-danger status-badge">License Expired</span>
+                          {% elif user.license_expiry|timeuntil:now < '30 days' %}
+                            <span class="badge bg-warning text-dark status-badge">License Expiring Soon</span>
+                          {% endif %}
+                        {% endif %}
+                      </td>
+                      <td>
+                        <div class="btn-group">
+                          <a href="{% url 'user_detail' user.id %}" class="btn btn-sm btn-info" title="View Details">
+                            <i class="fas fa-eye"></i>
+                          </a>
+                          <a href="{% url 'user_update' user.id %}" class="btn btn-sm btn-primary" title="Edit User">
+                            <i class="fas fa-edit"></i>
+                          </a>
+                          <button type="button" class="btn btn-sm btn-danger" title="Deactivate User" 
+                                 data-bs-toggle="modal" data-bs-target="#deactivateModal" 
+                                 data-user-id="{{ user.id }}" data-user-name="{{ user.get_full_name }}">
+                            <i class="fas fa-user-slash"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if is_paginated %}
+              <div class="mt-4">
+                <nav aria-label="Page navigation">
+                  <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                      <li class="page-item">
+                        <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page=1" aria-label="First">
+                          <span aria-hidden="true">&laquo;&laquo;</span>
+                        </a>
+                      </li>
+                      <li class="page-item">
+                        <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}" aria-label="Previous">
+                          <span aria-hidden="true">&laquo;</span>
+                        </a>
+                      </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                      {% if page_obj.number == num %}
+                        <li class="page-item active">
+                          <span class="page-link">{{ num }}</span>
+                        </li>
+                      {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                          <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+                        </li>
+                      {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                      <li class="page-item">
+                        <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}" aria-label="Next">
+                          <span aria-hidden="true">&raquo;</span>
+                        </a>
+                      </li>
+                      <li class="page-item">
+                        <a class="page-link" href="?{% for key,value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.paginator.num_pages }}" aria-label="Last">
+                          <span aria-hidden="true">&raquo;&raquo;</span>
+                        </a>
+                      </li>
+                    {% endif %}
+                  </ul>
+                </nav>
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="alert alert-info text-center">
+              <i class="fas fa-info-circle me-2"></i> No users found matching your criteria.
+              {% if request.GET %}
+                <a href="{% url 'user_list' %}" class="alert-link">Clear all filters</a> to see all users.
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- User Type Summary -->
+      <div class="row">
+        <div class="col-xl-3 col-md-6 mb-4">
+          <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+              <div class="row no-gutters align-items-center">
+                <div class="col mr-2">
+                  <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Administrators</div>
+                  <div class="h5 mb-0 font-weight-bold text-gray-800">{{ admin_count|default:"0" }}</div>
+                </div>
+                <div class="col-auto">
+                  <i class="fas fa-user-shield fa-2x text-gray-300"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+          <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+              <div class="row no-gutters align-items-center">
+                <div class="col mr-2">
+                  <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Managers</div>
+                  <div class="h5 mb-0 font-weight-bold text-gray-800">{{ manager_count|default:"0" }}</div>
+                </div>
+                <div class="col-auto">
+                  <i class="fas fa-user-tie fa-2x text-gray-300"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+          <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+              <div class="row no-gutters align-items-center">
+                <div class="col mr-2">
+                  <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Vehicle Managers</div>
+                  <div class="h5 mb-0 font-weight-bold text-gray-800">{{ vehicle_manager_count|default:"0" }}</div>
+                </div>
+                <div class="col-auto">
+                  <i class="fas fa-user-cog fa-2x text-gray-300"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+          <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+              <div class="row no-gutters align-items-center">
+                <div class="col mr-2">
+                  <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Drivers</div>
+                  <div class="h5 mb-0 font-weight-bold text-gray-800">{{ driver_count|default:"0" }}</div>
+                </div>
+                <div class="col-auto">
+                  <i class="fas fa-user fa-2x text-gray-300"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Deactivate User Modal -->
+<div class="modal fade" id="deactivateModal" tabindex="-1" aria-labelledby="deactivateModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deactivateModalLabel">Deactivate User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to deactivate the user <strong id="userName"></strong>?</p>
+        <p>They will no longer be able to log in to the system.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form id="deactivateForm" method="post" action="{% url 'user_deactivate' 0 %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">Deactivate User</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Handle deactivate user modal
+    const deactivateModal = document.getElementById('deactivateModal');
+    if (deactivateModal) {
+      deactivateModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const userId = button.getAttribute('data-user-id');
+        const userName = button.getAttribute('data-user-name');
+        
+        const userNameElement = document.getElementById('userName');
+        const deactivateForm = document.getElementById('deactivateForm');
+        
+        userNameElement.textContent = userName;
+        deactivateForm.action = deactivateForm.action.replace('/0/', `/${userId}/`);
+      });
+    }
+    
+    // Auto-submit filter form when changing checkboxes
+    const filterCheckboxes = document.querySelectorAll('.filter-checkbox');
+    filterCheckboxes.forEach(function(checkbox) {
+      checkbox.addEventListener('change', function() {
+        document.getElementById('filter-form').submit();
+      });
+    });
+  });
+</script>
+{% endblock %}
