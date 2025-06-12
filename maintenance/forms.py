@@ -34,16 +34,20 @@ class MaintenanceForm(forms.ModelForm):
             status__in=['available', 'maintenance']
         )
         
-        # Make certain fields required based on status
-        if self.instance.status == 'completed':
-            self.fields['completion_date'].required = True
-        else:
-            self.fields['completion_date'].required = False
-            
-        if self.instance.status == 'scheduled':
-            self.fields['scheduled_date'].required = True
-        else:
-            self.fields['scheduled_date'].required = False
+        # Make optional fields not required by default
+        self.fields['provider'].required = False
+        self.fields['scheduled_date'].required = False
+        self.fields['completion_date'].required = False
+        self.fields['cost'].required = False
+        self.fields['invoice_image'].required = False
+        self.fields['notes'].required = False
+        
+        # Make certain fields required based on status - only for existing instances
+        if self.instance.pk and hasattr(self.instance, 'status'):
+            if self.instance.status == 'completed':
+                self.fields['completion_date'].required = True
+            elif self.instance.status == 'scheduled':
+                self.fields['scheduled_date'].required = True
     
     def clean(self):
         """Validate date fields to ensure they are in the correct order."""

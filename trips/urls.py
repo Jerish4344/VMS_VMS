@@ -8,25 +8,25 @@ from .views import (
 )
 
 urlpatterns = [
-    # Existing URLs
+    # Export URLs (should come before dynamic URLs)
+    path('export/', views.export_trips, name='export_trips'),
+    path('manual/export/', views.export_manual_trips, name='export_manual_trips'),
+    
+    # Manual Trip Entry URLs (should come before dynamic URLs)
+    path('manual/', ManualTripListView.as_view(), name='manual_trip_list'),
+    path('manual/create/', ManualTripCreateView.as_view(), name='manual_trip_create'),
+    
+    # Trip management URLs
     path('', TripListView.as_view(), name='trip_list'),
-    path('<int:pk>/', TripDetailView.as_view(), name='trip_detail'),
     path('start/', StartTripView.as_view(), name='start_trip'),
+    
+    # Dynamic URLs with primary keys (should come after static URLs)
+    path('<int:pk>/', TripDetailView.as_view(), name='trip_detail'),
     path('<int:pk>/end/', EndTripView.as_view(), name='end_trip'),
     path('<int:pk>/track/', TripTrackingView.as_view(), name='track_trip'),
-
     path('<int:pk>/edit/', views.trip_edit, name='trip_edit'),
     path('<int:pk>/update/', views.trip_update, name='trip_update'),
     path('<int:pk>/delete/', views.trip_delete, name='trip_delete'),
-    
-    # Export URLs
-    path('export/', views.export_trips, name='export_trips'),  # New export URL for trip list
-
-    
-    # Manual Trip Entry URLs
-    path('manual/', ManualTripListView.as_view(), name='manual_trip_list'),
-    path('manual/create/', ManualTripCreateView.as_view(), name='manual_trip_create'),
-    path('manual/export/', views.export_manual_trips, name='export_manual_trips'),
     
     # Commented out bulk upload and template views
     # path('manual/bulk-upload/', BulkTripUploadView.as_view(), name='bulk_trip_upload'),

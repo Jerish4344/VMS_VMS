@@ -175,6 +175,86 @@
   .location-suggestion:last-child {
     border-bottom: none;
   }
+
+  /* Google Maps Integration Styles */
+  #mapContainer {
+    height: 400px;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border: 1px solid #e3e6f0;
+    margin-top: 1rem;
+  }
+
+  #map {
+    height: 100%;
+    width: 100%;
+  }
+
+  .distance-info {
+    background-color: #e8f4fd;
+    border: 1px solid #bee5eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-top: 1rem;
+    text-align: center;
+  }
+
+  .distance-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #1cc88a;
+  }
+
+  .vehicle-search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #e3e6f0;
+    border-top: none;
+    border-radius: 0 0 0.25rem 0.25rem;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+  }
+
+  .vehicle-option {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f1f1;
+    transition: background-color 0.2s;
+  }
+
+  .vehicle-option:hover {
+    background-color: #f8f9fc;
+  }
+
+  .vehicle-option:last-child {
+    border-bottom: none;
+  }
+
+  .vehicle-option-main {
+    font-weight: 600;
+    color: #2c3e50;
+  }
+
+  .vehicle-option-details {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+  }
+
+  .odometer-distance {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+    text-align: center;
+    font-size: 0.9rem;
+  }
 </style>
 {% endblock %}
 
@@ -213,16 +293,36 @@
           
           {% if available_vehicles %}
           
-          <!-- Vehicle Selection -->
+          <!-- Vehicle Selection with Search -->
           <div class="mb-3">
-            <label for="{{ form.vehicle.id_for_label }}" class="form-label">
-              <i class="fas fa-car me-1"></i>Available Vehicles
+            <label for="vehicleSearch" class="form-label">
+              <i class="fas fa-car me-1"></i>Search and Select Vehicle
             </label>
-            {{ form.vehicle }}
+            <div class="vehicle-search-container position-relative">
+              <input type="text" class="form-control" id="vehicleSearch" 
+                     placeholder="Search vehicles by name, plate, type..." autocomplete="off">
+              <div class="vehicle-search-dropdown" id="vehicleDropdown"></div>
+            </div>
+            <!-- Hidden actual form field -->
+            <select class="form-control d-none" id="{{ form.vehicle.id_for_label }}" name="vehicle" required>
+              <option value="">Choose a vehicle...</option>
+              {% for vehicle in available_vehicles %}
+              <option value="{{ vehicle.id }}" 
+                      data-odometer="{{ vehicle.current_odometer|default:'0' }}"
+                      data-make="{{ vehicle.make }}"
+                      data-model="{{ vehicle.model }}"
+                      data-type="{{ vehicle.vehicle_type.name|default:'Unknown' }}"
+                      data-fuel="{{ vehicle.fuel_type|default:'Unknown' }}"
+                      data-plate="{{ vehicle.license_plate }}"
+                      {% if vehicle.image %}data-image="{{ vehicle.image.url }}"{% endif %}>
+                {{ vehicle.make }} {{ vehicle.model }} - {{ vehicle.license_plate }}
+              </option>
+              {% endfor %}
+            </select>
             {% if form.vehicle.errors %}
             <div class="invalid-feedback d-block">{{ form.vehicle.errors }}</div>
             {% endif %}
-            <div class="form-text">Select an available vehicle for your trip</div>
+            <div class="form-text">Search and select an available vehicle for your trip</div>
           </div>
           
           <!-- Driver Selection for Management Users -->
@@ -244,7 +344,7 @@
           {% endif %}
           
           <!-- Quick Vehicle Filter Buttons -->
-          <div class="mb-4 filter-buttons">
+          <!-- <div class="mb-4 filter-buttons">
             <small class="text-muted">Quick filters:</small><br>
             <button type="button" class="btn btn-outline-secondary btn-sm me-2 mt-1" data-filter="all">
               <i class="fas fa-list me-1"></i>All Vehicles
@@ -254,7 +354,7 @@
               <i class="fas fa-car me-1"></i>{{ vehicle_type.name }}
             </button>
             {% endfor %}
-          </div>
+          </div> -->
           
           <div class="mt-4 text-end">
             <button type="button" class="btn btn-primary" id="step1Next" disabled>
@@ -312,6 +412,25 @@
             </div>
           </div>
 
+          <!-- Google Map -->
+          <div id="mapContainer">
+            <div id="map"></div>
+          </div>
+
+          <!-- Distance Information -->
+          <div class="distance-info" id="distanceInfo" style="display: none;">
+            <div class="row">
+              <div class="col-md-6 text-center">
+                <div class="distance-value" id="mapDistance">-- km</div>
+                <div class="text-muted">Map Distance</div>
+              </div>
+              <div class="col-md-6 text-center">
+                <div class="distance-value" id="estimatedTime">-- min</div>
+                <div class="text-muted">Estimated Time</div>
+              </div>
+            </div>
+          </div>
+
           <!-- Route Preview -->
           <div class="route-preview" id="routePreview">
             <div class="d-flex align-items-center justify-content-center">
@@ -350,6 +469,26 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- End Odometer (Hidden initially, shown after trip starts) -->
+          <div class="row" id="endOdometerSection" style="display: none;">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="endOdometer" class="form-label">End Odometer Reading (km)</label>
+                <input type="number" class="form-control" id="endOdometer" 
+                       placeholder="Enter end odometer reading" step="0.1" disabled>
+                <div class="form-text">Enter the odometer reading when the trip ends</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Odometer vs Map Distance Comparison -->
+          <div class="odometer-distance" id="odometerComparison" style="display: none;">
+            <strong>Distance Comparison:</strong><br>
+            <span id="odometerDistanceText">Odometer Distance: -- km</span> | 
+            <span id="mapDistanceText">Map Distance: -- km</span> | 
+            <span id="distanceDifference">Difference: -- km</span>
           </div>
           
           <div class="mb-3">
@@ -431,7 +570,94 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Google Maps API -->
+<script async defer 
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDMAkESwj75ZhnMIlLK25zHiM1oAUPZtbo&libraries=places&callback=initMap">
+</script>
+
 <script>
+  // Google Maps variables
+  let map, directionsService, directionsRenderer, mapDistance = 0, estimatedTime = 0;
+
+  // Initialize Google Maps
+  function initMap() {
+    map = new google.maps.Map(document.getElementById('map'), {
+      zoom: 13,
+      center: { lat: 12.9716, lng: 77.5946 }, // Default to Bangalore
+      styles: [
+        {
+          featureType: 'poi',
+          elementType: 'labels',
+          stylers: [{ visibility: 'off' }]
+        }
+      ]
+    });
+
+    directionsService = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({
+      draggable: false,
+      panel: null
+    });
+    directionsRenderer.setMap(map);
+
+    // Initialize autocomplete
+    initAutocomplete();
+  }
+
+  function initAutocomplete() {
+    const originField = document.getElementById('{{ form.origin.id_for_label }}');
+    const destinationField = document.getElementById('{{ form.destination.id_for_label }}');
+
+    const startAutocomplete = new google.maps.places.Autocomplete(originField);
+    const endAutocomplete = new google.maps.places.Autocomplete(destinationField);
+
+    startAutocomplete.addListener('place_changed', calculateRoute);
+    endAutocomplete.addListener('place_changed', calculateRoute);
+  }
+
+  function calculateRoute() {
+    const start = document.getElementById('{{ form.origin.id_for_label }}').value;
+    const end = document.getElementById('{{ form.destination.id_for_label }}').value;
+
+    if (start && end) {
+      const request = {
+        origin: start,
+        destination: end,
+        travelMode: google.maps.TravelMode.DRIVING,
+        unitSystem: google.maps.UnitSystem.METRIC
+      };
+
+      directionsService.route(request, function(result, status) {
+        if (status === 'OK') {
+          directionsRenderer.setDirections(result);
+          
+          // Calculate distance and time
+          const route = result.routes[0];
+          let totalDistance = 0;
+          let totalDuration = 0;
+          
+          route.legs.forEach(leg => {
+            totalDistance += leg.distance.value;
+            totalDuration += leg.duration.value;
+          });
+          
+          mapDistance = (totalDistance / 1000).toFixed(2);
+          estimatedTime = Math.round(totalDuration / 60);
+          
+          // Update UI
+          document.getElementById('mapDistance').textContent = mapDistance + ' km';
+          document.getElementById('estimatedTime').textContent = estimatedTime + ' min';
+          document.getElementById('distanceInfo').style.display = 'block';
+          
+          updateRoutePreview();
+        } else {
+          console.error('Could not calculate route: ' + status);
+          document.getElementById('distanceInfo').style.display = 'none';
+        }
+      });
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     // Variables for form steps
     const step1 = document.getElementById('step1');
@@ -448,6 +674,8 @@
     const step3Back = document.getElementById('step3Back');
     
     const vehicleField = document.getElementById('{{ form.vehicle.id_for_label }}');
+    const vehicleSearch = document.getElementById('vehicleSearch');
+    const vehicleDropdown = document.getElementById('vehicleDropdown');
     const originField = document.getElementById('{{ form.origin.id_for_label }}');
     const destinationField = document.getElementById('{{ form.destination.id_for_label }}');
     const startOdometerField = document.getElementById('{{ form.start_odometer.id_for_label }}');
@@ -459,60 +687,78 @@
     const previewOrigin = document.getElementById('previewOrigin');
     const previewDestination = document.getElementById('previewDestination');
     
-    // Vehicle selection and filter functionality
-    const vehicleSelect = document.getElementById('{{ form.vehicle.id_for_label }}');
-    const filterButtons = document.querySelectorAll('[data-filter]');
-    
     let selectedVehicleData = null;
-    let allVehicleOptions = Array.from(vehicleSelect.options).slice(1); // Exclude first "Choose a vehicle" option
-    
-    // Populate vehicle options with data attributes
+    let allVehicles = [];
+
+    // Populate vehicles array
     {% for vehicle in available_vehicles %}
-    const option{{ vehicle.id }} = vehicleSelect.querySelector('option[value="{{ vehicle.id }}"]');
-    if (option{{ vehicle.id }}) {
-      option{{ vehicle.id }}.setAttribute('data-odometer', '{{ vehicle.current_odometer|default:"0" }}');
-      option{{ vehicle.id }}.setAttribute('data-make', '{{ vehicle.make }}');
-      option{{ vehicle.id }}.setAttribute('data-model', '{{ vehicle.model }}');
-      option{{ vehicle.id }}.setAttribute('data-type', '{{ vehicle.vehicle_type.name|default:"Unknown" }}');
-      option{{ vehicle.id }}.setAttribute('data-fuel', '{{ vehicle.fuel_type|default:"Unknown" }}');
-      option{{ vehicle.id }}.setAttribute('data-plate', '{{ vehicle.license_plate }}');
-      {% if vehicle.image %}
-      option{{ vehicle.id }}.setAttribute('data-image', '{{ vehicle.image.url }}');
-      {% endif %}
-    }
+    allVehicles.push({
+      id: '{{ vehicle.id }}',
+      name: '{{ vehicle.make }} {{ vehicle.model }}',
+      plate: '{{ vehicle.license_plate }}',
+      type: '{{ vehicle.vehicle_type.name|default:"Unknown" }}',
+      fuel: '{{ vehicle.fuel_type|default:"Unknown" }}',
+      odometer: '{{ vehicle.current_odometer|default:"0" }}',
+      image: '{% if vehicle.image %}{{ vehicle.image.url }}{% endif %}'
+    });
     {% endfor %}
-    
-    // Vehicle selection handler
-    vehicleSelect.addEventListener('change', function() {
-      const selectedOption = this.options[this.selectedIndex];
+
+    // Vehicle search functionality
+    vehicleSearch.addEventListener('input', function() {
+      const query = this.value.toLowerCase();
+      const filteredVehicles = allVehicles.filter(vehicle => 
+        vehicle.name.toLowerCase().includes(query) || 
+        vehicle.plate.toLowerCase().includes(query) ||
+        vehicle.type.toLowerCase().includes(query)
+      );
       
-      if (selectedOption.value) {
-        // Get vehicle data from selected option
-        selectedVehicleData = {
-          id: selectedOption.value,
-          odometer: selectedOption.dataset.odometer || '0',
-          make: selectedOption.dataset.make || '',
-          model: selectedOption.dataset.model || '',
-          type: selectedOption.dataset.type || '',
-          fuel: selectedOption.dataset.fuel || '',
-          plate: selectedOption.dataset.plate || '',
-          image: selectedOption.dataset.image || ''
-        };
-        
-        // Set initial odometer value
-        startOdometerField.value = selectedVehicleData.odometer;
-        startOdometerField.min = selectedVehicleData.odometer;
-        
-        // Enable next button
-        step1Next.disabled = false;
-      } else {
-        // No vehicle selected
-        selectedVehicleData = null;
-        step1Next.disabled = true;
+      displayVehicleOptions(filteredVehicles);
+      vehicleDropdown.style.display = filteredVehicles.length > 0 ? 'block' : 'none';
+    });
+
+    vehicleSearch.addEventListener('focus', function() {
+      displayVehicleOptions(allVehicles);
+      vehicleDropdown.style.display = 'block';
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.vehicle-search-container')) {
+        vehicleDropdown.style.display = 'none';
       }
     });
-    
-    // Filter buttons
+
+    function displayVehicleOptions(vehicleList) {
+      vehicleDropdown.innerHTML = '';
+      vehicleList.forEach(vehicle => {
+        const option = document.createElement('div');
+        option.className = 'vehicle-option';
+        option.innerHTML = `
+          <div class="vehicle-option-main">${vehicle.name} - ${vehicle.plate}</div>
+          <div class="vehicle-option-details">Type: ${vehicle.type} | Fuel: ${vehicle.fuel} | Odometer: ${vehicle.odometer} km</div>
+        `;
+        option.addEventListener('click', function() {
+          selectVehicle(vehicle);
+        });
+        vehicleDropdown.appendChild(option);
+      });
+    }
+
+    function selectVehicle(vehicle) {
+      selectedVehicleData = vehicle;
+      vehicleSearch.value = `${vehicle.name} - ${vehicle.plate}`;
+      vehicleField.value = vehicle.id;
+      vehicleDropdown.style.display = 'none';
+      
+      // Set initial odometer value
+      startOdometerField.value = vehicle.odometer;
+      startOdometerField.min = vehicle.odometer;
+      
+      // Enable next button
+      step1Next.disabled = false;
+    }
+
+    // Filter buttons functionality
+    const filterButtons = document.querySelectorAll('[data-filter]');
     filterButtons.forEach(button => {
       button.addEventListener('click', function() {
         const filterType = this.dataset.filter;
@@ -524,35 +770,17 @@
         this.classList.add('btn-primary');
         
         // Apply filter
+        let filteredVehicles;
         if (filterType === 'all') {
-          showAllVehicles();
+          filteredVehicles = allVehicles;
         } else {
-          filterVehiclesByType(filterType);
+          filteredVehicles = allVehicles.filter(vehicle => vehicle.type === filterType);
         }
+        
+        displayVehicleOptions(filteredVehicles);
+        vehicleDropdown.style.display = 'block';
       });
     });
-    
-    function filterVehiclesByType(type) {
-      // Clear all options except the first one
-      vehicleSelect.innerHTML = '<option value="">Choose a vehicle...</option>';
-      
-      // Add vehicles of specified type
-      allVehicleOptions.forEach(option => {
-        if (option.dataset.type === type) {
-          vehicleSelect.appendChild(option.cloneNode(true));
-        }
-      });
-    }
-    
-    function showAllVehicles() {
-      // Clear all options except the first one
-      vehicleSelect.innerHTML = '<option value="">Choose a vehicle...</option>';
-      
-      // Add all vehicles back
-      allVehicleOptions.forEach(option => {
-        vehicleSelect.appendChild(option.cloneNode(true));
-      });
-    }
 
     // Route preview functionality
     function updateRoutePreview() {
@@ -569,8 +797,15 @@
     }
 
     // Add event listeners for route fields
-    originField.addEventListener('input', updateRoutePreview);
-    destinationField.addEventListener('input', updateRoutePreview);
+    originField.addEventListener('input', function() {
+      updateRoutePreview();
+      calculateRoute();
+    });
+    
+    destinationField.addEventListener('input', function() {
+      updateRoutePreview();
+      calculateRoute();
+    });
 
     // Common locations for suggestions
     const commonLocations = [
@@ -609,6 +844,7 @@
             inputField.value = location;
             suggestionsContainer.style.display = 'none';
             updateRoutePreview();
+            calculateRoute();
           });
           suggestionsContainer.appendChild(suggestion);
         });
@@ -665,6 +901,7 @@
         btn.addEventListener('click', function() {
           originField.value = location.name;
           updateRoutePreview();
+          calculateRoute();
         });
         originQuickDiv.appendChild(btn);
       });
@@ -684,6 +921,7 @@
         btn.addEventListener('click', function() {
           destinationField.value = location.name;
           updateRoutePreview();
+          calculateRoute();
         });
         destinationQuickDiv.appendChild(btn);
       });
@@ -693,6 +931,29 @@
 
     // Add quick location buttons
     addQuickLocationButtons();
+
+    // End odometer functionality
+    const endOdometerField = document.getElementById('endOdometer');
+    const odometerComparison = document.getElementById('odometerComparison');
+
+    if (endOdometerField) {
+      endOdometerField.addEventListener('input', function() {
+        if (this.value && startOdometerField.value && mapDistance > 0) {
+          const startOdo = parseFloat(startOdometerField.value);
+          const endOdo = parseFloat(this.value);
+          const odometerDistance = (endOdo - startOdo).toFixed(2);
+          const difference = Math.abs(odometerDistance - mapDistance).toFixed(2);
+
+          document.getElementById('odometerDistanceText').textContent = `Odometer Distance: ${odometerDistance} km`;
+          document.getElementById('mapDistanceText').textContent = `Map Distance: ${mapDistance} km`;
+          document.getElementById('distanceDifference').textContent = `Difference: ${difference} km`;
+          
+          odometerComparison.style.display = 'block';
+        } else {
+          odometerComparison.style.display = 'none';
+        }
+      });
+    }
     
     // Navigation between steps
     if (step1Next) {
@@ -791,7 +1052,7 @@
               }
             </div>
             <div class="col-md-8">
-              <p><strong>Vehicle:</strong> ${selectedVehicleData.make} ${selectedVehicleData.model}</p>
+              <p><strong>Vehicle:</strong> ${selectedVehicleData.name}</p>
               <p><strong>License Plate:</strong> <span class="badge bg-primary">${selectedVehicleData.plate}</span></p>
               <p><strong>Type:</strong> ${selectedVehicleData.type}</p>
               <p><strong>Fuel Type:</strong> ${selectedVehicleData.fuel}</p>
@@ -801,7 +1062,7 @@
         `;
       }
 
-      // Update route info
+      // Update route info with map data
       routeInfo.innerHTML = `
         <div class="d-flex align-items-center justify-content-center mb-3">
           <div class="text-center">
@@ -822,6 +1083,21 @@
             <small class="text-muted">Destination</small>
           </div>
         </div>
+        ${mapDistance > 0 ? `
+        <div class="row mt-3 text-center">
+          <div class="col-md-6">
+            <div class="bg-light p-2 rounded">
+              <strong class="text-primary">${mapDistance} km</strong><br>
+              <small class="text-muted">Distance</small>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="bg-light p-2 rounded">
+              <strong class="text-primary">${estimatedTime} min</strong><br>
+              <small class="text-muted">Est. Time</small>
+            </div>
+          </div>
+        </div>` : ''}
       `;
       
       // Update trip details
@@ -830,6 +1106,7 @@
         <p><strong>Purpose:</strong> ${purposeField.value}</p>
         <p><strong>Notes:</strong> ${notesField.value || 'None'}</p>
         <p><strong>Start Time:</strong> ${new Date().toLocaleString()}</p>
+        ${mapDistance > 0 ? `<p><strong>Expected Map Distance:</strong> ${mapDistance} km</p>` : ''}
       `;
       
       // Update driver info
@@ -853,6 +1130,13 @@
         `;
       }
     }
+
+    // Initialize map when page loads
+    setTimeout(function() {
+      if (typeof google !== 'undefined') {
+        initMap();
+      }
+    }, 1000);
   });
 </script>
 {% endblock %}

@@ -1,4 +1,0 @@
-accounts ------------------> overwrite the accounts vms/accounts
-trips ---------------------> overwrite the trips vms/trips
-base.html -----------------> overwrite vms/templates/
-all html files ------------> overwrite and add these html files in vms/templates/trips
