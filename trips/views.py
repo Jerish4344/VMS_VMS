@@ -96,33 +96,32 @@ class TripListView(LoginRequiredMixin, ListView):
         if status:
             queryset = queryset.filter(status=status)
         
-        # IMPROVED date filtering logic
+        # FIXED: Simple and reliable date filtering
         date_from = self.request.GET.get('date_from')
         date_to = self.request.GET.get('date_to')
         
         if date_from and date_to:
             try:
+                # Parse the dates
                 date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
                 date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
                 
-                # Convert dates to timezone-aware datetime objects
-                # Start of day for date_from
+                # Create timezone-aware datetime objects for the full day range
+                from django.utils import timezone
+                
+                # Start of the from_date (00:00:00)
                 date_from_start = timezone.make_aware(
                     datetime.combine(date_from_obj, datetime.min.time())
                 )
-                # End of day for date_to
+                # End of the to_date (23:59:59.999999)
                 date_to_end = timezone.make_aware(
                     datetime.combine(date_to_obj, datetime.max.time())
                 )
                 
-                # Filter for trips that were active during this period
-                # A trip is active during a period if:
-                # 1. It started before or during the period AND
-                # 2. It ended after the period started (or hasn't ended yet)
-                
+                # Filter trips that started within this range
                 queryset = queryset.filter(
-                    Q(start_time__lte=date_to_end) & 
-                    (Q(end_time__gte=date_from_start) | Q(end_time__isnull=True))
+                    start_time__gte=date_from_start,
+                    start_time__lte=date_to_end
                 )
                 
             except ValueError:
@@ -135,10 +134,8 @@ class TripListView(LoginRequiredMixin, ListView):
                     datetime.combine(date_from_obj, datetime.min.time())
                 )
                 
-                # Get trips that were active on or after this date
-                queryset = queryset.filter(
-                    Q(end_time__gte=date_from_start) | Q(end_time__isnull=True)
-                )
+                # Get trips that started on or after this date
+                queryset = queryset.filter(start_time__gte=date_from_start)
                 
             except ValueError:
                 logger.warning(f"Invalid date_from: {date_from}")
@@ -161,15 +158,15 @@ class TripListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Get all trips for separation (without pagination)
-        all_trips = self.get_queryset()
+        # Get the paginated trips (current page only)
+        paginated_trips = context['trips']  # This is the paginated queryset
         
-        # Separate trips by status
+        # Separate trips by status from the current page only
         ongoing_trips = []
         completed_trips = []
         cancelled_trips = []
         
-        for trip in all_trips:
+        for trip in paginated_trips:
             if trip.status == 'ongoing':
                 ongoing_trips.append(trip)
             elif trip.status == 'completed':
@@ -182,10 +179,17 @@ class TripListView(LoginRequiredMixin, ListView):
         context['completed_trips'] = completed_trips
         context['cancelled_trips'] = cancelled_trips
         
-        # Add counts
+        # Add counts for current page
         context['ongoing_count'] = len(ongoing_trips)
         context['completed_count'] = len(completed_trips)
         context['cancelled_count'] = len(cancelled_trips)
+        
+        # If you need total counts across all pages (for stats cards), 
+        # get them separately with a more efficient query
+        full_queryset = self.get_queryset()
+        context['total_ongoing_count'] = full_queryset.filter(status='ongoing').count()
+        context['total_completed_count'] = full_queryset.filter(status='completed').count()
+        context['total_cancelled_count'] = full_queryset.filter(status='cancelled').count()
         
         # Add vehicles for filter
         if self.request.user.user_type == 'driver':
@@ -461,7 +465,7 @@ class ManualTripCreateView(LoginRequiredMixin, VehicleManagerRequiredMixin, Crea
     template_name = 'trips/manual_trip_create.html'
     fields = ['vehicle', 'driver', 'origin', 'destination', 'start_time', 'end_time', 
               'start_odometer', 'end_odometer', 'purpose', 'notes']
-    success_url = reverse_lazy('manual_trip_list')
+    success_url = reverse_lazy('trip_list')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -913,77 +917,159 @@ def trip_edit(request, pk):
     """Edit a trip - handles both manual and auto-tracked trips"""
     trip = get_object_or_404(Trip, pk=pk)
     
-    # Check permissions - only managers/admins and the driver can edit trips
-    if (request.user.user_type not in ['admin', 'manager', 'vehicle_manager'] and 
-        request.user != trip.driver):
+    # Check permissions - only admins and managers can edit trips
+    if request.user.user_type not in ['admin', 'manager']:
         messages.error(request, "You don't have permission to edit this trip.")
         return redirect('trip_detail', pk=trip.pk)
     
     if request.method == 'POST':
-        driver_id = request.POST.get('driver')
-        vehicle_id = request.POST.get('vehicle')
-        
-        if driver_id and vehicle_id:
-            try:
-                driver = User.objects.get(id=driver_id)
-                vehicle = Vehicle.objects.get(id=vehicle_id)
+        try:
+            with transaction.atomic():
+                driver_id = request.POST.get('driver')
+                vehicle_id = request.POST.get('vehicle')
+                
+                if not driver_id or not vehicle_id:
+                    messages.error(request, 'Driver and Vehicle are required.')
+                    return render(request, 'trips/trip_edit.html', get_edit_context(trip))
+                
+                try:
+                    driver = User.objects.get(id=driver_id)
+                    vehicle = Vehicle.objects.get(id=vehicle_id)
+                except (User.DoesNotExist, Vehicle.DoesNotExist, ValueError):
+                    messages.error(request, 'Invalid driver or vehicle selected.')
+                    return render(request, 'trips/trip_edit.html', get_edit_context(trip))
+                
+                # Store original values for comparison
+                original_vehicle = trip.vehicle
+                original_status = trip.status
                 
                 # Update trip fields
                 trip.driver = driver
                 trip.vehicle = vehicle
-                trip.origin = request.POST.get('origin', trip.origin)
-                trip.destination = request.POST.get('destination', trip.destination)
-                trip.purpose = request.POST.get('purpose', trip.purpose)
-                trip.notes = request.POST.get('notes', trip.notes)
+                trip.origin = request.POST.get('origin', trip.origin).strip()
+                trip.destination = request.POST.get('destination', trip.destination).strip()
+                trip.purpose = request.POST.get('purpose', trip.purpose).strip()
+                trip.notes = request.POST.get('notes', trip.notes).strip()
                 trip.status = request.POST.get('status', trip.status)
                 
-                # Handle datetime fields
-                start_time = request.POST.get('start_time')
-                if start_time:
-                    from django.utils.dateparse import parse_datetime
-                    trip.start_time = parse_datetime(start_time)
+                # Validate required fields
+                if not trip.origin or not trip.destination or not trip.purpose:
+                    messages.error(request, 'Origin, destination, and purpose are required.')
+                    return render(request, 'trips/trip_edit.html', get_edit_context(trip))
                 
-                end_time = request.POST.get('end_time')
-                if end_time:
-                    trip.end_time = parse_datetime(end_time)
+                # Handle datetime fields
+                start_time_str = request.POST.get('start_time')
+                if start_time_str:
+                    try:
+                        trip.start_time = timezone.make_aware(datetime.strptime(start_time_str, '%Y-%m-%dT%H:%M'))
+                    except ValueError:
+                        messages.error(request, 'Invalid start time format.')
+                        return render(request, 'trips/trip_edit.html', get_edit_context(trip))
+                
+                end_time_str = request.POST.get('end_time')
+                if end_time_str:
+                    try:
+                        trip.end_time = timezone.make_aware(datetime.strptime(end_time_str, '%Y-%m-%dT%H:%M'))
+                    except ValueError:
+                        messages.error(request, 'Invalid end time format.')
+                        return render(request, 'trips/trip_edit.html', get_edit_context(trip))
+                else:
+                    trip.end_time = None
+                
+                # Validate end time is after start time
+                if trip.end_time and trip.start_time and trip.end_time <= trip.start_time:
+                    messages.error(request, 'End time must be after start time.')
+                    return render(request, 'trips/trip_edit.html', get_edit_context(trip))
                 
                 # Handle odometer fields
-                start_odometer = request.POST.get('start_odometer')
-                if start_odometer:
-                    trip.start_odometer = int(start_odometer)
+                start_odometer_str = request.POST.get('start_odometer')
+                if start_odometer_str:
+                    try:
+                        trip.start_odometer = int(start_odometer_str)
+                    except (ValueError, TypeError):
+                        messages.error(request, 'Invalid start odometer value.')
+                        return render(request, 'trips/trip_edit.html', get_edit_context(trip))
                 
-                end_odometer = request.POST.get('end_odometer')
-                if end_odometer:
-                    trip.end_odometer = int(end_odometer)
+                end_odometer_str = request.POST.get('end_odometer')
+                if end_odometer_str:
+                    try:
+                        trip.end_odometer = int(end_odometer_str)
+                    except (ValueError, TypeError):
+                        messages.error(request, 'Invalid end odometer value.')
+                        return render(request, 'trips/trip_edit.html', get_edit_context(trip))
+                else:
+                    trip.end_odometer = None
                 
+                # Validate odometer readings
+                if (trip.end_odometer and trip.start_odometer and 
+                    trip.end_odometer <= trip.start_odometer):
+                    messages.error(request, 'End odometer must be greater than start odometer.')
+                    return render(request, 'trips/trip_edit.html', get_edit_context(trip))
+                
+                # Handle vehicle status changes
+                if original_vehicle != vehicle:
+                    # If changing vehicles and trip is ongoing
+                    if trip.status == 'ongoing':
+                        # Set original vehicle back to available
+                        original_vehicle.status = 'available'
+                        original_vehicle.save()
+                        # Set new vehicle to in_use
+                        vehicle.status = 'in_use'
+                        vehicle.save()
+                
+                # Handle status changes
+                if original_status != trip.status:
+                    if trip.status == 'ongoing':
+                        vehicle.status = 'in_use'
+                        vehicle.save()
+                    elif original_status == 'ongoing' and trip.status in ['completed', 'cancelled']:
+                        vehicle.status = 'available'
+                        if trip.status == 'completed' and trip.end_odometer:
+                            vehicle.current_odometer = trip.end_odometer
+                        vehicle.save()
+                
+                # Save the trip
                 trip.save()
-                messages.success(request, 'Trip updated successfully!')
+                
+                messages.success(request, f'Trip #{trip.id} updated successfully!')
                 return redirect('trip_detail', pk=trip.pk)
                 
-            except Exception as e:
-                messages.error(request, f'Error updating trip: {str(e)}')
-        else:
-            messages.error(request, 'Driver and Vehicle are required.')
+        except Exception as e:
+            messages.error(request, f'Error updating trip: {str(e)}')
+            return render(request, 'trips/trip_edit.html', get_edit_context(trip))
     
-    # Get all users (adjust this based on how you identify drivers in your system)
-    drivers = User.objects.all()
+    # GET request - show the edit form
+    return render(request, 'trips/trip_edit.html', get_edit_context(trip))
+
+
+def get_edit_context(trip):
+    """Helper function to get context for trip edit form"""
+    # Get all drivers - you can customize this based on your User model
+    drivers = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
     
-    # Get all vehicles (since your Vehicle model doesn't have is_active field)
-    # You can filter by status if needed, like: Vehicle.objects.filter(status='active')
-    vehicles = Vehicle.objects.all()
+    # Get all vehicles
+    vehicles = Vehicle.objects.all().order_by('license_plate')
     
-    # If you want to filter vehicles by status, uncomment one of these:
-    # vehicles = Vehicle.objects.filter(status='active')  # if your status values are lowercase
-    # vehicles = Vehicle.objects.filter(status='Active')  # if your status values are capitalized
-    # vehicles = Vehicle.objects.filter(status='available')  # if you use 'available' instead
-    
-    context = {
+    return {
         'trip': trip,
         'drivers': drivers,
         'vehicles': vehicles
     }
+
+
+def get_edit_context(trip):
+    """Helper function to get context for trip edit form"""
+    # Get all drivers - you can customize this based on your User model
+    drivers = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
     
-    return render(request, 'trips/trip_edit.html', context)
+    # Get all vehicles
+    vehicles = Vehicle.objects.all().order_by('license_plate')
+    
+    return {
+        'trip': trip,
+        'drivers': drivers,
+        'vehicles': vehicles
+    }
 
 # Alternative version if you want to be more specific about filtering
 @login_required 
@@ -1028,15 +1114,42 @@ def trip_delete(request, pk):
     """Delete a trip"""
     trip = get_object_or_404(Trip, pk=pk)
     
-    if request.method == 'DELETE' or request.method == 'POST':
-        trip.delete()
-        if request.headers.get('Content-Type') == 'application/json':
-            return JsonResponse({'status': 'success'})
-        messages.success(request, 'Trip deleted successfully!')
-        return redirect('trip_list')
+    # Check permissions - only admins and managers can delete trips
+    if request.user.user_type not in ['admin', 'manager']:
+        messages.error(request, "You don't have permission to delete this trip.")
+        return redirect('trip_detail', pk=trip.pk)
     
-    return JsonResponse({'status': 'error'})
-
+    # Store trip info for the success message before deletion
+    trip_info = f"Trip {trip.id} - {trip.vehicle.license_plate} ({trip.get_route_summary()})"
+    
+    if request.method == 'DELETE' or request.method == 'POST':
+        try:
+            # If the trip is ongoing, update vehicle status back to available
+            if trip.status == 'ongoing':
+                vehicle = trip.vehicle
+                vehicle.status = 'available'
+                vehicle.save()
+            
+            # Delete the trip
+            trip.delete()
+            
+            # Handle different response types
+            if request.headers.get('Content-Type') == 'application/json' or request.META.get('HTTP_ACCEPT', '').startswith('application/json'):
+                return JsonResponse({'status': 'success', 'message': f'{trip_info} deleted successfully!'})
+            else:
+                messages.success(request, f'{trip_info} deleted successfully!')
+                return redirect('trip_list')
+                
+        except Exception as e:
+            error_msg = f'Error deleting trip: {str(e)}'
+            if request.headers.get('Content-Type') == 'application/json' or request.META.get('HTTP_ACCEPT', '').startswith('application/json'):
+                return JsonResponse({'status': 'error', 'message': error_msg})
+            else:
+                messages.error(request, error_msg)
+                return redirect('trip_detail', pk=pk)
+    
+    # If GET request, redirect to trip detail
+    return redirect('trip_detail', pk=pk)
 @login_required
 @require_http_methods(["GET"])
 def export_manual_trips(request):
@@ -1425,24 +1538,29 @@ def export_trips(request):
     if status:
         queryset = queryset.filter(status=status)
     
-    # FIXED: Apply proper date filtering that matches active trips
+    # FIXED: Apply the same working date filtering logic
     if date_from and date_to:
         try:
+            # Parse the dates
             date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
             date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
             
-            # Convert dates to timezone-aware datetime objects
+            # Create timezone-aware datetime objects for the full day range
+            from django.utils import timezone
+            
+            # Start of the from_date (00:00:00)
             date_from_start = timezone.make_aware(
                 datetime.combine(date_from_obj, datetime.min.time())
             )
+            # End of the to_date (23:59:59.999999)
             date_to_end = timezone.make_aware(
                 datetime.combine(date_to_obj, datetime.max.time())
             )
             
-            # Filter for trips that were active during this period
+            # Filter trips that started within this range
             queryset = queryset.filter(
-                Q(start_time__lte=date_to_end) & 
-                (Q(end_time__gte=date_from_start) | Q(end_time__isnull=True))
+                start_time__gte=date_from_start,
+                start_time__lte=date_to_end
             )
             
         except ValueError:
@@ -1455,10 +1573,8 @@ def export_trips(request):
                 datetime.combine(date_from_obj, datetime.min.time())
             )
             
-            # Get trips that were active on or after this date
-            queryset = queryset.filter(
-                Q(end_time__gte=date_from_start) | Q(end_time__isnull=True)
-            )
+            # Get trips that started on or after this date
+            queryset = queryset.filter(start_time__gte=date_from_start)
             
         except ValueError:
             logger.warning(f"Invalid date_from in export: {date_from}")

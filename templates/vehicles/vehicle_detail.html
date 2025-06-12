@@ -201,8 +201,9 @@
             </a>
           {% endif %}
           
-          <a href="javascript:history.back()" class="btn btn-sm btn-secondary">
-            <i class="fas fa-arrow-left me-1"></i> Back
+          <!-- FIXED: Always go back to vehicle list instead of browser history -->
+          <a href="{% url 'vehicle_list' %}" class="btn btn-sm btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to List
           </a>
         </div>
       </div>

@@ -1,0 +1,50 @@
+    03/06/2025
+
+accounts ------------------> overwrite the accounts vms/accounts
+trips ---------------------> overwrite the trips vms/trips
+base.html -----------------> overwrite vms/templates/
+all html files ------------> overwrite and add these html files in vms/templates/trips
+ 
+    04/06/2025
+
+trips ---------------------> overwrite the trips vms/trips
+templates -----------------> overwrite the templates vms/templates
+
+    05/06/2025
+
+cd /home/admin/phy/vms
+source env/bin/activate
+
+python manage.py makemigrations trips
+python manage.py migrate
+
+python manage.py runserver
+
+
+    06/06/2025
+
+Morning :
+
+vms/trips/views.py
+vms/templates/trips/trip_list.html
+
+vms/templates/vehicles/vehicle_detail.html
+
+vms/maintenance/forms.py
+vms/maintenance/views.py
+vms/templates/maintenance/maintenance_form.html
+
+vms/reports/views.py
+vms/templates/reports/driver_report.html
+
+
+Afternoon :
+
+vms/templates/trips/manual_trip_create.html
+
+vms/templates/trips/start_trip.html   --------> work going on
+vms/templates/trips/end_trip_form.html -------> work going on
+
+
+
+

@@ -101,16 +101,16 @@
     <div>
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-          <li class="breadcrumb-item"><a href="{% url 'manual_trip_list' %}">Manual Trips</a></li>
-          <li class="breadcrumb-item active">Add New Trip</li>
+          <li class="breadcrumb-item"><a href="{% url 'trip_list' %}">Trip List</a></li>
+          <li class="breadcrumb-item active">Manual Trip Entry</li>
         </ol>
       </nav>
       <h1 class="h3 mb-0 text-gray-800">Manual Trip Entry</h1>
       <p class="text-muted">Add trip data for drivers without mobile access</p>
     </div>
     <div>
-      <a href="{% url 'manual_trip_list' %}" class="btn btn-secondary">
-        <i class="fas fa-arrow-left me-1"></i>Back to List
+      <a href="{% url 'trip_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Back to Trip List
       </a>
     </div>
   </div>
@@ -468,7 +468,7 @@
     originInput.addEventListener('input', updateRouteDisplay);
     destinationInput.addEventListener('input', updateRouteDisplay);
     
-    // Odometer validation
+    // Odometer validation - relaxed for manual entries
     function validateOdometer() {
       const startOdometer = parseInt(startOdometerInput.value) || 0;
       const endOdometer = parseInt(endOdometerInput.value) || 0;
@@ -476,16 +476,20 @@
       odometerWarning.style.display = 'none';
       distanceCalculation.style.display = 'none';
       
+      // For manual entries, we allow any start odometer reading
+      // Just show an info message if it's different from current
       if (startOdometer < selectedVehicleOdometer) {
         odometerWarning.style.display = 'block';
-        document.getElementById('odometerWarningText').textContent = 
-          `Start odometer (${startOdometer}) cannot be less than vehicle's current odometer (${selectedVehicleOdometer})`;
-        return false;
+        odometerWarning.className = 'alert alert-info'; // Change to info instead of warning
+        document.getElementById('odometerWarningText').innerHTML = 
+          `<i class="fas fa-info-circle me-2"></i>Start odometer (${startOdometer}) is less than vehicle's current odometer (${selectedVehicleOdometer}). This is allowed for manual historical entries.`;
+        // Don't return false - allow the entry
       }
       
       if (endOdometer && startOdometer) {
         if (endOdometer <= startOdometer) {
           odometerWarning.style.display = 'block';
+          odometerWarning.className = 'odometer-warning'; // Reset to warning class
           document.getElementById('odometerWarningText').textContent = 
             `End odometer (${endOdometer}) must be greater than start odometer (${startOdometer})`;
           return false;
@@ -518,11 +522,16 @@
       });
     });
     
-    // Form validation
+    // Form validation - updated for manual entries
     document.getElementById('manualTripForm').addEventListener('submit', function(e) {
-      if (!validateOdometer()) {
+      // Allow any odometer readings for manual entries - just validate end > start
+      const startOdometer = parseInt(startOdometerInput.value) || 0;
+      const endOdometer = parseInt(endOdometerInput.value) || 0;
+      
+      if (endOdometer && startOdometer && endOdometer <= startOdometer) {
         e.preventDefault();
-        alert('Please fix the odometer reading errors before submitting.');
+        alert('End odometer must be greater than start odometer.');
+        endOdometerInput.focus();
         return false;
       }
       
@@ -549,6 +558,8 @@
         alert(message);
         return false;
       }
+      
+      return true;
     });
   });
   

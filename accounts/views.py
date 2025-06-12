@@ -14,6 +14,11 @@ from .permissions import AdminRequiredMixin, ManagerRequiredMixin, VehicleManage
 from .forms import ApprovalAuthenticationForm, DriverApprovalForm
 from .decorators import approval_required, manager_required, vehicle_manager_required
 import logging
+from django.views.generic import CreateView, UpdateView, DetailView
+from .forms import CustomUserCreationForm, CustomUserChangeForm
+from django.db.models import Q, Count
+from django.utils import timezone
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -460,13 +465,123 @@ AllDriversListView = AllEmployeesListView
 toggle_driver_status = toggle_employee_status
 
 # Keep existing admin views (unchanged)
-from django.views.generic import CreateView, UpdateView, DetailView
-from .forms import CustomUserCreationForm, CustomUserChangeForm
 
 class UserListView(AdminRequiredMixin, ListView):
     model = CustomUser
     template_name = 'accounts/user_list.html'
     context_object_name = 'users'
+    paginate_by = 20  # Add pagination
+    
+    def get_queryset(self):
+        queryset = CustomUser.objects.all().order_by('-date_joined')
+        
+        # Search filter
+        search = self.request.GET.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(username__icontains=search) |
+                Q(email__icontains=search)
+            )
+        
+        # User type filter
+        user_types = self.request.GET.getlist('user_type')
+        if user_types:
+            queryset = queryset.filter(user_type__in=user_types)
+        
+        # Status filter
+        statuses = self.request.GET.getlist('status')
+        if statuses:
+            if 'active' in statuses and 'inactive' in statuses:
+                pass  # Show all
+            elif 'active' in statuses:
+                queryset = queryset.filter(is_active=True)
+            elif 'inactive' in statuses:
+                queryset = queryset.filter(is_active=False)
+        
+        # License filter (for drivers)
+        license_filters = self.request.GET.getlist('license')
+        if license_filters:
+            license_q = Q()
+            
+            if 'valid' in license_filters:
+                # Valid license: license_expiry is in the future and user is driver
+                license_q |= Q(
+                    user_type='driver',
+                    license_expiry__gt=timezone.now().date()
+                )
+            
+            if 'expired' in license_filters:
+                # Expired license: license_expiry is in the past and user is driver
+                license_q |= Q(
+                    user_type='driver',
+                    license_expiry__lt=timezone.now().date()
+                )
+            
+            if 'expiring_soon' in license_filters:
+                # Expiring soon: license expires within 30 days
+                thirty_days_from_now = timezone.now().date() + timedelta(days=30)
+                license_q |= Q(
+                    user_type='driver',
+                    license_expiry__gt=timezone.now().date(),
+                    license_expiry__lte=thirty_days_from_now
+                )
+            
+            queryset = queryset.filter(license_q)
+        
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Calculate user type counts from all users (not just filtered results)
+        user_counts = CustomUser.objects.values('user_type').annotate(
+            count=Count('id')
+        )
+        
+        # Initialize counts
+        admin_count = 0
+        manager_count = 0
+        vehicle_manager_count = 0
+        driver_count = 0
+        
+        # Populate counts from query results
+        for item in user_counts:
+            user_type = item['user_type']
+            count = item['count']
+            
+            if user_type == 'admin':
+                admin_count = count
+            elif user_type == 'manager':
+                manager_count = count
+            elif user_type == 'vehicle_manager':
+                vehicle_manager_count = count
+            elif user_type == 'driver':
+                driver_count = count
+        
+        # Add counts to context for the dashboard cards
+        context.update({
+            'admin_count': admin_count,
+            'manager_count': manager_count,
+            'vehicle_manager_count': vehicle_manager_count,
+            'driver_count': driver_count,
+            'total_users': CustomUser.objects.count(),
+            'active_users': CustomUser.objects.filter(is_active=True).count(),
+            'inactive_users': CustomUser.objects.filter(is_active=False).count(),
+        })
+        
+        # Add current time for license expiry calculations
+        context['now'] = timezone.now()
+        
+        # Add debug info
+        context['debug_counts'] = {
+            'total_users_in_db': CustomUser.objects.count(),
+            'filtered_users_count': self.get_queryset().count(),
+            'user_type_breakdown': list(user_counts)
+        }
+        
+        return context
 
 class UserCreateView(AdminRequiredMixin, CreateView):
     model = CustomUser

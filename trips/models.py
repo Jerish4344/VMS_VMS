@@ -13,6 +13,11 @@ class Trip(models.Model):
         ('cancelled', 'Cancelled'),
     )
     
+    ENTRY_TYPE_CHOICES = (
+        ('real_time', 'Real-time'),
+        ('manual', 'Manual Entry'),
+    )
+    
     vehicle = models.ForeignKey(
         Vehicle, 
         on_delete=models.CASCADE,
@@ -32,7 +37,7 @@ class Trip(models.Model):
         help_text="Odometer reading at trip end in km"
     )
     
-    # NEW DESTINATION FIELDS
+    # Destination fields
     origin = models.CharField(
         max_length=255,
         help_text="Starting location/address"
@@ -49,6 +54,18 @@ class Trip(models.Model):
         choices=STATUS_CHOICES,
         default='ongoing'
     )
+    
+    # Add entry type to distinguish between real-time and manual entries
+    entry_type = models.CharField(
+        max_length=20,
+        choices=ENTRY_TYPE_CHOICES,
+        default='real_time',
+        help_text="How this trip was entered into the system"
+    )
+    
+    # Add timestamps for audit trail
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         ordering = ['-start_time']
@@ -70,9 +87,12 @@ class Trip(models.Model):
     def save(self, *args, **kwargs):
         """
         Override save to update related vehicle status and odometer.
+        Handle manual entries differently from real-time trips.
         """
         # Store the original status to detect changes
         original_status = None
+        is_new_trip = not self.pk
+        
         if self.pk:
             try:
                 original_trip = Trip.objects.get(pk=self.pk)
@@ -80,43 +100,74 @@ class Trip(models.Model):
             except Trip.DoesNotExist:
                 pass
         
-        # For a new trip (starting)
-        if not self.pk:
-            # If starting a new trip, update vehicle status to in_use
-            if self.status == 'ongoing':
+        # For a new trip
+        if is_new_trip:
+            # Real-time trips: update vehicle status immediately
+            if self.entry_type == 'real_time' and self.status == 'ongoing':
                 self.vehicle.status = 'in_use'
-                # Ensure vehicle's current_odometer is not None before saving
+                # Ensure vehicle's current_odometer is not None
                 if self.vehicle.current_odometer is None:
                     self.vehicle.current_odometer = self.start_odometer
                 self.vehicle.save()
+            
+            # Manual entries: don't change vehicle status unless specified
+            elif self.entry_type == 'manual':
+                # For manual entries, only update vehicle odometer if this is the latest trip
+                # and it's completed with a higher odometer reading
+                if (self.status == 'completed' and self.end_odometer and 
+                    (not self.vehicle.current_odometer or self.end_odometer > self.vehicle.current_odometer)):
+                    # Check if this is indeed the latest trip by odometer reading
+                    latest_trip = Trip.objects.filter(
+                        vehicle=self.vehicle,
+                        end_odometer__isnull=False
+                    ).exclude(pk=self.pk).order_by('-end_odometer').first()
+                    
+                    if not latest_trip or self.end_odometer >= latest_trip.end_odometer:
+                        self.vehicle.current_odometer = self.end_odometer
+                        self.vehicle.save()
         else:
             # For existing trip - check if status changed to completed or cancelled
             if (original_status == 'ongoing' and 
                 self.status in ['completed', 'cancelled']):
                 
-                # Update vehicle status back to available
-                self.vehicle.status = 'available'
-                
-                # Update vehicle odometer if completed with valid end_odometer
-                if self.status == 'completed' and self.end_odometer:
-                    # CRITICAL FIX: Ensure we never set current_odometer to None
-                    if self.end_odometer > 0:
-                        self.vehicle.current_odometer = self.end_odometer
-                    else:
-                        # Fallback: use start_odometer if end_odometer is invalid
-                        self.vehicle.current_odometer = self.start_odometer
-                elif self.status == 'cancelled':
-                    # For cancelled trips, keep the original odometer or use start_odometer
+                # Real-time trips: update vehicle status back to available
+                if self.entry_type == 'real_time':
+                    self.vehicle.status = 'available'
+                    
+                    # Update vehicle odometer if completed with valid end_odometer
+                    if self.status == 'completed' and self.end_odometer:
+                        if self.end_odometer > 0:
+                            self.vehicle.current_odometer = self.end_odometer
+                        else:
+                            # Fallback: use start_odometer if end_odometer is invalid
+                            self.vehicle.current_odometer = self.start_odometer
+                    elif self.status == 'cancelled':
+                        # For cancelled trips, keep the original odometer or use start_odometer
+                        if self.vehicle.current_odometer is None:
+                            self.vehicle.current_odometer = self.start_odometer
+                    
+                    # Ensure current_odometer is never None before saving vehicle
                     if self.vehicle.current_odometer is None:
                         self.vehicle.current_odometer = self.start_odometer
+                    
+                    self.vehicle.save()
                 
-                # Ensure current_odometer is never None before saving vehicle
-                if self.vehicle.current_odometer is None:
-                    self.vehicle.current_odometer = self.start_odometer
-                
-                self.vehicle.save()
+                # Manual entries: only update odometer if this is the highest reading
+                elif self.entry_type == 'manual' and self.status == 'completed' and self.end_odometer:
+                    if (not self.vehicle.current_odometer or 
+                        self.end_odometer > self.vehicle.current_odometer):
+                        # Verify this is the latest completed trip
+                        latest_trip = Trip.objects.filter(
+                            vehicle=self.vehicle,
+                            end_odometer__isnull=False,
+                            status='completed'
+                        ).exclude(pk=self.pk).order_by('-end_odometer').first()
+                        
+                        if not latest_trip or self.end_odometer >= latest_trip.end_odometer:
+                            self.vehicle.current_odometer = self.end_odometer
+                            self.vehicle.save()
         
-        # Set end_time when trip is completed
+        # Set end_time when trip is completed (if not already set)
         if self.status == 'completed' and not self.end_time:
             self.end_time = timezone.now()
         

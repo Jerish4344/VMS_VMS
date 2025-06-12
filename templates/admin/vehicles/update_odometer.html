@@ -1,0 +1,174 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+&rsaquo; <a href="{% url 'admin:vehicles_vehicle_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+&rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="content">
+    <h1>{{ title }}</h1>
+    
+    <div class="module aligned">
+        <h2>Current Vehicle Information</h2>
+        <div class="form-row">
+            <div>
+                <strong>Vehicle:</strong> {{ vehicle.make }} {{ vehicle.model }} ({{ vehicle.license_plate }})<br>
+                <strong>Current Odometer:</strong> 
+                <span style="font-size: 1.2em; color: #0066cc;">
+                    {{ vehicle.current_odometer|default:"Not set" }} km
+                </span><br>
+                <strong>Status:</strong> {{ vehicle.get_status_display }}<br>
+                <strong>Vehicle Type:</strong> {{ vehicle.vehicle_type.name }}
+            </div>
+        </div>
+    </div>
+
+    {% if latest_trips %}
+    <div class="module aligned">
+        <h2>Recent Completed Trips (Last 5)</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="padding: 8px; border: 1px solid #ddd;">Date</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">Driver</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">Route</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">End Odometer</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">Distance</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">Entry Type</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trip in latest_trips %}
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ trip.end_time|date:"Y-m-d H:i" }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ trip.driver.get_full_name }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ trip.origin }} → {{ trip.destination }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">{{ trip.end_odometer }} km</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ trip.distance_traveled }} km</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">
+                        {% if trip.entry_type == 'manual' %}
+                            <span style="color: #ff6600;">Manual</span>
+                        {% else %}
+                            <span style="color: #009900;">Real-time</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        {% if highest_trip and highest_trip != latest_trips.0 %}
+        <div style="margin-top: 15px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px;">
+            <strong>Note:</strong> Highest odometer reading is {{ highest_trip.end_odometer }} km 
+            from {{ highest_trip.end_time|date:"Y-m-d" }} 
+            ({{ highest_trip.driver.get_full_name }})
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="module aligned">
+        <h2>No Completed Trips</h2>
+        <p>This vehicle has no completed trips with odometer readings yet.</p>
+    </div>
+    {% endif %}
+
+    <div class="module aligned">
+        <h2>Update Odometer Options</h2>
+        
+        <!-- Manual Update Form -->
+        <form method="post" style="margin-bottom: 25px; padding: 15px; border: 2px solid #4CAF50; border-radius: 5px; background-color: #f9f9f9;">
+            {% csrf_token %}
+            <h3 style="color: #4CAF50; margin-top: 0;">Manual Update</h3>
+            <div class="form-row">
+                <div>
+                    <label for="manual_odometer" style="font-weight: bold;">New Odometer Reading (km):</label><br>
+                    <input type="number" id="manual_odometer" name="manual_odometer" 
+                           value="{{ vehicle.current_odometer|default:0 }}" min="0" required
+                           style="padding: 8px; font-size: 16px; width: 200px; margin-top: 5px;">
+                    <div style="margin-top: 5px; color: #666; font-size: 0.9em;">
+                        Enter the actual current odometer reading from the vehicle
+                    </div>
+                </div>
+            </div>
+            <div class="submit-row" style="margin-top: 15px;">
+                <button type="submit" name="action" value="set_manual" 
+                        style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer;">
+                    Set Manual Reading
+                </button>
+            </div>
+        </form>
+
+        {% if latest_trips %}
+        <!-- Automatic Update Forms -->
+        <div style="display: flex; gap: 20px;">
+            <form method="post" style="flex: 1; padding: 15px; border: 2px solid #2196F3; border-radius: 5px; background-color: #f9f9f9;">
+                {% csrf_token %}
+                <h3 style="color: #2196F3; margin-top: 0;">Use Latest Trip</h3>
+                <div>
+                    <p><strong>{{ latest_trips.0.end_odometer }} km</strong></p>
+                    <p style="color: #666; font-size: 0.9em; margin: 5px 0;">
+                        From trip on {{ latest_trips.0.end_time|date:"Y-m-d H:i" }}<br>
+                        Driver: {{ latest_trips.0.driver.get_full_name }}<br>
+                        Type: {% if latest_trips.0.entry_type == 'manual' %}Manual Entry{% else %}Real-time{% endif %}
+                    </p>
+                </div>
+                <div class="submit-row">
+                    <button type="submit" name="action" value="set_latest"
+                            style="background-color: #2196F3; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer;">
+                        Use Latest Trip
+                    </button>
+                </div>
+            </form>
+
+            <form method="post" style="flex: 1; padding: 15px; border: 2px solid #FF9800; border-radius: 5px; background-color: #f9f9f9;">
+                {% csrf_token %}
+                <h3 style="color: #FF9800; margin-top: 0;">Use Highest Reading</h3>
+                <div>
+                    {% if highest_trip %}
+                    <p><strong>{{ highest_trip.end_odometer }} km</strong></p>
+                    <p style="color: #666; font-size: 0.9em; margin: 5px 0;">
+                        From trip on {{ highest_trip.end_time|date:"Y-m-d H:i" }}<br>
+                        Driver: {{ highest_trip.driver.get_full_name }}<br>
+                        Type: {% if highest_trip.entry_type == 'manual' %}Manual Entry{% else %}Real-time{% endif %}
+                    </p>
+                    {% else %}
+                    <p>No trips available</p>
+                    {% endif %}
+                </div>
+                <div class="submit-row">
+                    <button type="submit" name="action" value="set_highest"
+                            {% if not highest_trip %}disabled{% endif %}
+                            style="background-color: {% if highest_trip %}#FF9800{% else %}#ccc{% endif %}; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: {% if highest_trip %}pointer{% else %}not-allowed{% endif %};">
+                        Use Highest Reading
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+        <div style="margin-top: 25px; text-align: center;">
+            <a href="{% url 'admin:vehicles_vehicle_changelist' %}" 
+               style="background-color: #666; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
+                Cancel and Return to Vehicle List
+            </a>
+        </div>
+        
+        <div style="margin-top: 20px; padding: 10px; background-color: #e7f3ff; border: 1px solid #bee5eb; border-radius: 4px;">
+            <strong>💡 Tip:</strong> 
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li><strong>Manual Update:</strong> Use when you have the actual current odometer reading from the vehicle</li>
+                <li><strong>Latest Trip:</strong> Use when the most recent trip represents the current odometer</li>
+                <li><strong>Highest Reading:</strong> Use if trips were entered out of order and the highest reading is most accurate</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

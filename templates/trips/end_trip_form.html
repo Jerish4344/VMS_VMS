@@ -80,6 +80,74 @@
     border-radius: 0.375rem;
     margin-bottom: 1rem;
   }
+
+  /* Google Maps Integration Styles */
+  #mapContainer {
+    height: 300px;
+    border-radius: 0.375rem;
+    overflow: hidden;
+    border: 1px solid #e3e6f0;
+    margin-top: 1rem;
+  }
+
+  #map {
+    height: 100%;
+    width: 100%;
+  }
+
+  .distance-comparison {
+    background-color: #e8f4fd;
+    border: 1px solid #bee5eb;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+
+  .distance-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .distance-item {
+    text-align: center;
+    flex: 1;
+    min-width: 120px;
+    margin: 0.5rem;
+  }
+
+  .distance-value {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #28a745;
+  }
+
+  .distance-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+  }
+
+  .difference-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  .difference-good {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+  }
 </style>
 {% endblock %}
 
@@ -148,6 +216,32 @@
             <i class="fas fa-map-marker-alt text-danger"></i> {{ trip.destination }}
           </div>
         </div>
+
+        <!-- Google Map Display -->
+        <div class="trip-info-label">Route Map</div>
+        <div id="mapContainer">
+          <div id="map"></div>
+        </div>
+
+        <!-- Distance Information -->
+        <div class="distance-comparison" id="distanceComparison" style="display: none;">
+          <div class="trip-info-label">Distance Information</div>
+          <div class="distance-info">
+            <div class="distance-item">
+              <div class="distance-value" id="mapDistanceValue">-- km</div>
+              <div class="distance-label">Map Distance</div>
+            </div>
+            <div class="distance-item">
+              <div class="distance-value" id="odometerDistanceValue">-- km</div>
+              <div class="distance-label">Odometer Distance</div>
+            </div>
+            <div class="distance-item">
+              <div class="distance-value" id="distanceDifferenceValue">-- km</div>
+              <div class="distance-label">Difference</div>
+            </div>
+          </div>
+          <div id="differenceMessage"></div>
+        </div>
         
         {% if trip.notes %}
         <div class="trip-info-label">Trip Notes</div>
@@ -171,7 +265,7 @@
         and its odometer reading will be updated. Make sure all information is correct.
       </div>
       
-      <form method="post" id="end-trip-form">
+      <form method="post" action="{% url 'end_trip' trip.pk %}">
         {% csrf_token %}
         
         <!-- Form Errors -->
@@ -197,6 +291,7 @@
                 class="form-control" 
                 min="{{ trip.start_odometer|add:1 }}"
                 value="{{ form.end_odometer.value|default:'' }}"
+                step="0.1"
                 required
               >
               <div class="odometer-help">
@@ -262,9 +357,13 @@
         <p>Are you sure you want to end this trip?</p>
         <div class="alert alert-info">
           <strong>Trip Summary:</strong><br>
-          Distance: <span id="modal-distance"></span> km<br>
+          Odometer Distance: <span id="modal-distance"></span> km<br>
+          Map Distance: <span id="modal-map-distance"></span> km<br>
           Duration: <span id="modal-duration"></span><br>
           End Odometer: <span id="modal-odometer"></span> km
+        </div>
+        <div id="modal-difference-warning" style="display: none;" class="alert alert-warning">
+          <strong>Notice:</strong> There's a <span id="modal-difference-amount"></span> km difference between map distance and odometer reading.
         </div>
       </div>
       <div class="modal-footer">
@@ -279,7 +378,113 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Google Maps API -->
+<script async defer 
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDMAkESwj75ZhnMIlLK25zHiM1oAUPZtbo&libraries=places&callback=initMap">
+</script>
+
 <script>
+  // Google Maps variables
+  let map, directionsService, directionsRenderer, mapDistance = 0;
+
+  // Trip data from Django
+  const tripData = {
+    origin: "{{ trip.origin|escapejs }}",
+    destination: "{{ trip.destination|escapejs }}",
+    startOdometer: {{ trip.start_odometer }}
+  };
+
+  // Initialize Google Maps
+  function initMap() {
+    map = new google.maps.Map(document.getElementById('map'), {
+      zoom: 13,
+      center: { lat: 12.9716, lng: 77.5946 }, // Default center
+      styles: [
+        {
+          featureType: 'poi',
+          elementType: 'labels',
+          stylers: [{ visibility: 'off' }]
+        }
+      ]
+    });
+
+    directionsService = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({
+      draggable: false,
+      panel: null
+    });
+    directionsRenderer.setMap(map);
+
+    // Calculate route immediately if we have trip data
+    if (tripData.origin && tripData.destination) {
+      calculateRoute();
+    }
+  }
+
+  function calculateRoute() {
+    if (!tripData.origin || !tripData.destination) return;
+
+    const request = {
+      origin: tripData.origin,
+      destination: tripData.destination,
+      travelMode: google.maps.TravelMode.DRIVING,
+      unitSystem: google.maps.UnitSystem.METRIC
+    };
+
+    directionsService.route(request, function(result, status) {
+      if (status === 'OK') {
+        directionsRenderer.setDirections(result);
+        
+        // Calculate distance
+        const route = result.routes[0];
+        let totalDistance = 0;
+        
+        route.legs.forEach(leg => {
+          totalDistance += leg.distance.value;
+        });
+        
+        mapDistance = (totalDistance / 1000).toFixed(2);
+        
+        // Update map distance display
+        document.getElementById('mapDistanceValue').textContent = mapDistance + ' km';
+        document.getElementById('distanceComparison').style.display = 'block';
+        
+        // Update comparison if end odometer is already entered
+        updateDistanceComparison();
+      } else {
+        console.error('Could not calculate route: ' + status);
+      }
+    });
+  }
+
+  function updateDistanceComparison() {
+    const endOdometerInput = document.getElementById('end_odometer');
+    const endOdometer = parseFloat(endOdometerInput.value);
+    
+    if (endOdometer && endOdometer > tripData.startOdometer && mapDistance > 0) {
+      const odometerDistance = (endOdometer - tripData.startOdometer).toFixed(2);
+      const difference = Math.abs(odometerDistance - mapDistance).toFixed(2);
+      const differencePercent = ((difference / mapDistance) * 100).toFixed(1);
+      
+      // Update display
+      document.getElementById('odometerDistanceValue').textContent = odometerDistance + ' km';
+      document.getElementById('distanceDifferenceValue').textContent = difference + ' km';
+      
+      // Show appropriate message based on difference
+      const differenceMessage = document.getElementById('differenceMessage');
+      if (difference <= 2) {
+        differenceMessage.className = 'difference-good';
+        differenceMessage.innerHTML = `<i class="fas fa-check-circle"></i> Good match! The odometer and map distances are very close (${differencePercent}% difference).`;
+      } else if (difference <= 5) {
+        differenceMessage.className = 'difference-warning';
+        differenceMessage.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Moderate difference of ${difference} km (${differencePercent}%). This might be due to route variations or detours.`;
+      } else {
+        differenceMessage.className = 'difference-warning';
+        differenceMessage.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Large difference of ${difference} km (${differencePercent}%). Please verify the odometer reading or check if there were significant detours.`;
+      }
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     const endOdometerInput = document.getElementById('end_odometer');
     const distanceCalculation = document.getElementById('distance-calculation');
@@ -292,15 +497,18 @@
     
     // Calculate distance as user types
     endOdometerInput.addEventListener('input', function() {
-      const endOdometer = parseInt(this.value);
+      const endOdometer = parseFloat(this.value);
       
       if (endOdometer && endOdometer > startOdometer) {
-        const distance = endOdometer - startOdometer;
-        calculatedDistance.textContent = `Distance: ${distance} km`;
+        const distance = (endOdometer - startOdometer).toFixed(2);
+        calculatedDistance.textContent = `Odometer Distance: ${distance} km`;
         distanceCalculation.style.display = 'block';
         
         // Remove error styling
         this.classList.remove('is-invalid');
+        
+        // Update distance comparison
+        updateDistanceComparison();
       } else {
         distanceCalculation.style.display = 'none';
         
@@ -313,58 +521,107 @@
     
     // Form submission with confirmation
     endTripForm.addEventListener('submit', function(e) {
-  e.preventDefault();
-  
-  const endOdometer = parseInt(endOdometerInput.value);
-  
-  if (!endOdometer || endOdometer <= startOdometer) {
-    alert('Please enter a valid end odometer reading greater than ' + startOdometer + ' km');
-    endOdometerInput.focus();
-    return false;
-  }
-  
-  // Log for debugging
-  console.log('Form submission data:', {
-    end_odometer: endOdometer,
-    notes: document.getElementById('notes').value,
-    csrf_token: document.querySelector('[name=csrfmiddlewaretoken]').value
-  });
-  
-  // Update modal with trip summary
-  const distance = endOdometer - startOdometer;
-  document.getElementById('modal-distance').textContent = distance;
-  document.getElementById('modal-duration').textContent = '{{ trip.duration|default:"Calculating..." }}';
-  document.getElementById('modal-odometer').textContent = endOdometer;
-  
-  // Show confirmation modal
-  confirmModal.show();
-});
+      e.preventDefault();
+      
+      const endOdometer = parseFloat(endOdometerInput.value);
+      
+      if (!endOdometer || endOdometer <= startOdometer) {
+        alert('Please enter a valid end odometer reading greater than ' + startOdometer + ' km');
+        endOdometerInput.focus();
+        return false;
+      }
+      
+      // Update modal with trip summary
+      const odometerDistance = (endOdometer - startOdometer).toFixed(2);
+      const difference = mapDistance > 0 ? Math.abs(odometerDistance - mapDistance).toFixed(2) : 0;
+      
+      document.getElementById('modal-distance').textContent = odometerDistance;
+      document.getElementById('modal-map-distance').textContent = mapDistance > 0 ? mapDistance : 'Not calculated';
+      document.getElementById('modal-duration').textContent = '{{ trip.duration|default:"Calculating..." }}';
+      document.getElementById('modal-odometer').textContent = endOdometer;
+      
+      // Show difference warning if significant
+      const differenceWarning = document.getElementById('modal-difference-warning');
+      const differenceAmount = document.getElementById('modal-difference-amount');
+      
+      if (mapDistance > 0 && difference > 2) {
+        differenceAmount.textContent = difference;
+        differenceWarning.style.display = 'block';
+      } else {
+        differenceWarning.style.display = 'none';
+      }
+      
+      // Show confirmation modal
+      confirmModal.show();
+    });
 
-// Confirm button in modal
-confirmEndBtn.addEventListener('click', function() {
-  confirmModal.hide();
-  
-  // Disable button to prevent double submission
-  endTripBtn.disabled = true;
-  endTripBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Ending Trip...';
-  
-  // Create a temporary form for submission without preventDefault
-  const tempForm = document.createElement('form');
-  tempForm.method = 'POST';
-  tempForm.action = endTripForm.action;
-  
-  // Copy form data
-  const formData = new FormData(endTripForm);
-  for (let [key, value] of formData.entries()) {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = key;
-    input.value = value;
-    tempForm.appendChild(input);
-  }
-  
-  document.body.appendChild(tempForm);
-  tempForm.submit();
-});
+    // Confirm button in modal - this is the key fix
+    confirmEndBtn.addEventListener('click', function() {
+      confirmModal.hide();
+      
+      // Disable button to prevent double submission
+      endTripBtn.disabled = true;
+      endTripBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Ending Trip...';
+      
+      // Remove the preventDefault event listener temporarily
+      const formClone = endTripForm.cloneNode(true);
+      
+      // Ensure all form fields have the correct names for Django
+      const endOdometerField = formClone.querySelector('#end_odometer');
+      if (endOdometerField) {
+        endOdometerField.name = 'end_odometer';
+      }
+      
+      const notesField = formClone.querySelector('#notes');
+      if (notesField) {
+        notesField.name = 'notes';
+      }
+      
+      const endTimeField = formClone.querySelector('#end_time');
+      if (endTimeField) {
+        endTimeField.name = 'end_time';
+      }
+      
+      // Add CSRF token if missing
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+      if (csrfToken && !formClone.querySelector('[name=csrfmiddlewaretoken]')) {
+        const csrfClone = csrfToken.cloneNode(true);
+        formClone.appendChild(csrfClone);
+      }
+      
+      // Replace form in DOM and submit
+      endTripForm.parentNode.replaceChild(formClone, endTripForm);
+      formClone.submit();
+    });
+
+    // Alternative: Simple form submission without modal (if modal fails)
+    // Uncomment this and comment out the above if you want to bypass the modal
+    /*
+    endTripBtn.addEventListener('click', function(e) {
+      const endOdometer = parseFloat(endOdometerInput.value);
+      
+      if (!endOdometer || endOdometer <= startOdometer) {
+        e.preventDefault();
+        alert('Please enter a valid end odometer reading greater than ' + startOdometer + ' km');
+        endOdometerInput.focus();
+        return false;
+      }
+      
+      // Show loading state
+      endTripBtn.disabled = true;
+      endTripBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Ending Trip...';
+      
+      // Allow form to submit normally (remove any preventDefault)
+      return true;
+    });
+    */
+
+    // Initialize map when page loads
+    setTimeout(function() {
+      if (typeof google !== 'undefined') {
+        initMap();
+      }
+    }, 1000);
+  });
 </script>
 {% endblock %}

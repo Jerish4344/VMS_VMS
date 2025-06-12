@@ -389,70 +389,84 @@ class DriverReportView(ReportBaseView):
             start_date = start_date_obj.isoformat()
             end_date = end_date_obj.isoformat()
         
+        # Create timezone-aware datetime objects for filtering
+        start_datetime = timezone.make_aware(
+            datetime.combine(start_date_obj, datetime.min.time())
+        )
+        end_datetime = timezone.make_aware(
+            datetime.combine(end_date_obj, datetime.max.time())
+        )
+        
+        # Get all drivers
         drivers = CustomUser.objects.filter(user_type='driver')
         
-        # Get completed trips with drivers
-        completed_trips = Trip.objects.filter(
-            start_time__date__gte=start_date_obj,
-            start_time__date__lte=end_date_obj,
-            driver__isnull=False,
-            end_time__isnull=False
-        ).select_related('driver')
+        # Get all trips within the date range
+        all_trips = Trip.objects.filter(
+            start_time__gte=start_datetime,
+            start_time__lte=end_datetime,
+            driver__isnull=False
+        ).select_related('driver', 'vehicle')
         
-        # If no completed trips found, try with different status values
-        if completed_trips.count() == 0:
-            completed_trips = Trip.objects.filter(
-                start_time__date__gte=start_date_obj,
-                start_time__date__lte=end_date_obj,
-                driver__isnull=False,
-                end_time__isnull=False
-            ).select_related('driver')
+        # Debug info
+        print(f"Date range: {start_datetime} to {end_datetime}")
+        print(f"Found {all_trips.count()} trips in date range")
         
-        # Calculate trip data manually
+        # Calculate trip data for each driver
         driver_trip_data = {}
         
-        for trip in completed_trips:
+        for trip in all_trips:
             driver_id = trip.driver.id
             
             if driver_id not in driver_trip_data:
                 driver_trip_data[driver_id] = {
                     'trip_count': 0,
+                    'completed_trip_count': 0,
+                    'ongoing_trip_count': 0,
+                    'cancelled_trip_count': 0,
                     'total_distance': 0,
-                    'distances': []
+                    'distances': [],
+                    'total_duration_hours': 0
                 }
             
+            # Count all trips
             driver_trip_data[driver_id]['trip_count'] += 1
             
-            if trip.start_odometer is not None and trip.end_odometer is not None:
+            # Count by status
+            if trip.status == 'completed':
+                driver_trip_data[driver_id]['completed_trip_count'] += 1
+            elif trip.status == 'ongoing':
+                driver_trip_data[driver_id]['ongoing_trip_count'] += 1
+            elif trip.status == 'cancelled':
+                driver_trip_data[driver_id]['cancelled_trip_count'] += 1
+            
+            # Calculate distance for completed trips
+            if trip.status == 'completed' and trip.start_odometer and trip.end_odometer:
                 try:
                     start_odo = float(trip.start_odometer)
                     end_odo = float(trip.end_odometer)
                     distance = end_odo - start_odo
                     
-                    if distance > 0:
+                    if distance > 0:  # Valid distance
                         driver_trip_data[driver_id]['total_distance'] += distance
                         driver_trip_data[driver_id]['distances'].append(distance)
                 except (ValueError, TypeError):
                     pass
-        
-        # Calculate averages and create trip lookup
-        trip_lookup = {}
-        for driver_id, data in driver_trip_data.items():
-            distances = data['distances']
-            avg_distance = sum(distances) / len(distances) if distances else 0
             
-            trip_lookup[driver_id] = {
-                'trip_count': data['trip_count'],
-                'total_distance': data['total_distance'],
-                'avg_distance': avg_distance
-            }
+            # Calculate duration for completed trips
+            if trip.status == 'completed' and trip.start_time and trip.end_time:
+                try:
+                    duration = trip.end_time - trip.start_time
+                    hours = duration.total_seconds() / 3600
+                    driver_trip_data[driver_id]['total_duration_hours'] += hours
+                except (ValueError, TypeError):
+                    pass
         
-        # Get fuel data
+        # Get fuel data (traditional fuel like petrol/diesel)
         fuel_transactions = FuelTransaction.objects.filter(
             date__gte=start_date_obj,
             date__lte=end_date_obj,
             driver__isnull=False
-        ).select_related('driver')
+        ).exclude(fuel_type='Electric').select_related('driver')
         
         fuel_data_dict = {}
         for transaction in fuel_transactions:
@@ -468,12 +482,32 @@ class DriverReportView(ReportBaseView):
             fuel_data_dict[driver_id]['total_fuel'] += float(transaction.quantity or 0)
             fuel_data_dict[driver_id]['total_fuel_cost'] += float(transaction.total_cost or 0)
         
-        fuel_lookup = {k: v for k, v in fuel_data_dict.items()}
+        # Get energy data (electric vehicle charging)
+        energy_transactions = FuelTransaction.objects.filter(
+            date__gte=start_date_obj,
+            date__lte=end_date_obj,
+            driver__isnull=False,
+            fuel_type='Electric'
+        ).select_related('driver')
+        
+        energy_data_dict = {}
+        for transaction in energy_transactions:
+            driver_id = transaction.driver.id
+            if driver_id not in energy_data_dict:
+                energy_data_dict[driver_id] = {
+                    'energy_count': 0,
+                    'total_energy': 0,
+                    'total_energy_cost': 0
+                }
+            
+            energy_data_dict[driver_id]['energy_count'] += 1
+            energy_data_dict[driver_id]['total_energy'] += float(transaction.energy_consumed or 0)
+            energy_data_dict[driver_id]['total_energy_cost'] += float(transaction.total_cost or 0)
         
         # Get accident data
         accident_transactions = Accident.objects.filter(
-            date_time__date__gte=start_date_obj,
-            date_time__date__lte=end_date_obj,
+            date_time__gte=start_datetime,
+            date_time__lte=end_datetime,
             driver__isnull=False
         ).select_related('driver')
         
@@ -484,61 +518,109 @@ class DriverReportView(ReportBaseView):
                 accident_data_dict[driver_id] = {'accident_count': 0}
             accident_data_dict[driver_id]['accident_count'] += 1
         
-        accident_lookup = {k: v for k, v in accident_data_dict.items()}
-        
         # Combine all data for report
         driver_report = []
         
         for driver in drivers:
             driver_id = driver.id
             
-            trip_info = trip_lookup.get(driver_id, {
+            trip_info = driver_trip_data.get(driver_id, {
                 'trip_count': 0,
+                'completed_trip_count': 0,
+                'ongoing_trip_count': 0,
+                'cancelled_trip_count': 0,
                 'total_distance': 0,
-                'avg_distance': 0
+                'distances': [],
+                'total_duration_hours': 0
             })
             
-            fuel_info = fuel_lookup.get(driver_id, {
+            fuel_info = fuel_data_dict.get(driver_id, {
                 'fuel_count': 0,
                 'total_fuel': 0,
                 'total_fuel_cost': 0
             })
             
-            accident_info = accident_lookup.get(driver_id, {
+            energy_info = energy_data_dict.get(driver_id, {
+                'energy_count': 0,
+                'total_energy': 0,
+                'total_energy_cost': 0
+            })
+            
+            accident_info = accident_data_dict.get(driver_id, {
                 'accident_count': 0
             })
             
-            trip_count = trip_info.get('trip_count') or 0
-            total_distance = trip_info.get('total_distance') or 0
-            avg_distance = trip_info.get('avg_distance') or 0
+            # Calculate metrics
+            trip_count = trip_info.get('trip_count', 0)
+            total_distance = trip_info.get('total_distance', 0)
+            total_hours = trip_info.get('total_duration_hours', 0)
+            distances = trip_info.get('distances', [])
+            avg_distance = sum(distances) / len(distances) if distances else 0
+            accident_count = accident_info.get('accident_count', 0)
             
-            accident_count = accident_info.get('accident_count') or 0
+            # Calculate average speed
+            avg_speed = total_distance / total_hours if total_hours > 0 else 0
+            
+            # Calculate accidents per 1000km
             accidents_per_1000km = (accident_count * 1000 / total_distance) if total_distance > 0 else 0
+            
+            # Calculate fuel and energy efficiency
+            total_fuel = fuel_info.get('total_fuel', 0)
+            total_energy = energy_info.get('total_energy', 0)
+            
+            fuel_efficiency = 0
+            energy_efficiency = 0
+            
+            if total_distance > 0:
+                if total_fuel > 0:
+                    fuel_efficiency = total_distance / total_fuel  # km/L
+                if total_energy > 0:
+                    energy_efficiency = total_distance / total_energy  # km/kWh
             
             driver_data = {
                 'id': driver_id,
                 'name': driver.get_full_name(),
                 'username': driver.username,
-                'license_number': driver.license_number or '',
-                'license_expiry': driver.license_expiry,
+                'license_number': getattr(driver, 'license_number', '') or '',
+                'license_expiry': getattr(driver, 'license_expiry', None),
                 'trip_count': trip_count,
+                'completed_trip_count': trip_info.get('completed_trip_count', 0),
+                'ongoing_trip_count': trip_info.get('ongoing_trip_count', 0),
+                'cancelled_trip_count': trip_info.get('cancelled_trip_count', 0),
                 'total_distance': round(total_distance, 1) if total_distance else 0,
                 'avg_distance': round(avg_distance, 1) if avg_distance else 0,
-                'total_hours': 0,
-                'avg_speed': 0,
-                'fuel_count': fuel_info.get('fuel_count') or 0,
-                'total_fuel': fuel_info.get('total_fuel') or 0,
-                'total_fuel_cost': fuel_info.get('total_fuel_cost') or 0,
+                'total_hours': round(total_hours, 1) if total_hours else 0,
+                'avg_speed': round(avg_speed, 1) if avg_speed else 0,
+                
+                # Fuel data
+                'fuel_count': fuel_info.get('fuel_count', 0),
+                'total_fuel': round(fuel_info.get('total_fuel', 0), 1),
+                'total_fuel_cost': round(fuel_info.get('total_fuel_cost', 0), 2),
+                'fuel_efficiency': round(fuel_efficiency, 2) if fuel_efficiency else 0,
+                
+                # Energy data
+                'energy_count': energy_info.get('energy_count', 0),
+                'total_energy': round(energy_info.get('total_energy', 0), 1),
+                'total_energy_cost': round(energy_info.get('total_energy_cost', 0), 2),
+                'energy_efficiency': round(energy_efficiency, 2) if energy_efficiency else 0,
+                
+                # Safety data
                 'accident_count': accident_count,
                 'accidents_per_1000km': round(accidents_per_1000km, 2)
             }
             
             driver_report.append(driver_data)
         
+        # Sort by trip count for better display
+        driver_report.sort(key=lambda x: x['trip_count'], reverse=True)
+        
         # Calculate totals for summary
         total_trips = sum(driver.get('trip_count', 0) for driver in driver_report)
         total_distance = sum(driver.get('total_distance', 0) for driver in driver_report)
         total_accidents = sum(driver.get('accident_count', 0) for driver in driver_report)
+        total_hours = sum(driver.get('total_hours', 0) for driver in driver_report)
+        total_fuel = sum(driver.get('total_fuel', 0) for driver in driver_report)
+        total_energy = sum(driver.get('total_energy', 0) for driver in driver_report)
         
         context.update({
             'driver_report': driver_report,
@@ -547,23 +629,36 @@ class DriverReportView(ReportBaseView):
             'total_trips': total_trips,
             'total_distance': round(total_distance, 1),
             'total_accidents': total_accidents,
-            'total_hours': 0,
-            'now': timezone.now()
+            'total_hours': round(total_hours, 1),
+            'total_fuel': round(total_fuel, 1),
+            'total_energy': round(total_energy, 1),
+            'now': timezone.now(),
+            
+            # Debug info
+            'debug_info': {
+                'total_trips_found': all_trips.count(),
+                'drivers_with_trips': len([d for d in driver_report if d['trip_count'] > 0]),
+                'date_range': f"{start_date} to {end_date}",
+                'timezone': str(timezone.get_current_timezone()),
+                'filter_range': f"{start_datetime} to {end_datetime}"
+            }
         })
         
         return context
     
     def get_export_data(self, context):
-        """Prepare data for export"""
+        """Prepare data for export with enhanced fuel/energy fields"""
         headers = [
             'Name', 'Username', 'License Number', 'License Expiry',
-            'Trip Count', 'Total Distance (km)', 'Avg Trip Distance (km)',
+            'Trip Count', 'Completed Trips', 'Ongoing Trips', 'Cancelled Trips',
+            'Total Distance (km)', 'Avg Trip Distance (km)',
             'Total Hours', 'Avg Speed (km/h)',
-            'Fuel Transactions', 'Total Fuel (L)', 'Total Fuel Cost',
+            'Fuel Transactions', 'Total Fuel (L)', 'Total Fuel Cost', 'Fuel Efficiency (km/L)',
+            'Energy Transactions', 'Total Energy (kWh)', 'Total Energy Cost', 'Energy Efficiency (km/kWh)',
             'Accident Count', 'Accidents per 1000 km'
         ]
         
-        filename = f"driver_report_{context['start_date']}_to_{context['end_date']}"
+        filename = f"enhanced_driver_report_{context['start_date']}_to_{context['end_date']}"
         
         return context['driver_report'], filename, headers
 

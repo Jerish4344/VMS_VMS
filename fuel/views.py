@@ -5,6 +5,10 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Sum, Q
 from django.contrib import messages
 from django.shortcuts import redirect
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_http_methods
+from django.shortcuts import get_object_or_404
+from django.http import JsonResponse
 
 # Import permissions - adjust these imports based on your accounts app structure
 try:
@@ -21,6 +25,35 @@ except ImportError:
 from .models import FuelTransaction, FuelStation
 from vehicles.models import Vehicle
 from .forms import FuelTransactionForm, FuelStationForm
+
+# Custom permission mixins for fuel transactions
+class FuelAdminRequiredMixin(LoginRequiredMixin):
+    """
+    Mixin to ensure only admin users can access the view.
+    """
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        
+        if request.user.user_type != 'admin':
+            messages.error(request, 'You do not have permission to access this feature.')
+            return redirect('fuel_transaction_list')
+        
+        return super().dispatch(request, *args, **kwargs)
+
+class FuelManagerRequiredMixin(LoginRequiredMixin):
+    """
+    Mixin to ensure only admin and manager users can access the view.
+    """
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        
+        if request.user.user_type not in ['admin', 'manager']:
+            messages.error(request, 'You do not have permission to access this feature.')
+            return redirect('fuel_transaction_list')
+        
+        return super().dispatch(request, *args, **kwargs)
 
 class FuelTransactionListView(LoginRequiredMixin, ListView):
     model = FuelTransaction
@@ -213,7 +246,7 @@ class FuelTransactionCreateView(VehicleManagerRequiredMixin, CreateView):
         
         return super().form_invalid(form)
 
-class FuelTransactionUpdateView(VehicleManagerRequiredMixin, UpdateView):
+class FuelTransactionUpdateView(FuelManagerRequiredMixin, UpdateView):
     model = FuelTransaction
     form_class = FuelTransactionForm
     template_name = 'fuel/fuel_transaction_form.html'
@@ -237,7 +270,7 @@ class FuelTransactionUpdateView(VehicleManagerRequiredMixin, UpdateView):
             
         return response
 
-class FuelTransactionDeleteView(AdminRequiredMixin, DeleteView):
+class FuelTransactionDeleteView(FuelAdminRequiredMixin, DeleteView):
     model = FuelTransaction
     template_name = 'fuel/fuel_transaction_confirm_delete.html'
     success_url = reverse_lazy('fuel_transaction_list')
@@ -249,6 +282,45 @@ class FuelTransactionDeleteView(AdminRequiredMixin, DeleteView):
         response = super().delete(request, *args, **kwargs)
         messages.success(self.request, f'{transaction_type} deleted successfully.')
         return response
+
+# Function-based view for AJAX delete (similar to trip delete)
+@login_required
+@require_http_methods(["DELETE", "POST"])
+def fuel_transaction_delete(request, pk):
+    """Delete a fuel transaction"""
+    transaction = get_object_or_404(FuelTransaction, pk=pk)
+    
+    # Check permissions - only admins can delete fuel transactions
+    if request.user.user_type != 'admin':
+        messages.error(request, "You don't have permission to delete this transaction.")
+        return redirect('fuel_transaction_detail', pk=transaction.pk)
+    
+    # Store transaction info for the success message before deletion
+    transaction_type = "Charging session" if (hasattr(transaction.vehicle, 'is_electric') and transaction.vehicle.is_electric()) else "Fuel transaction"
+    transaction_info = f"{transaction_type} for {transaction.vehicle.license_plate} on {transaction.date}"
+    
+    if request.method == 'DELETE' or request.method == 'POST':
+        try:
+            # Delete the transaction
+            transaction.delete()
+            
+            # Handle different response types
+            if request.headers.get('Content-Type') == 'application/json' or request.META.get('HTTP_ACCEPT', '').startswith('application/json'):
+                return JsonResponse({'status': 'success', 'message': f'{transaction_info} deleted successfully!'})
+            else:
+                messages.success(request, f'{transaction_info} deleted successfully!')
+                return redirect('fuel_transaction_list')
+                
+        except Exception as e:
+            error_msg = f'Error deleting transaction: {str(e)}'
+            if request.headers.get('Content-Type') == 'application/json' or request.META.get('HTTP_ACCEPT', '').startswith('application/json'):
+                return JsonResponse({'status': 'error', 'message': error_msg})
+            else:
+                messages.error(request, error_msg)
+                return redirect('fuel_transaction_detail', pk=pk)
+    
+    # If GET request, redirect to transaction detail
+    return redirect('fuel_transaction_detail', pk=pk)
 
 # Fuel Station Views
 class FuelStationListView(LoginRequiredMixin, ListView):
@@ -303,7 +375,7 @@ class FuelStationUpdateView(VehicleManagerRequiredMixin, UpdateView):
         messages.success(self.request, f'{station_type} updated successfully.')
         return response
 
-class FuelStationDeleteView(AdminRequiredMixin, DeleteView):
+class FuelStationDeleteView(FuelAdminRequiredMixin, DeleteView):
     model = FuelStation
     template_name = 'fuel/fuel_station_confirm_delete.html'
     success_url = reverse_lazy('fuel_station_list')

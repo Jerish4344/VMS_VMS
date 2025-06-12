@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Driver Report - Vehicle Management System{% endblock %}
+{% block title %}Driver Performance Report - Vehicle Management System{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -63,6 +63,63 @@
     height: 300px;
     width: 100%;
   }
+  
+  .pie-chart-container {
+    position: relative;
+    margin: auto;
+    height: 350px;
+    width: 100%;
+  }
+  
+  .debug-info {
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+  }
+  
+  .no-data-message {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+  }
+  
+  .chart-card {
+    height: 100%;
+  }
+  
+  .chart-card .card-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  
+  .fuel-type-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+  }
+  
+  .efficiency-meter {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .efficiency-bar {
+    height: 6px;
+    background: #e3e6f0;
+    border-radius: 3px;
+    flex: 1;
+    position: relative;
+  }
+  
+  .efficiency-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
 </style>
 {% endblock %}
 
@@ -70,7 +127,7 @@
 <div class="container-fluid">
   <!-- Page Header -->
   <div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800">Driver Report</h1>
+    <h1 class="h3 mb-0 text-gray-800">Driver Performance Report</h1>
     
     <div class="d-flex">
       <a href="{% url 'driver_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}export=excel" class="btn btn-sm btn-success shadow-sm btn-export">
@@ -117,10 +174,10 @@
     </div>
   </div>
   
-  <!-- Summary Stats Cards -->
+  <!-- Enhanced Summary Stats Cards -->
   <div class="row mb-4">
     <!-- Total Drivers -->
-    <div class="col-xl-3 col-md-6 mb-4">
+    <div class="col-xl-2 col-md-4 mb-4">
       <div class="card border-left-primary shadow py-2 report-stats-card">
         <div class="card-body">
           <div class="row no-gutters align-items-center">
@@ -139,7 +196,7 @@
     </div>
     
     <!-- Total Trips -->
-    <div class="col-xl-3 col-md-6 mb-4">
+    <div class="col-xl-2 col-md-4 mb-4">
       <div class="card border-left-success shadow py-2 report-stats-card">
         <div class="card-body">
           <div class="row no-gutters align-items-center">
@@ -158,7 +215,7 @@
     </div>
     
     <!-- Total Distance -->
-    <div class="col-xl-3 col-md-6 mb-4">
+    <div class="col-xl-2 col-md-4 mb-4">
       <div class="card border-left-info shadow py-2 report-stats-card">
         <div class="card-body">
           <div class="row no-gutters align-items-center">
@@ -176,8 +233,46 @@
       </div>
     </div>
     
+    <!-- Total Fuel Consumed -->
+    <div class="col-xl-2 col-md-4 mb-4">
+      <div class="card border-left-warning shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Fuel</div>
+              <div class="stats-value text-warning">
+                {{ total_fuel|default:0|floatformat:0 }} L
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-gas-pump fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Total Energy Consumed -->
+    <div class="col-xl-2 col-md-4 mb-4">
+      <div class="card border-left-success shadow py-2 report-stats-card">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="stats-label">Total Energy</div>
+              <div class="stats-value text-success">
+                {{ total_energy|default:0|floatformat:0 }} kWh
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-bolt fa-2x text-gray-300"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
     <!-- Total Accidents -->
-    <div class="col-xl-3 col-md-6 mb-4">
+    <div class="col-xl-2 col-md-4 mb-4">
       <div class="card border-left-danger shadow py-2 report-stats-card">
         <div class="card-body">
           <div class="row no-gutters align-items-center">
@@ -196,41 +291,145 @@
     </div>
   </div>
   
-  <!-- Charts Row -->
+  <!-- Charts Row 1 - Performance Charts -->
   <div class="row mb-4">
     <!-- Distance by Driver Chart -->
-    <div class="col-lg-6">
-      <div class="card shadow mb-4">
+    <div class="col-lg-4">
+      <div class="card shadow mb-4 chart-card">
         <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-primary">Distance by Driver</h6>
+          <h6 class="m-0 font-weight-bold text-primary">Top Drivers by Distance</h6>
         </div>
         <div class="card-body">
           <div class="chart-container">
             <canvas id="distanceByDriverChart"></canvas>
+          </div>
+          <div id="distanceChartNoData" class="no-data-message" style="display: none;">
+            <i class="fas fa-chart-bar fa-2x text-gray-300 mb-2"></i>
+            <p>No distance data available</p>
           </div>
         </div>
       </div>
     </div>
     
     <!-- Trips by Driver Chart -->
-    <div class="col-lg-6">
-      <div class="card shadow mb-4">
+    <div class="col-lg-4">
+      <div class="card shadow mb-4 chart-card">
         <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-primary">Trips by Driver</h6>
+          <h6 class="m-0 font-weight-bold text-primary">Top Drivers by Trips</h6>
         </div>
         <div class="card-body">
           <div class="chart-container">
             <canvas id="tripsByDriverChart"></canvas>
+          </div>
+          <div id="tripsChartNoData" class="no-data-message" style="display: none;">
+            <i class="fas fa-chart-bar fa-2x text-gray-300 mb-2"></i>
+            <p>No trip data available</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Fuel vs Energy Usage -->
+    <div class="col-lg-4">
+      <div class="card shadow mb-4 chart-card">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Fuel vs Energy Usage</h6>
+        </div>
+        <div class="card-body">
+          <div class="pie-chart-container">
+            <canvas id="fuelEnergyPieChart"></canvas>
+          </div>
+          <div id="fuelEnergyNoData" class="no-data-message" style="display: none;">
+            <i class="fas fa-chart-pie fa-2x text-gray-300 mb-2"></i>
+            <p>No fuel/energy data available</p>
           </div>
         </div>
       </div>
     </div>
   </div>
   
-  <!-- Driver Report Table -->
+  <!-- Charts Row 2 - Efficiency & Status Charts -->
+  <div class="row mb-4">
+    <!-- Fuel Efficiency by Driver -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4 chart-card">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Fuel Efficiency by Driver (km/L)</h6>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="fuelEfficiencyChart"></canvas>
+          </div>
+          <div id="fuelEfficiencyNoData" class="no-data-message" style="display: none;">
+            <i class="fas fa-chart-line fa-2x text-gray-300 mb-2"></i>
+            <p>No fuel efficiency data available</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Energy Efficiency by Driver -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4 chart-card">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Energy Efficiency by Driver (km/kWh)</h6>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="energyEfficiencyChart"></canvas>
+          </div>
+          <div id="energyEfficiencyNoData" class="no-data-message" style="display: none;">
+            <i class="fas fa-chart-line fa-2x text-gray-300 mb-2"></i>
+            <p>No energy efficiency data available</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Charts Row 3 - Status & Performance Charts -->
+  <div class="row mb-4">
+    <!-- Trip Status Distribution -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4 chart-card">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Trip Status Distribution</h6>
+        </div>
+        <div class="card-body">
+          <div class="pie-chart-container">
+            <canvas id="tripStatusPieChart"></canvas>
+          </div>
+          <div id="tripStatusNoData" class="no-data-message" style="display: none;">
+            <i class="fas fa-chart-pie fa-2x text-gray-300 mb-2"></i>
+            <p>No trip status data available</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Driver Performance Distribution -->
+    <div class="col-lg-6">
+      <div class="card shadow mb-4 chart-card">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Driver Performance Distribution</h6>
+        </div>
+        <div class="card-body">
+          <div class="pie-chart-container">
+            <canvas id="performancePieChart"></canvas>
+          </div>
+          <div id="performanceNoData" class="no-data-message" style="display: none;">
+            <i class="fas fa-chart-pie fa-2x text-gray-300 mb-2"></i>
+            <p>No performance data available</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Enhanced Driver Report Table -->
   <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex justify-content-between align-items-center">
-      <h6 class="m-0 font-weight-bold text-primary">Driver Performance Report</h6>
+      <h6 class="m-0 font-weight-bold text-primary">Enhanced Driver Performance Report</h6>
       <span>Period: {{ start_date }} to {{ end_date }}</span>
     </div>
     <div class="card-body">
@@ -240,11 +439,12 @@
             <tr>
               <th>Driver</th>
               <th>License Info</th>
-              <th>Trips</th>
-              <th>Distance</th>
-              <th>Driving Time</th>
-              <th>Fuel</th>
-              <th>Accidents</th>
+              <th>Trip Statistics</th>
+              <th>Distance & Time</th>
+              <th>Fuel Usage</th>
+              <th>Energy Usage</th>
+              <th>Efficiency</th>
+              <th>Safety</th>
               <th>Performance</th>
             </tr>
           </thead>
@@ -252,60 +452,105 @@
             {% for driver in driver_report %}
               <tr>
                 <td>
-                  <div class="font-weight-bold">{{ driver.name }}</div>
-                  <div class="small text-muted">@{{ driver.username }}</div>
+                  <div class="font-weight-bold">{{ driver.name|default:"Unknown Driver" }}</div>
+                  <div class="small text-muted">@{{ driver.username|default:"N/A" }}</div>
                 </td>
                 <td>
                   <div>{{ driver.license_number|default:"Not specified" }}</div>
                   {% load report_filters %}
-                  {% if driver.license_expiry < now.date %}
-                    <div class="small license-expired">
-                      <i class="fas fa-exclamation-circle"></i> Expired on {{ driver.license_expiry|date:"M d, Y" }}
-                    </div>
-                  {% elif driver.license_expiry < now.date|add_days:30 %}
-                    <div class="small license-expiring-soon">
-                      <i class="fas fa-exclamation-triangle"></i> Expires on {{ driver.license_expiry|date:"M d, Y" }}
-                    </div>
+                  {% if driver.license_expiry %}
+                    {% if driver.license_expiry < now.date %}
+                      <div class="small license-expired">
+                        <i class="fas fa-exclamation-circle"></i> Expired on {{ driver.license_expiry|date:"M d, Y" }}
+                      </div>
+                    {% elif driver.license_expiry < now.date|add_days:30 %}
+                      <div class="small license-expiring-soon">
+                        <i class="fas fa-exclamation-triangle"></i> Expires on {{ driver.license_expiry|date:"M d, Y" }}
+                      </div>
+                    {% else %}
+                      <div class="small license-valid">
+                        <i class="fas fa-check-circle"></i> Valid until {{ driver.license_expiry|date:"M d, Y" }}
+                      </div>
+                    {% endif %}
                   {% else %}
-                    <div class="small license-valid">
-                      <i class="fas fa-check-circle"></i> Valid until {{ driver.license_expiry|date:"M d, Y" }}
+                    <div class="small text-muted">
+                      <i class="fas fa-question-circle"></i> License expiry not specified
                     </div>
                   {% endif %}
                 </td>
-                <!-- Trips column in the table -->
                 <td>
                   <div class="font-weight-bold">
                     {{ driver.trip_count|default:"0" }} trip{{ driver.trip_count|default:"0"|pluralize }}
                   </div>
                   <div class="small text-muted">
-                    Avg: {{ driver.avg_distance|default:"0"|floatformat:"1" }} km/trip
+                    Completed: {{ driver.completed_trip_count|default:"0" }}
                   </div>
-                  
-                  <!-- Debug info - remove after fixing -->
-                  {% if debug %}
-                  <div class="small text-info">
-                    Debug: trip_count={{ driver.trip_count|default:"None" }}
+                  <div class="small text-muted">
+                    Ongoing: {{ driver.ongoing_trip_count|default:"0" }}
+                  </div>
+                  {% if driver.cancelled_trip_count %}
+                  <div class="small text-muted">
+                    Cancelled: {{ driver.cancelled_trip_count }}
                   </div>
                   {% endif %}
                 </td>
                 <td>
-                  <div>{{ driver.total_distance|default:"0"|floatformat:1 }} km</div>
-                </td>
-                <td>
-                  <div>{{ driver.total_hours|default:"0"|floatformat:1 }} hours</div>
+                  <div class="font-weight-bold">{{ driver.total_distance|default:"0"|floatformat:1 }} km</div>
                   <div class="small text-muted">
-                    Avg speed: {{ driver.avg_speed|default:"0"|floatformat:1 }} km/h
+                    Avg: {{ driver.avg_distance|default:"0"|floatformat:"1" }} km/trip
+                  </div>
+                  <div class="small text-muted">
+                    Time: {{ driver.total_hours|default:"0"|floatformat:1 }}h
+                  </div>
+                  <div class="small text-muted">
+                    Speed: {{ driver.avg_speed|default:"0"|floatformat:1 }} km/h
                   </div>
                 </td>
                 <td>
-                  <div>{{ driver.fuel_count|default:"0" }} refuels</div>
-                  <div class="small text-muted">
-                    {{ driver.total_fuel|default:"0"|floatformat:1 }} L
-                    (${{ driver.total_fuel_cost|default:"0"|floatformat:2 }})
-                  </div>
+                  {% if driver.total_fuel > 0 %}
+                    <div class="font-weight-bold">{{ driver.total_fuel|floatformat:1 }} L</div>
+                    <div class="small text-muted">
+                      {{ driver.fuel_count|default:"0" }} refuels
+                    </div>
+                    <div class="small text-muted">
+                      ₹{{ driver.total_fuel_cost|default:"0"|floatformat:2 }}
+                    </div>
+                    <span class="badge fuel-type-badge bg-warning">Fuel</span>
+                  {% else %}
+                    <div class="text-muted">No fuel usage</div>
+                  {% endif %}
                 </td>
                 <td>
-                  <div>{{ driver.accident_count|default:"0" }} accidents</div>
+                  {% if driver.total_energy > 0 %}
+                    <div class="font-weight-bold">{{ driver.total_energy|floatformat:1 }} kWh</div>
+                    <div class="small text-muted">
+                      {{ driver.energy_count|default:"0" }} charges
+                    </div>
+                    <div class="small text-muted">
+                      ₹{{ driver.total_energy_cost|default:"0"|floatformat:2 }}
+                    </div>
+                    <span class="badge fuel-type-badge bg-success">Electric</span>
+                  {% else %}
+                    <div class="text-muted">No energy usage</div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if driver.fuel_efficiency > 0 %}
+                    <div class="small">
+                      <i class="fas fa-gas-pump text-warning"></i> {{ driver.fuel_efficiency|floatformat:1 }} km/L
+                    </div>
+                  {% endif %}
+                  {% if driver.energy_efficiency > 0 %}
+                    <div class="small">
+                      <i class="fas fa-bolt text-success"></i> {{ driver.energy_efficiency|floatformat:1 }} km/kWh
+                    </div>
+                  {% endif %}
+                  {% if driver.fuel_efficiency == 0 and driver.energy_efficiency == 0 %}
+                    <div class="text-muted small">No efficiency data</div>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="font-weight-bold">{{ driver.accident_count|default:"0" }} accidents</div>
                   <div class="small text-muted">
                     {{ driver.accidents_per_1000km|default:"0"|floatformat:2 }} per 1000 km
                   </div>
@@ -319,16 +564,22 @@
                     {% elif driver.accidents_per_1000km < 2 %}
                       <span class="badge bg-warning text-dark">Fair</span>
                     {% else %}
-                      <span class="badge bg-danger">Poor</span>
+                      <span class="badge bg-danger">Needs Improvement</span>
                     {% endif %}
                   {% else %}
-                    <span class="badge bg-secondary">No Data</span>
+                    <span class="badge bg-secondary">No Trip Data</span>
                   {% endif %}
                 </td>
               </tr>
             {% empty %}
               <tr>
-                <td colspan="8" class="text-center">No driver data available for the selected period.</td>
+                <td colspan="9" class="text-center">
+                  <div class="py-4">
+                    <i class="fas fa-users fa-3x text-gray-300 mb-3"></i>
+                    <p class="text-muted">No driver data available for the selected period.</p>
+                    <p class="small text-muted">Try adjusting the date range or check if drivers have completed any trips.</p>
+                  </div>
+                </td>
               </tr>
             {% endfor %}
           </tbody>
@@ -343,131 +594,373 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    // Format dates
-    const today = new Date().toISOString().split('T')[0];
-    const startDateInput = document.querySelector('input[name="start_date"]');
-    const endDateInput = document.querySelector('input[name="end_date"]');
+    console.log('=== ENHANCED DRIVER REPORT LOADING ===');
     
-    if (startDateInput && endDateInput) {
-      endDateInput.max = today;
-      
-      startDateInput.addEventListener('change', function() {
-        endDateInput.min = this.value;
-        if (endDateInput.value && new Date(endDateInput.value) < new Date(this.value)) {
-          endDateInput.value = this.value;
-        }
-      });
-      
-      endDateInput.addEventListener('change', function() {
-        startDateInput.max = this.value;
-      });
-      
-      // Set initial constraints
-      if (startDateInput.value) {
-        endDateInput.min = startDateInput.value;
-      }
-      if (endDateInput.value) {
-        startDateInput.max = endDateInput.value;
-      } else {
-        startDateInput.max = today;
-      }
-    }
-    
-    // Initialize DataTable
-    $('#dataTable').DataTable({
-      order: [[3, 'desc']], // Sort by total distance
-      pageLength: 25,
-      columnDefs: [
-        { orderable: false, targets: [7] } // Disable sorting on performance column
-      ]
-    });
-    
-    // Prepare chart data
-    const driverData = [
+    // Prepare enhanced driver data with fuel and energy
+    const rawDriverData = [
       {% for driver in driver_report %}
         {
-          name: "{{ driver.name }}",
-          distance: {{ driver.total_distance|default:0|floatformat:0 }},
-          trips: {{ driver.trip_count|default:0 }}
-        },
+          name: "{{ driver.name|escapejs|default:'Unknown' }}",
+          distance: parseFloat("{{ driver.total_distance|default:0 }}") || 0,
+          trips: parseInt("{{ driver.trip_count|default:0 }}") || 0,
+          completed_trips: parseInt("{{ driver.completed_trip_count|default:0 }}") || 0,
+          ongoing_trips: parseInt("{{ driver.ongoing_trip_count|default:0 }}") || 0,
+          cancelled_trips: parseInt("{{ driver.cancelled_trip_count|default:0 }}") || 0,
+          fuel_usage: parseFloat("{{ driver.total_fuel|default:0 }}") || 0,
+          energy_usage: parseFloat("{{ driver.total_energy|default:0 }}") || 0,
+          fuel_efficiency: parseFloat("{{ driver.fuel_efficiency|default:0 }}") || 0,
+          energy_efficiency: parseFloat("{{ driver.energy_efficiency|default:0 }}") || 0,
+          fuel_cost: parseFloat("{{ driver.total_fuel_cost|default:0 }}") || 0,
+          energy_cost: parseFloat("{{ driver.total_energy_cost|default:0 }}") || 0,
+          avg_speed: parseFloat("{{ driver.avg_speed|default:0 }}") || 0,
+          accidents: parseInt("{{ driver.accident_count|default:0 }}") || 0,
+          accidents_per_1000km: parseFloat("{{ driver.accidents_per_1000km|default:0 }}") || 0
+        }{% if not forloop.last %},{% endif %}
+      {% empty %}
       {% endfor %}
     ];
     
-    // Sort by distance
-    driverData.sort((a, b) => b.distance - a.distance);
+    console.log('Enhanced driver data:', rawDriverData);
     
-    // Take top 10 drivers for chart
-    const topDrivers = driverData.slice(0, 10);
+    // Color schemes
+    const colors = {
+      primary: ['#4e73df', '#36b9cc', '#1cc88a', '#f6c23e', '#e74a3b', '#858796', '#5a5c69'],
+      bright: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'],
+      fuel: '#f6c23e',
+      energy: '#1cc88a'
+    };
     
-    // Distance by Driver Chart
-    const distanceCtx = document.getElementById('distanceByDriverChart').getContext('2d');
-    new Chart(distanceCtx, {
-      type: 'bar',
-      data: {
-        labels: topDrivers.map(d => d.name),
-        datasets: [{
-          label: 'Total Distance (km)',
-          data: topDrivers.map(d => d.distance),
-          backgroundColor: 'rgba(78, 115, 223, 0.8)',
-          borderColor: 'rgba(78, 115, 223, 1)',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: 'Distance (km)'
+    // 1. Distance by Driver Bar Chart
+    const driversWithDistance = rawDriverData.filter(d => d.distance > 0);
+    if (driversWithDistance.length > 0) {
+      driversWithDistance.sort((a, b) => b.distance - a.distance);
+      const topDriversByDistance = driversWithDistance.slice(0, 8);
+      
+      const distanceCtx = document.getElementById('distanceByDriverChart').getContext('2d');
+      new Chart(distanceCtx, {
+        type: 'bar',
+        data: {
+          labels: topDriversByDistance.map(d => d.name),
+          datasets: [{
+            label: 'Distance (km)',
+            data: topDriversByDistance.map(d => d.distance),
+            backgroundColor: colors.primary[0],
+            borderColor: colors.primary[0],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'Distance (km)' } }
+          }
+        }
+      });
+    } else {
+      document.getElementById('distanceByDriverChart').style.display = 'none';
+      document.getElementById('distanceChartNoData').style.display = 'block';
+    }
+    
+    // 2. Trips by Driver Bar Chart
+    const driversWithTrips = rawDriverData.filter(d => d.trips > 0);
+    if (driversWithTrips.length > 0) {
+      driversWithTrips.sort((a, b) => b.trips - a.trips);
+      const topDriversByTrips = driversWithTrips.slice(0, 8);
+      
+      const tripsCtx = document.getElementById('tripsByDriverChart').getContext('2d');
+      new Chart(tripsCtx, {
+        type: 'bar',
+        data: {
+          labels: topDriversByTrips.map(d => d.name),
+          datasets: [{
+            label: 'Number of Trips',
+            data: topDriversByTrips.map(d => d.trips),
+            backgroundColor: colors.primary[2],
+            borderColor: colors.primary[2],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'Number of Trips' } }
+          }
+        }
+      });
+    } else {
+      document.getElementById('tripsByDriverChart').style.display = 'none';
+      document.getElementById('tripsChartNoData').style.display = 'block';
+    }
+    
+    // 3. Fuel vs Energy Usage Pie Chart
+    const totalFuel = rawDriverData.reduce((sum, d) => sum + d.fuel_usage, 0);
+    const totalEnergy = rawDriverData.reduce((sum, d) => sum + d.energy_usage, 0);
+    
+    if (totalFuel > 0 || totalEnergy > 0) {
+      const fuelEnergyCtx = document.getElementById('fuelEnergyPieChart').getContext('2d');
+      new Chart(fuelEnergyCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Fuel (Liters)', 'Energy (kWh)'],
+          datasets: [{
+            data: [totalFuel, totalEnergy],
+            backgroundColor: [colors.fuel, colors.energy],
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { padding: 20, usePointStyle: true }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const unit = context.dataIndex === 0 ? 'L' : 'kWh';
+                  return `${context.label}: ${context.parsed.toFixed(1)} ${unit}`;
+                }
+              }
             }
           },
-          x: {
-            title: {
-              display: true,
-              text: 'Driver'
+          cutout: '50%'
+        }
+      });
+    } else {
+      document.getElementById('fuelEnergyPieChart').style.display = 'none';
+      document.getElementById('fuelEnergyNoData').style.display = 'block';
+    }
+    
+    // 4. Fuel Efficiency Chart
+    const driversWithFuelEfficiency = rawDriverData.filter(d => d.fuel_efficiency > 0);
+    if (driversWithFuelEfficiency.length > 0) {
+      driversWithFuelEfficiency.sort((a, b) => b.fuel_efficiency - a.fuel_efficiency);
+      const topFuelEfficient = driversWithFuelEfficiency.slice(0, 8);
+      
+      const fuelEfficiencyCtx = document.getElementById('fuelEfficiencyChart').getContext('2d');
+      new Chart(fuelEfficiencyCtx, {
+        type: 'line',
+        data: {
+          labels: topFuelEfficient.map(d => d.name),
+          datasets: [{
+            label: 'Fuel Efficiency (km/L)',
+            data: topFuelEfficient.map(d => d.fuel_efficiency),
+            borderColor: colors.fuel,
+            backgroundColor: colors.fuel + '20',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: colors.fuel,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'top' }
+          },
+          scales: {
+            y: { 
+              beginAtZero: true, 
+              title: { display: true, text: 'Efficiency (km/L)' }
             }
           }
         }
-      }
-    });
+      });
+    } else {
+      document.getElementById('fuelEfficiencyChart').style.display = 'none';
+      document.getElementById('fuelEfficiencyNoData').style.display = 'block';
+    }
     
-    // Trips by Driver Chart
-    const tripsCtx = document.getElementById('tripsByDriverChart').getContext('2d');
-    new Chart(tripsCtx, {
-      type: 'bar',
-      data: {
-        labels: topDrivers.map(d => d.name),
-        datasets: [{
-          label: 'Number of Trips',
-          data: topDrivers.map(d => d.trips),
-          backgroundColor: 'rgba(28, 200, 138, 0.8)',
-          borderColor: 'rgba(28, 200, 138, 1)',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: 'Number of Trips'
-            }
+    // 5. Energy Efficiency Chart
+    const driversWithEnergyEfficiency = rawDriverData.filter(d => d.energy_efficiency > 0);
+    if (driversWithEnergyEfficiency.length > 0) {
+      driversWithEnergyEfficiency.sort((a, b) => b.energy_efficiency - a.energy_efficiency);
+      const topEnergyEfficient = driversWithEnergyEfficiency.slice(0, 8);
+      
+      const energyEfficiencyCtx = document.getElementById('energyEfficiencyChart').getContext('2d');
+      new Chart(energyEfficiencyCtx, {
+        type: 'line',
+        data: {
+          labels: topEnergyEfficient.map(d => d.name),
+          datasets: [{
+            label: 'Energy Efficiency (km/kWh)',
+            data: topEnergyEfficient.map(d => d.energy_efficiency),
+            borderColor: colors.energy,
+            backgroundColor: colors.energy + '20',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: colors.energy,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'top' }
           },
-          x: {
-            title: {
-              display: true,
-              text: 'Driver'
+          scales: {
+            y: { 
+              beginAtZero: true, 
+              title: { display: true, text: 'Efficiency (km/kWh)' }
             }
           }
         }
+      });
+    } else {
+      document.getElementById('energyEfficiencyChart').style.display = 'none';
+      document.getElementById('energyEfficiencyNoData').style.display = 'block';
+    }
+    
+    // 6. Trip Status Distribution Pie Chart
+    const totalCompleted = rawDriverData.reduce((sum, d) => sum + d.completed_trips, 0);
+    const totalOngoing = rawDriverData.reduce((sum, d) => sum + d.ongoing_trips, 0);
+    const totalCancelled = rawDriverData.reduce((sum, d) => sum + d.cancelled_trips, 0);
+    
+    if (totalCompleted > 0 || totalOngoing > 0 || totalCancelled > 0) {
+      const tripStatusCtx = document.getElementById('tripStatusPieChart').getContext('2d');
+      new Chart(tripStatusCtx, {
+        type: 'pie',
+        data: {
+          labels: ['Completed', 'Ongoing', 'Cancelled'],
+          datasets: [{
+            data: [totalCompleted, totalOngoing, totalCancelled],
+            backgroundColor: [colors.primary[2], colors.primary[3], colors.primary[4]],
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { padding: 20, usePointStyle: true }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = ((context.parsed / total) * 100).toFixed(1);
+                  return `${context.label}: ${context.parsed} (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    } else {
+      document.getElementById('tripStatusPieChart').style.display = 'none';
+      document.getElementById('tripStatusNoData').style.display = 'block';
+    }
+    
+    // 7. Driver Performance Distribution Pie Chart
+    let excellent = 0, good = 0, fair = 0, needsImprovement = 0, noData = 0;
+    
+    rawDriverData.forEach(d => {
+      if (d.distance > 0) {
+        if (d.accidents_per_1000km < 0.5) excellent++;
+        else if (d.accidents_per_1000km < 1) good++;
+        else if (d.accidents_per_1000km < 2) fair++;
+        else needsImprovement++;
+      } else {
+        noData++;
       }
     });
+    
+    if (excellent > 0 || good > 0 || fair > 0 || needsImprovement > 0) {
+      const performanceCtx = document.getElementById('performancePieChart').getContext('2d');
+      new Chart(performanceCtx, {
+        type: 'pie',
+        data: {
+          labels: ['Excellent', 'Good', 'Fair', 'Needs Improvement', 'No Data'],
+          datasets: [{
+            data: [excellent, good, fair, needsImprovement, noData],
+            backgroundColor: [colors.primary[2], colors.primary[0], colors.primary[3], colors.primary[4], colors.primary[5]],
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { padding: 15, usePointStyle: true }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = ((context.parsed / total) * 100).toFixed(1);
+                  return `${context.label}: ${context.parsed} drivers (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    } else {
+      document.getElementById('performancePieChart').style.display = 'none';
+      document.getElementById('performanceNoData').style.display = 'block';
+    }
+    
+    // Initialize DataTable with enhanced features
+    $('#dataTable').DataTable({
+      order: [[2, 'desc']],
+      pageLength: 25,
+      columnDefs: [
+        { orderable: false, targets: [8] },
+        { type: 'num', targets: [2, 3, 4, 5, 6, 7] }
+      ],
+      responsive: true,
+      dom: 'Bfrtip',
+      buttons: [
+        {
+          extend: 'excel',
+          text: 'Export to Excel',
+          className: 'btn btn-success btn-sm'
+        },
+        {
+          extend: 'csv',
+          text: 'Export to CSV',
+          className: 'btn btn-primary btn-sm'
+        },
+        {
+          extend: 'pdf',
+          text: 'Export to PDF',
+          className: 'btn btn-danger btn-sm',
+          orientation: 'landscape',
+          pageSize: 'A4'
+        }
+      ]
+    });
+    
+    // Add fuel/energy summary info
+    console.log('Fuel/Energy Summary:', {
+      totalFuel: totalFuel.toFixed(1),
+      totalEnergy: totalEnergy.toFixed(1),
+      driversWithFuel: driversWithFuelEfficiency.length,
+      driversWithEnergy: driversWithEnergyEfficiency.length
+    });
+    
+    console.log('=== ENHANCED DRIVER REPORT LOADED SUCCESSFULLY ===');
   });
 </script>
 {% endblock %}
