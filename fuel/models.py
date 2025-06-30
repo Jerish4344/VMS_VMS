@@ -67,6 +67,20 @@ class FuelTransaction(models.Model):
         help_text="Charging duration in minutes (for electric vehicles)"
     )
     
+    # Invoice/Finance Fields for Admin/Finance Team
+    company_invoice_number = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Internal company invoice number for finance tracking"
+    )
+    station_invoice_number = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Invoice/receipt number from the fuel station"
+    )
+    
     # Common fields
     total_cost = models.DecimalField(max_digits=10, decimal_places=2)
     odometer_reading = models.PositiveIntegerField(help_text="Current odometer reading in km")

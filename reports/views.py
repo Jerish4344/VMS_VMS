@@ -1047,9 +1047,9 @@ class FuelReportView(ReportBaseView):
             
             vehicle_efficiency.append(vehicle_data)
         
-        # Prepare data for detailed report
+        # Prepare data for detailed report INCLUDING INVOICE FIELDS
         fuel_report = []
-        for transaction in fuel_transactions:
+        for transaction in fuel_transactions.order_by('-date'):  # Order by date descending for better display
             fuel_report.append({
                 'id': transaction.id,
                 'date': transaction.date,
@@ -1064,6 +1064,9 @@ class FuelReportView(ReportBaseView):
                 'charging_duration_minutes': transaction.charging_duration_minutes,
                 'total_cost': transaction.total_cost,
                 'odometer_reading': transaction.odometer_reading,
+                # NEW: Include invoice fields
+                'company_invoice_number': transaction.company_invoice_number or '',
+                'station_invoice_number': transaction.station_invoice_number or '',
                 'is_electric': transaction.fuel_type == 'Electric'
             })
         
@@ -1107,11 +1110,12 @@ class FuelReportView(ReportBaseView):
         return context
     
     def get_export_data(self, context):
-        """Prepare data for export"""
+        """Prepare data for export with INVOICE FIELDS INCLUDED"""
         headers = [
             'Date', 'Vehicle', 'Driver', 'Fuel Station', 'Fuel Type',
             'Quantity (L)', 'Energy (kWh)', 'Cost per Liter', 'Cost per kWh',
-            'Charging Duration (min)', 'Total Cost', 'Odometer Reading', 'Type'
+            'Charging Duration (min)', 'Total Cost', 'Odometer Reading', 
+            'Company Invoice Number', 'Station Invoice Number', 'Type'
         ]
         
         # Transform data for export
@@ -1130,9 +1134,11 @@ class FuelReportView(ReportBaseView):
                 'charging_duration_(min)': transaction['charging_duration_minutes'] or 0,
                 'total_cost': transaction['total_cost'] or 0,
                 'odometer_reading': transaction['odometer_reading'] or 0,
+                'company_invoice_number': transaction['company_invoice_number'],
+                'station_invoice_number': transaction['station_invoice_number'],
                 'type': 'Electric' if transaction['is_electric'] else 'Fuel'
             })
         
-        filename = f"fuel_energy_report_{context['start_date']}_to_{context['end_date']}"
+        filename = f"fuel_energy_report_with_invoices_{context['start_date']}_to_{context['end_date']}"
         
         return export_data, filename, headers

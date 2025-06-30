@@ -7,12 +7,23 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'your-secret-key-change-in-production'
+SECRET_KEY = '41o!--&b-+974d)us83w0$l0y_%xhw(-7+xxn4h0n*=c#hjt5-'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['192.168.137.35', '*', '127.0.0.1']
+ALLOWED_HOSTS = [
+    '44.202.73.68',
+    'vms.jeyarama.com',
+    'localhost',
+    '127.0.0.1'
+]
+
+# SSL Settings
+SECURE_SSL_REDIRECT = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 # Application definition
 
@@ -82,12 +93,22 @@ WSGI_APPLICATION = 'vehicle_management.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'mysql.connector.django',
-        'NAME': 'vms_db',
-        'USER': 'root',
-        'PASSWORD': 'root@2001',
-        'HOST': 'localhost',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'vms',
+        'USER': 'admin',
+        'PASSWORD': 'Qsys160w',
+        'HOST': 'database-1.cu94as0wos8e.us-east-1.rds.amazonaws.com',
         'PORT': '3306',
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+            'autocommit': True,
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'connect_timeout': 30,  # Reduced from 60
+            'read_timeout': 60,     # Reduced from 300
+            'write_timeout': 60,    # Reduced from 300
+        },
+        'CONN_MAX_AGE': 300,  # Keep connections alive for 5 minutes
+        'CONN_HEALTH_CHECKS': True,  # Enable connection health checks
     }
 }
 
@@ -271,9 +292,19 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.0/howto/static-files/
 
-STATIC_URL = 'static/'
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# Add your app's static directories
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),  # if you have a main static folder
+    # Add other static directories if needed
+]
+
+# Make sure you have this
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]
 
 # Media files
 MEDIA_URL = '/media/'
@@ -455,3 +486,12 @@ LOGGING = {
         },
     },
 }
+
+# Bulk upload settings
+FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000    # For many records
+
+# Disable atomic requests for bulk operations
+ATOMIC_REQUESTS = False
+

@@ -23,74 +23,6 @@
     transform: scale(1.02);
   }
   
-  .vehicle-search-container {
-    position: relative;
-  }
-  
-  .search-icon {
-    position: absolute;
-    right: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #858796;
-    z-index: 10;
-    pointer-events: none;
-  }
-  
-  .form-select {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
-    background-size: 16px 12px;
-  }
-  
-  .form-select:focus {
-    border-color: #4e73df;
-    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
-  }
-  
-  .filter-buttons .btn {
-    transition: all 0.2s ease;
-  }
-  
-  .filter-buttons .btn:hover {
-    transform: translateY(-1px);
-  }
-  
-  .vehicle-preview-card {
-    border: none;
-    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
-    transition: all 0.3s ease;
-  }
-  
-  .vehicle-preview-card:hover {
-    box-shadow: 0 0.25rem 2rem 0 rgba(58, 59, 69, 0.2);
-  }
-  
-  .no-vehicles-message {
-    text-align: center;
-    padding: 3rem 1rem;
-    background-color: #f8f9fc;
-    border-radius: 0.5rem;
-    margin-bottom: 1.5rem;
-  }
-  
-  .no-vehicles-message i {
-    font-size: 3rem;
-    color: #d1d3e2;
-    margin-bottom: 1rem;
-  }
-  
-  .no-vehicles-message h5 {
-    font-weight: 700;
-    color: #5a5c69;
-    margin-bottom: 0.5rem;
-  }
-  
-  .no-vehicles-message p {
-    color: #858796;
-  }
-  
   .form-step {
     display: none;
   }
@@ -176,84 +108,319 @@
     border-bottom: none;
   }
 
-  /* Google Maps Integration Styles */
-  #mapContainer {
-    height: 400px;
-    border-radius: 0.5rem;
-    overflow: hidden;
-    border: 1px solid #e3e6f0;
-    margin-top: 1rem;
+  .filter-buttons .btn {
+    transition: all 0.2s ease;
+  }
+  
+  .filter-buttons .btn:hover {
+    transform: translateY(-1px);
   }
 
-  #map {
-    height: 100%;
-    width: 100%;
-  }
-
-  .distance-info {
-    background-color: #e8f4fd;
-    border: 1px solid #bee5eb;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    margin-top: 1rem;
+  .no-vehicles-message {
     text-align: center;
+    padding: 3rem 1rem;
+    background-color: #f8f9fc;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .no-vehicles-message i {
+    font-size: 3rem;
+    color: #d1d3e2;
+    margin-bottom: 1rem;
+  }
+  
+  .no-vehicles-message h5 {
+    font-weight: 700;
+    color: #5a5c69;
+    margin-bottom: 0.5rem;
+  }
+  
+  .no-vehicles-message p {
+    color: #858796;
   }
 
-  .distance-value {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: #1cc88a;
+  /* Searchable Vehicle Dropdown Styles */
+  .vehicle-search-wrapper {
+    position: relative;
   }
 
-  .vehicle-search-dropdown {
+  .vehicle-search-input {
+    width: 100%;
+    padding: 0.75rem 2.5rem 0.75rem 0.75rem;
+    border: 1px solid #d1d3e2;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    background-color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .vehicle-search-input:focus {
+    border-color: #4e73df;
+    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    outline: none;
+    cursor: text;
+  }
+
+  .vehicle-search-input.has-value {
+    color: #5a5c69;
+    font-weight: 500;
+  }
+
+  .vehicle-search-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #858796;
+    pointer-events: none;
+    transition: all 0.2s ease;
+  }
+
+  .vehicle-search-clear {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #858796;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 50%;
+    display: none;
+    transition: all 0.2s ease;
+  }
+
+  .vehicle-search-clear:hover {
+    color: #e74a3b;
+    background-color: #f8f9fc;
+  }
+
+  .vehicle-dropdown {
     position: absolute;
     top: 100%;
     left: 0;
     right: 0;
+    z-index: 1050;
     background: white;
     border: 1px solid #e3e6f0;
-    border-top: none;
-    border-radius: 0 0 0.25rem 0.25rem;
-    max-height: 250px;
-    overflow-y: auto;
-    z-index: 1000;
+    border-radius: 0.375rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    max-height: 400px;
     display: none;
+    margin-top: 0.25rem;
+    overflow: hidden;
   }
 
-  .vehicle-option {
+  .vehicle-dropdown.show {
+    display: block;
+    animation: dropdownFadeIn 0.2s ease-out;
+  }
+
+  @keyframes dropdownFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .vehicle-dropdown-header {
     padding: 0.75rem 1rem;
-    cursor: pointer;
-    border-bottom: 1px solid #f1f1f1;
-    transition: background-color 0.2s;
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #5a5c69;
   }
 
-  .vehicle-option:hover {
+  .vehicle-dropdown-list {
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .vehicle-dropdown-item {
+    padding: 1rem;
+    border-bottom: 1px solid #f1f1f1;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .vehicle-dropdown-item:hover {
     background-color: #f8f9fc;
   }
 
-  .vehicle-option:last-child {
+  .vehicle-dropdown-item:last-child {
     border-bottom: none;
   }
 
-  .vehicle-option-main {
+  .vehicle-dropdown-item.selected {
+    background-color: #e3f2fd;
+    border-left: 4px solid #4e73df;
+  }
+
+  .vehicle-dropdown-item.focused {
+    background-color: #f0f8ff;
+    outline: 2px solid #4e73df;
+    outline-offset: -2px;
+  }
+
+  .vehicle-item-image {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 0.375rem;
+    border: 1px solid #e3e6f0;
+  }
+
+  .vehicle-item-icon {
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.375rem;
+    color: #858796;
+    font-size: 1.25rem;
+  }
+
+  .vehicle-item-details {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .vehicle-item-details h6 {
+    margin: 0 0 0.25rem 0;
     font-weight: 600;
-    color: #2c3e50;
-  }
-
-  .vehicle-option-details {
+    color: #5a5c69;
     font-size: 0.875rem;
-    color: #6c757d;
-    margin-top: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .odometer-distance {
-    background-color: #fff3cd;
-    border: 1px solid #ffeaa7;
-    border-radius: 0.5rem;
-    padding: 0.75rem;
-    margin-top: 0.5rem;
+  .vehicle-item-details .text-muted {
+    font-size: 0.75rem;
+    margin: 0;
+    color: #858796;
+  }
+
+  .vehicle-item-badges {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .vehicle-item-badges .badge {
+    font-size: 0.65rem;
+    padding: 0.25rem 0.5rem;
+    white-space: nowrap;
+  }
+
+  .no-vehicles-found {
     text-align: center;
-    font-size: 0.9rem;
+    padding: 2rem 1rem;
+    color: #858796;
+  }
+
+  .no-vehicles-found i {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: #d1d3e2;
+  }
+
+  .no-vehicles-found h6 {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #5a5c69;
+  }
+
+  .no-vehicles-found p {
+    margin: 0;
+    font-size: 0.875rem;
+  }
+
+  /* Custom scrollbar for dropdown */
+  .vehicle-dropdown-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .vehicle-dropdown-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+
+  .vehicle-dropdown-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+  }
+
+  .vehicle-dropdown-list::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+  }
+
+  /* Loading state */
+  .vehicle-dropdown-loading {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: #858796;
+  }
+
+  .vehicle-dropdown-loading i {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  /* Starting location info card */
+  .starting-location-info {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .starting-location-info .icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .vehicle-dropdown {
+      max-height: 300px;
+    }
+    
+    .vehicle-dropdown-list {
+      max-height: 220px;
+    }
+    
+    .vehicle-dropdown-item {
+      padding: 0.75rem;
+    }
+    
+    .vehicle-item-image,
+    .vehicle-item-icon {
+      width: 40px;
+      height: 40px;
+    }
   }
 </style>
 {% endblock %}
@@ -279,7 +446,7 @@
     <div class="card-body">
       <div class="step-indicator">
         <div class="step active" id="step1-indicator">1. Select Vehicle</div>
-        <div class="step" id="step2-indicator">2. Route & Details</div>
+        <div class="step" id="step2-indicator">2. Trip Details</div>
         <div class="step" id="step3-indicator">3. Confirm</div>
       </div>
       
@@ -293,36 +460,45 @@
           
           {% if available_vehicles %}
           
-          <!-- Vehicle Selection with Search -->
+          <!-- Searchable Vehicle Selection -->
           <div class="mb-3">
-            <label for="vehicleSearch" class="form-label">
-              <i class="fas fa-car me-1"></i>Search and Select Vehicle
+            <label for="vehicleSearchInput" class="form-label">
+              <i class="fas fa-car me-1"></i>Available Vehicles
             </label>
-            <div class="vehicle-search-container position-relative">
-              <input type="text" class="form-control" id="vehicleSearch" 
-                     placeholder="Search vehicles by name, plate, type..." autocomplete="off">
-              <div class="vehicle-search-dropdown" id="vehicleDropdown"></div>
+            <div class="vehicle-search-wrapper">
+              <input 
+                type="text" 
+                class="vehicle-search-input" 
+                id="vehicleSearchInput" 
+                placeholder="Click to select or type to search vehicles..."
+                autocomplete="off"
+                readonly
+              >
+              <i class="fas fa-chevron-down vehicle-search-icon" id="vehicleSearchIcon"></i>
+              <button type="button" class="vehicle-search-clear" id="vehicleSearchClear">
+                <i class="fas fa-times"></i>
+              </button>
+              
+              <!-- Hidden form field -->
+              <input type="hidden" name="vehicle" id="{{ form.vehicle.id_for_label }}" value="">
+              
+              <!-- Custom dropdown -->
+              <div class="vehicle-dropdown" id="vehicleDropdown">
+                <div class="vehicle-dropdown-header">
+                  <span id="vehicleDropdownHeader">Available Vehicles ({{ available_vehicles|length }})</span>
+                </div>
+                <div class="vehicle-dropdown-list" id="vehicleDropdownList">
+                  <!-- Populated by JavaScript -->
+                </div>
+              </div>
             </div>
-            <!-- Hidden actual form field -->
-            <select class="form-control d-none" id="{{ form.vehicle.id_for_label }}" name="vehicle" required>
-              <option value="">Choose a vehicle...</option>
-              {% for vehicle in available_vehicles %}
-              <option value="{{ vehicle.id }}" 
-                      data-odometer="{{ vehicle.current_odometer|default:'0' }}"
-                      data-make="{{ vehicle.make }}"
-                      data-model="{{ vehicle.model }}"
-                      data-type="{{ vehicle.vehicle_type.name|default:'Unknown' }}"
-                      data-fuel="{{ vehicle.fuel_type|default:'Unknown' }}"
-                      data-plate="{{ vehicle.license_plate }}"
-                      {% if vehicle.image %}data-image="{{ vehicle.image.url }}"{% endif %}>
-                {{ vehicle.make }} {{ vehicle.model }} - {{ vehicle.license_plate }}
-              </option>
-              {% endfor %}
-            </select>
+            
             {% if form.vehicle.errors %}
             <div class="invalid-feedback d-block">{{ form.vehicle.errors }}</div>
             {% endif %}
-            <div class="form-text">Search and select an available vehicle for your trip</div>
+            <div class="form-text">
+              Search by make, model, license plate, or vehicle type
+            </div>
           </div>
           
           <!-- Driver Selection for Management Users -->
@@ -344,9 +520,9 @@
           {% endif %}
           
           <!-- Quick Vehicle Filter Buttons -->
-          <!-- <div class="mb-4 filter-buttons">
+          <div class="mb-4 filter-buttons">
             <small class="text-muted">Quick filters:</small><br>
-            <button type="button" class="btn btn-outline-secondary btn-sm me-2 mt-1" data-filter="all">
+            <button type="button" class="btn btn-primary btn-sm me-2 mt-1" data-filter="all">
               <i class="fas fa-list me-1"></i>All Vehicles
             </button>
             {% for vehicle_type in vehicle_types %}
@@ -354,7 +530,7 @@
               <i class="fas fa-car me-1"></i>{{ vehicle_type.name }}
             </button>
             {% endfor %}
-          </div> -->
+          </div>
           
           <div class="mt-4 text-end">
             <button type="button" class="btn btn-primary" id="step1Next" disabled>
@@ -371,82 +547,52 @@
           {% endif %}
         </div>
         
-        <!-- Step 2: Route & Trip Details -->
+        <!-- Step 2: Trip Details (No Destination Required) -->
         <div class="form-step" id="step2">
-          <h5 class="mb-3">Route & Trip Details</h5>
+          <h5 class="mb-3">Trip Details</h5>
           
-          <!-- Route Information -->
+          <!-- Starting Location Information -->
+          <div class="starting-location-info">
+            <div class="text-center">
+              <i class="fas fa-map-marker-alt icon"></i>
+              <h5 class="mb-2">Starting Location</h5>
+              <p class="mb-0">Enter where you're beginning this trip from</p>
+            </div>
+          </div>
+          
+          <!-- Starting Location -->
           <div class="row mb-4">
-            <div class="col-md-6">
+            <div class="col-md-12">
               <div class="mb-3 position-relative">
                 <label for="{{ form.origin.id_for_label }}" class="form-label">
                   <i class="fas fa-map-marker-alt text-success me-1"></i>
-                  Starting Location (From)
+                  Starting Location
                 </label>
                 {{ form.origin }}
                 {% if form.origin.errors %}
                 <div class="invalid-feedback d-block">{{ form.origin.errors }}</div>
                 {% endif %}
                 <div class="form-text">
-                  Enter your starting point (office, warehouse, etc.)
+                  Enter your starting point (office, warehouse, home, etc.)
                 </div>
                 <div class="location-suggestions" id="originSuggestions"></div>
               </div>
             </div>
-            
-            <div class="col-md-6">
-              <div class="mb-3 position-relative">
-                <label for="{{ form.destination.id_for_label }}" class="form-label">
-                  <i class="fas fa-map-marker-alt text-danger me-1"></i>
-                  Destination (To)
-                </label>
-                {{ form.destination }}
-                {% if form.destination.errors %}
-                <div class="invalid-feedback d-block">{{ form.destination.errors }}</div>
-                {% endif %}
-                <div class="form-text">
-                  Enter your destination (client office, delivery point, etc.)
-                </div>
-                <div class="location-suggestions" id="destinationSuggestions"></div>
-              </div>
-            </div>
           </div>
 
-          <!-- Google Map -->
-          <div id="mapContainer">
-            <div id="map"></div>
-          </div>
-
-          <!-- Distance Information -->
-          <div class="distance-info" id="distanceInfo" style="display: none;">
-            <div class="row">
-              <div class="col-md-6 text-center">
-                <div class="distance-value" id="mapDistance">-- km</div>
-                <div class="text-muted">Map Distance</div>
-              </div>
-              <div class="col-md-6 text-center">
-                <div class="distance-value" id="estimatedTime">-- min</div>
-                <div class="text-muted">Estimated Time</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Route Preview -->
-          <div class="route-preview" id="routePreview">
-            <div class="d-flex align-items-center justify-content-center">
-              <span class="text-success fw-bold" id="previewOrigin">Origin</span>
-              <span class="route-arrow">
-                <i class="fas fa-long-arrow-alt-right"></i>
-              </span>
-              <span class="text-danger fw-bold" id="previewDestination">Destination</span>
-            </div>
+          <!-- Destination Notice -->
+          <div class="alert alert-info mb-4">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Note:</strong> You don't need to specify your destination now. You can add it when you end the trip, as many trips involve multiple stops or unknown final destinations.
           </div>
           
           <!-- Trip Details -->
           <div class="row mt-4">
             <div class="col-md-6">
               <div class="mb-3">
-                <label for="{{ form.start_odometer.id_for_label }}" class="form-label">Start Odometer Reading (km)</label>
+                <label for="{{ form.start_odometer.id_for_label }}" class="form-label">
+                  <i class="fas fa-tachometer-alt me-1"></i>Start Odometer Reading (km)
+                </label>
                 {{ form.start_odometer }}
                 {% if form.start_odometer.errors %}
                 <div class="invalid-feedback d-block">{{ form.start_odometer.errors }}</div>
@@ -459,44 +605,31 @@
             
             <div class="col-md-6">
               <div class="mb-3">
-                <label for="{{ form.purpose.id_for_label }}" class="form-label">Purpose of Trip</label>
+                <label for="{{ form.purpose.id_for_label }}" class="form-label">
+                  <i class="fas fa-clipboard-list me-1"></i>Purpose of Trip
+                </label>
                 {{ form.purpose }}
                 {% if form.purpose.errors %}
                 <div class="invalid-feedback d-block">{{ form.purpose.errors }}</div>
                 {% endif %}
                 <div class="form-text">
-                  Briefly describe the purpose of this trip (e.g., Client Visit, Delivery)
+                  Briefly describe the purpose (e.g., Client Visit, Delivery Route, Field Work)
                 </div>
               </div>
             </div>
           </div>
-
-          <!-- End Odometer (Hidden initially, shown after trip starts) -->
-          <div class="row" id="endOdometerSection" style="display: none;">
-            <div class="col-md-6">
-              <div class="mb-3">
-                <label for="endOdometer" class="form-label">End Odometer Reading (km)</label>
-                <input type="number" class="form-control" id="endOdometer" 
-                       placeholder="Enter end odometer reading" step="0.1" disabled>
-                <div class="form-text">Enter the odometer reading when the trip ends</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Odometer vs Map Distance Comparison -->
-          <div class="odometer-distance" id="odometerComparison" style="display: none;">
-            <strong>Distance Comparison:</strong><br>
-            <span id="odometerDistanceText">Odometer Distance: -- km</span> | 
-            <span id="mapDistanceText">Map Distance: -- km</span> | 
-            <span id="distanceDifference">Difference: -- km</span>
-          </div>
           
           <div class="mb-3">
-            <label for="{{ form.notes.id_for_label }}" class="form-label">Additional Notes (Optional)</label>
+            <label for="{{ form.notes.id_for_label }}" class="form-label">
+              <i class="fas fa-sticky-note me-1"></i>Additional Notes (Optional)
+            </label>
             {{ form.notes }}
             {% if form.notes.errors %}
             <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
             {% endif %}
+            <div class="form-text">
+              Any additional information about the trip (passengers, special equipment, etc.)
+            </div>
           </div>
           
           <div class="mt-4 d-flex justify-content-between">
@@ -515,7 +648,9 @@
           
           <div class="card mb-3">
             <div class="card-body">
-              <h6 class="card-title">Selected Vehicle</h6>
+              <h6 class="card-title">
+                <i class="fas fa-car me-1"></i>Selected Vehicle
+              </h6>
               <div id="selectedVehicleInfo">
                 <!-- Populated by JavaScript -->
               </div>
@@ -524,8 +659,10 @@
 
           <div class="card mb-3">
             <div class="card-body">
-              <h6 class="card-title">Route Information</h6>
-              <div id="routeInfo">
+              <h6 class="card-title">
+                <i class="fas fa-map-marker-alt me-1"></i>Starting Location
+              </h6>
+              <div id="startingLocationInfo">
                 <!-- Populated by JavaScript -->
               </div>
             </div>
@@ -533,7 +670,9 @@
           
           <div class="card mb-3">
             <div class="card-body">
-              <h6 class="card-title">Trip Information</h6>
+              <h6 class="card-title">
+                <i class="fas fa-clipboard-list me-1"></i>Trip Information
+              </h6>
               <div id="tripDetailsSummary">
                 <!-- Populated by JavaScript -->
               </div>
@@ -542,23 +681,31 @@
           
           <div class="card mb-3">
             <div class="card-body">
-              <h6 class="card-title">Driver Information</h6>
+              <h6 class="card-title">
+                <i class="fas fa-user me-1"></i>Driver Information
+              </h6>
               <div id="driverInfo">
                 <!-- Driver info will be populated by JavaScript -->
               </div>
             </div>
           </div>
           
-          <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong>Note:</strong> By submitting this form, you confirm that you have performed a visual inspection of the vehicle and it is in good condition for use. The trip will start immediately upon submission.
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Important:</strong> 
+            <ul class="mb-0 mt-2">
+              <li>Confirm you have performed a visual inspection of the vehicle</li>
+              <li>Ensure the vehicle is in good condition for use</li>
+              <li>You can add your destination when you end the trip</li>
+              <li>The trip will start immediately upon submission</li>
+            </ul>
           </div>
           
           <div class="mt-4 d-flex justify-content-between">
             <button type="button" class="btn btn-secondary" id="step3Back">
               <i class="fas fa-arrow-left me-1"></i> Back
             </button>
-            <button type="submit" class="btn btn-success">
+            <button type="submit" class="btn btn-success btn-lg">
               <i class="fas fa-play me-1"></i> Start Trip Now
             </button>
           </div>
@@ -570,573 +717,508 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Google Maps API -->
-<script async defer 
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDMAkESwj75ZhnMIlLK25zHiM1oAUPZtbo&libraries=places&callback=initMap">
-</script>
-
 <script>
-  // Google Maps variables
-  let map, directionsService, directionsRenderer, mapDistance = 0, estimatedTime = 0;
-
-  // Initialize Google Maps
-  function initMap() {
-    map = new google.maps.Map(document.getElementById('map'), {
-      zoom: 13,
-      center: { lat: 12.9716, lng: 77.5946 }, // Default to Bangalore
-      styles: [
-        {
-          featureType: 'poi',
-          elementType: 'labels',
-          stylers: [{ visibility: 'off' }]
+document.addEventListener('DOMContentLoaded', function() {
+  // Form step elements
+  const step1 = document.getElementById('step1');
+  const step2 = document.getElementById('step2');
+  const step3 = document.getElementById('step3');
+  
+  const step1Indicator = document.getElementById('step1-indicator');
+  const step2Indicator = document.getElementById('step2-indicator');
+  const step3Indicator = document.getElementById('step3-indicator');
+  
+  const step1Next = document.getElementById('step1Next');
+  const step2Back = document.getElementById('step2Back');
+  const step2Next = document.getElementById('step2Next');
+  const step3Back = document.getElementById('step3Back');
+  
+  // Form fields
+  const originField = document.getElementById('{{ form.origin.id_for_label }}');
+  const startOdometerField = document.getElementById('{{ form.start_odometer.id_for_label }}');
+  const purposeField = document.getElementById('{{ form.purpose.id_for_label }}');
+  const notesField = document.getElementById('{{ form.notes.id_for_label }}');
+  
+  // Vehicle search elements
+  const vehicleSearchInput = document.getElementById('vehicleSearchInput');
+  const vehicleSearchIcon = document.getElementById('vehicleSearchIcon');
+  const vehicleSearchClear = document.getElementById('vehicleSearchClear');
+  const vehicleDropdown = document.getElementById('vehicleDropdown');
+  const vehicleDropdownList = document.getElementById('vehicleDropdownList');
+  const vehicleDropdownHeader = document.getElementById('vehicleDropdownHeader');
+  const hiddenVehicleField = document.getElementById('{{ form.vehicle.id_for_label }}');
+  
+  // Vehicle data and state
+  let allVehicles = [];
+  let filteredVehicles = [];
+  let selectedVehicle = null;
+  let focusedIndex = -1;
+  let isDropdownOpen = false;
+  
+  // Build vehicles data array
+  {% for vehicle in available_vehicles %}
+  allVehicles.push({
+    id: '{{ vehicle.id }}',
+    make: '{{ vehicle.make }}',
+    model: '{{ vehicle.model }}',
+    plate: '{{ vehicle.license_plate }}',
+    type: '{{ vehicle.vehicle_type.name|default:"Unknown" }}',
+    fuel: '{{ vehicle.fuel_type|default:"Unknown" }}',
+    odometer: '{{ vehicle.current_odometer|default:"0" }}',
+    image: '{% if vehicle.image %}{{ vehicle.image.url }}{% endif %}',
+    searchText: '{{ vehicle.make }} {{ vehicle.model }} {{ vehicle.license_plate }} {{ vehicle.vehicle_type.name|default:"" }}'.toLowerCase()
+  });
+  {% endfor %}
+  
+  filteredVehicles = [...allVehicles];
+  
+  // Render dropdown items
+  function renderDropdown() {
+    vehicleDropdownList.innerHTML = '';
+    
+    if (filteredVehicles.length === 0) {
+      vehicleDropdownList.innerHTML = `
+        <div class="no-vehicles-found">
+          <i class="fas fa-car-side"></i>
+          <h6>No Vehicles Found</h6>
+          <p>No vehicles match your search criteria.</p>
+        </div>
+      `;
+      return;
+    }
+    
+    filteredVehicles.forEach((vehicle, index) => {
+      const item = document.createElement('div');
+      item.className = 'vehicle-dropdown-item';
+      item.dataset.vehicleId = vehicle.id;
+      item.dataset.index = index;
+      
+      if (selectedVehicle && selectedVehicle.id === vehicle.id) {
+        item.classList.add('selected');
+      }
+      
+      item.innerHTML = `
+        ${vehicle.image ? 
+          `<img src="${vehicle.image}" class="vehicle-item-image" alt="${vehicle.plate}">` :
+          '<div class="vehicle-item-icon"><i class="fas fa-car"></i></div>'
         }
-      ]
+        <div class="vehicle-item-details">
+          <h6>${vehicle.make} ${vehicle.model}</h6>
+          <div class="text-muted">${vehicle.plate} • ${vehicle.type}</div>
+        </div>
+        <div class="vehicle-item-badges">
+          <span class="badge bg-primary">${vehicle.fuel}</span>
+          <span class="badge bg-secondary">${vehicle.odometer} km</span>
+        </div>
+      `;
+      
+      item.addEventListener('click', () => selectVehicle(vehicle));
+      vehicleDropdownList.appendChild(item);
     });
-
-    directionsService = new google.maps.DirectionsService();
-    directionsRenderer = new google.maps.DirectionsRenderer({
-      draggable: false,
-      panel: null
-    });
-    directionsRenderer.setMap(map);
-
-    // Initialize autocomplete
-    initAutocomplete();
   }
-
-  function initAutocomplete() {
-    const originField = document.getElementById('{{ form.origin.id_for_label }}');
-    const destinationField = document.getElementById('{{ form.destination.id_for_label }}');
-
-    const startAutocomplete = new google.maps.places.Autocomplete(originField);
-    const endAutocomplete = new google.maps.places.Autocomplete(destinationField);
-
-    startAutocomplete.addListener('place_changed', calculateRoute);
-    endAutocomplete.addListener('place_changed', calculateRoute);
+  
+  // Select vehicle
+  function selectVehicle(vehicle) {
+    selectedVehicle = vehicle;
+    hiddenVehicleField.value = vehicle.id;
+    
+    // Update input display
+    vehicleSearchInput.value = `${vehicle.make} ${vehicle.model} (${vehicle.plate})`;
+    vehicleSearchInput.classList.add('has-value');
+    
+    // Update odometer
+    startOdometerField.value = vehicle.odometer;
+    startOdometerField.min = vehicle.odometer;
+    
+    // Show clear button, hide dropdown
+    vehicleSearchClear.style.display = 'block';
+    vehicleSearchIcon.style.display = 'none';
+    closeDropdown();
+    
+    // Enable next button
+    step1Next.disabled = false;
+    
+    // Make input readonly
+    vehicleSearchInput.setAttribute('readonly', true);
   }
-
-  function calculateRoute() {
-    const start = document.getElementById('{{ form.origin.id_for_label }}').value;
-    const end = document.getElementById('{{ form.destination.id_for_label }}').value;
-
-    if (start && end) {
-      const request = {
-        origin: start,
-        destination: end,
-        travelMode: google.maps.TravelMode.DRIVING,
-        unitSystem: google.maps.UnitSystem.METRIC
-      };
-
-      directionsService.route(request, function(result, status) {
-        if (status === 'OK') {
-          directionsRenderer.setDirections(result);
-          
-          // Calculate distance and time
-          const route = result.routes[0];
-          let totalDistance = 0;
-          let totalDuration = 0;
-          
-          route.legs.forEach(leg => {
-            totalDistance += leg.distance.value;
-            totalDuration += leg.duration.value;
-          });
-          
-          mapDistance = (totalDistance / 1000).toFixed(2);
-          estimatedTime = Math.round(totalDuration / 60);
-          
-          // Update UI
-          document.getElementById('mapDistance').textContent = mapDistance + ' km';
-          document.getElementById('estimatedTime').textContent = estimatedTime + ' min';
-          document.getElementById('distanceInfo').style.display = 'block';
-          
-          updateRoutePreview();
-        } else {
-          console.error('Could not calculate route: ' + status);
-          document.getElementById('distanceInfo').style.display = 'none';
-        }
-      });
+  
+  // Clear selection
+  function clearSelection() {
+    selectedVehicle = null;
+    hiddenVehicleField.value = '';
+    vehicleSearchInput.value = '';
+    vehicleSearchInput.classList.remove('has-value');
+    vehicleSearchInput.removeAttribute('readonly');
+    
+    vehicleSearchClear.style.display = 'none';
+    vehicleSearchIcon.style.display = 'block';
+    
+    step1Next.disabled = true;
+    renderDropdown();
+  }
+  
+  // Open dropdown
+  function openDropdown() {
+    if (isDropdownOpen) return;
+    
+    isDropdownOpen = true;
+    vehicleDropdown.classList.add('show');
+    vehicleSearchIcon.style.transform = 'translateY(-50%) rotate(180deg)';
+    renderDropdown();
+    focusedIndex = -1;
+  }
+  
+  // Close dropdown
+  function closeDropdown() {
+    if (!isDropdownOpen) return;
+    
+    isDropdownOpen = false;
+    vehicleDropdown.classList.remove('show');
+    vehicleSearchIcon.style.transform = 'translateY(-50%) rotate(0deg)';
+    focusedIndex = -1;
+    
+    // Reset input if no selection
+    if (!selectedVehicle) {
+      vehicleSearchInput.value = '';
+      vehicleSearchInput.setAttribute('readonly', true);
     }
   }
-
-  document.addEventListener('DOMContentLoaded', function() {
-    // Variables for form steps
-    const step1 = document.getElementById('step1');
-    const step2 = document.getElementById('step2');
-    const step3 = document.getElementById('step3');
+  
+  // Search vehicles
+  function searchVehicles(query) {
+    const searchTerm = query.toLowerCase().trim();
     
-    const step1Indicator = document.getElementById('step1-indicator');
-    const step2Indicator = document.getElementById('step2-indicator');
-    const step3Indicator = document.getElementById('step3-indicator');
-    
-    const step1Next = document.getElementById('step1Next');
-    const step2Back = document.getElementById('step2Back');
-    const step2Next = document.getElementById('step2Next');
-    const step3Back = document.getElementById('step3Back');
-    
-    const vehicleField = document.getElementById('{{ form.vehicle.id_for_label }}');
-    const vehicleSearch = document.getElementById('vehicleSearch');
-    const vehicleDropdown = document.getElementById('vehicleDropdown');
-    const originField = document.getElementById('{{ form.origin.id_for_label }}');
-    const destinationField = document.getElementById('{{ form.destination.id_for_label }}');
-    const startOdometerField = document.getElementById('{{ form.start_odometer.id_for_label }}');
-    const purposeField = document.getElementById('{{ form.purpose.id_for_label }}');
-    const notesField = document.getElementById('{{ form.notes.id_for_label }}');
-    
-    // Route preview elements
-    const routePreview = document.getElementById('routePreview');
-    const previewOrigin = document.getElementById('previewOrigin');
-    const previewDestination = document.getElementById('previewDestination');
-    
-    let selectedVehicleData = null;
-    let allVehicles = [];
-
-    // Populate vehicles array
-    {% for vehicle in available_vehicles %}
-    allVehicles.push({
-      id: '{{ vehicle.id }}',
-      name: '{{ vehicle.make }} {{ vehicle.model }}',
-      plate: '{{ vehicle.license_plate }}',
-      type: '{{ vehicle.vehicle_type.name|default:"Unknown" }}',
-      fuel: '{{ vehicle.fuel_type|default:"Unknown" }}',
-      odometer: '{{ vehicle.current_odometer|default:"0" }}',
-      image: '{% if vehicle.image %}{{ vehicle.image.url }}{% endif %}'
-    });
-    {% endfor %}
-
-    // Vehicle search functionality
-    vehicleSearch.addEventListener('input', function() {
-      const query = this.value.toLowerCase();
-      const filteredVehicles = allVehicles.filter(vehicle => 
-        vehicle.name.toLowerCase().includes(query) || 
-        vehicle.plate.toLowerCase().includes(query) ||
-        vehicle.type.toLowerCase().includes(query)
+    if (!searchTerm) {
+      filteredVehicles = [...allVehicles];
+    } else {
+      filteredVehicles = allVehicles.filter(vehicle => 
+        vehicle.searchText.includes(searchTerm)
       );
-      
-      displayVehicleOptions(filteredVehicles);
-      vehicleDropdown.style.display = filteredVehicles.length > 0 ? 'block' : 'none';
-    });
-
-    vehicleSearch.addEventListener('focus', function() {
-      displayVehicleOptions(allVehicles);
-      vehicleDropdown.style.display = 'block';
-    });
-
-    document.addEventListener('click', function(e) {
-      if (!e.target.closest('.vehicle-search-container')) {
-        vehicleDropdown.style.display = 'none';
-      }
-    });
-
-    function displayVehicleOptions(vehicleList) {
-      vehicleDropdown.innerHTML = '';
-      vehicleList.forEach(vehicle => {
-        const option = document.createElement('div');
-        option.className = 'vehicle-option';
-        option.innerHTML = `
-          <div class="vehicle-option-main">${vehicle.name} - ${vehicle.plate}</div>
-          <div class="vehicle-option-details">Type: ${vehicle.type} | Fuel: ${vehicle.fuel} | Odometer: ${vehicle.odometer} km</div>
-        `;
-        option.addEventListener('click', function() {
-          selectVehicle(vehicle);
-        });
-        vehicleDropdown.appendChild(option);
-      });
     }
-
-    function selectVehicle(vehicle) {
-      selectedVehicleData = vehicle;
-      vehicleSearch.value = `${vehicle.name} - ${vehicle.plate}`;
-      vehicleField.value = vehicle.id;
-      vehicleDropdown.style.display = 'none';
-      
-      // Set initial odometer value
-      startOdometerField.value = vehicle.odometer;
-      startOdometerField.min = vehicle.odometer;
-      
-      // Enable next button
-      step1Next.disabled = false;
-    }
-
-    // Filter buttons functionality
-    const filterButtons = document.querySelectorAll('[data-filter]');
-    filterButtons.forEach(button => {
-      button.addEventListener('click', function() {
-        const filterType = this.dataset.filter;
-        
-        // Update button states
-        filterButtons.forEach(btn => btn.classList.remove('btn-primary'));
-        filterButtons.forEach(btn => btn.classList.add('btn-outline-secondary'));
-        this.classList.remove('btn-outline-secondary');
-        this.classList.add('btn-primary');
-        
-        // Apply filter
-        let filteredVehicles;
-        if (filterType === 'all') {
-          filteredVehicles = allVehicles;
-        } else {
-          filteredVehicles = allVehicles.filter(vehicle => vehicle.type === filterType);
-        }
-        
-        displayVehicleOptions(filteredVehicles);
-        vehicleDropdown.style.display = 'block';
-      });
-    });
-
-    // Route preview functionality
-    function updateRoutePreview() {
-      const origin = originField.value.trim();
-      const destination = destinationField.value.trim();
-      
-      if (origin && destination) {
-        previewOrigin.textContent = origin;
-        previewDestination.textContent = destination;
-        routePreview.classList.add('show');
-      } else {
-        routePreview.classList.remove('show');
-      }
-    }
-
-    // Add event listeners for route fields
-    originField.addEventListener('input', function() {
-      updateRoutePreview();
-      calculateRoute();
-    });
     
-    destinationField.addEventListener('input', function() {
-      updateRoutePreview();
-      calculateRoute();
+    updateDropdownHeader();
+    renderDropdown();
+  }
+  
+  // Update dropdown header
+  function updateDropdownHeader() {
+    const count = filteredVehicles.length;
+    vehicleDropdownHeader.textContent = `Available Vehicles (${count})`;
+  }
+  
+  // Handle keyboard navigation
+  function handleKeyNavigation(e) {
+    const items = vehicleDropdownList.querySelectorAll('.vehicle-dropdown-item');
+    
+    switch(e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        focusedIndex = Math.min(focusedIndex + 1, items.length - 1);
+        updateFocusedItem(items);
+        break;
+        
+      case 'ArrowUp':
+        e.preventDefault();
+        focusedIndex = Math.max(focusedIndex - 1, -1);
+        updateFocusedItem(items);
+        break;
+        
+      case 'Enter':
+        e.preventDefault();
+        if (focusedIndex >= 0 && items[focusedIndex]) {
+          const vehicleId = items[focusedIndex].dataset.vehicleId;
+          const vehicle = filteredVehicles.find(v => v.id === vehicleId);
+          if (vehicle) selectVehicle(vehicle);
+        }
+        break;
+        
+      case 'Escape':
+        closeDropdown();
+        vehicleSearchInput.blur();
+        break;
+    }
+  }
+  
+  // Update focused item
+  function updateFocusedItem(items) {
+    items.forEach((item, index) => {
+      item.classList.remove('focused');
+      if (index === focusedIndex) {
+        item.classList.add('focused');
+        item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     });
-
-    // Common locations for suggestions
-    const commonLocations = [
-      'Main Office',
-      'Warehouse',
-      'Airport',
-      'City Center',
-      'Industrial Area',
-      'Port',
-      'Train Station',
-      'Shopping Mall',
-      'Business District',
-      'Factory'
+  }
+  
+  // Event listeners for vehicle search
+  vehicleSearchInput.addEventListener('click', () => {
+    if (!selectedVehicle) {
+      vehicleSearchInput.removeAttribute('readonly');
+      openDropdown();
+    }
+  });
+  
+  vehicleSearchInput.addEventListener('focus', () => {
+    if (!selectedVehicle) {
+      vehicleSearchInput.removeAttribute('readonly');
+      openDropdown();
+    }
+  });
+  
+  vehicleSearchInput.addEventListener('input', (e) => {
+    if (selectedVehicle) return;
+    
+    const query = e.target.value;
+    searchVehicles(query);
+    
+    if (!isDropdownOpen) openDropdown();
+    focusedIndex = -1;
+  });
+  
+  vehicleSearchInput.addEventListener('keydown', handleKeyNavigation);
+  
+  vehicleSearchClear.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearSelection();
+  });
+  
+  // Filter buttons
+  const filterButtons = document.querySelectorAll('[data-filter]');
+  filterButtons.forEach(button => {
+    button.addEventListener('click', function() {
+      const filterType = this.dataset.filter;
+      
+      // Update button states
+      filterButtons.forEach(btn => {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline-secondary');
+      });
+      this.classList.remove('btn-outline-secondary');
+      this.classList.add('btn-primary');
+      
+      // Apply filter
+      if (filterType === 'all') {
+        filteredVehicles = [...allVehicles];
+      } else {
+        filteredVehicles = allVehicles.filter(vehicle => vehicle.type === filterType);
+      }
+      
+      // Clear search and update display
+      vehicleSearchInput.value = '';
+      updateDropdownHeader();
+      renderDropdown();
+      
+      // Check if selected vehicle is still in filtered results
+      if (selectedVehicle && !filteredVehicles.find(v => v.id === selectedVehicle.id)) {
+        clearSelection();
+      }
+    });
+  });
+  
+  // Click outside to close dropdown
+  document.addEventListener('click', (e) => {
+    if (!vehicleSearchInput.contains(e.target) && !vehicleDropdown.contains(e.target)) {
+      closeDropdown();
+    }
+    
+    // Hide location suggestions
+    if (!originField.contains(e.target) && !document.getElementById('originSuggestions').contains(e.target)) {
+      document.getElementById('originSuggestions').style.display = 'none';
+    }
+  });
+  
+  // Initialize
+  renderDropdown();
+  
+  // Location suggestions
+  const commonLocations = [
+    'Main Office', 'Warehouse', 'Home Office', 'Branch Office',
+    'Distribution Center', 'Headquarters', 'Regional Office',
+    'Manufacturing Plant', 'Service Center', 'Depot'
+  ];
+  
+  function showLocationSuggestions(inputField, suggestionsContainer) {
+    const query = inputField.value.toLowerCase().trim();
+    suggestionsContainer.innerHTML = '';
+    
+    if (query.length < 2) {
+      suggestionsContainer.style.display = 'none';
+      return;
+    }
+    
+    const matches = commonLocations.filter(location => 
+      location.toLowerCase().includes(query)
+    );
+    
+    if (matches.length > 0) {
+      matches.forEach(location => {
+        const suggestion = document.createElement('div');
+        suggestion.className = 'location-suggestion';
+        suggestion.textContent = location;
+        suggestion.addEventListener('click', () => {
+          inputField.value = location;
+          suggestionsContainer.style.display = 'none';
+        });
+        suggestionsContainer.appendChild(suggestion);
+      });
+      suggestionsContainer.style.display = 'block';
+    } else {
+      suggestionsContainer.style.display = 'none';
+    }
+  }
+  
+  const originSuggestions = document.getElementById('originSuggestions');
+  
+  originField.addEventListener('input', function() {
+    showLocationSuggestions(this, originSuggestions);
+  });
+  
+  // Quick location buttons for origin
+  function addQuickLocationButtons() {
+    const quickLocations = [
+      { name: 'Main Office', icon: 'fas fa-building' },
+      { name: 'Warehouse', icon: 'fas fa-warehouse' },
+      { name: 'Home Office', icon: 'fas fa-home' },
+      { name: 'Branch Office', icon: 'fas fa-map-marker-alt' }
     ];
-
-    // Simple location suggestions
-    function showLocationSuggestions(inputField, suggestionsContainer) {
-      const query = inputField.value.toLowerCase().trim();
-      suggestionsContainer.innerHTML = '';
-      
-      if (query.length < 2) {
-        suggestionsContainer.style.display = 'none';
-        return;
-      }
-
-      const matches = commonLocations.filter(location => 
-        location.toLowerCase().includes(query)
-      );
-
-      if (matches.length > 0) {
-        matches.forEach(location => {
-          const suggestion = document.createElement('div');
-          suggestion.className = 'location-suggestion';
-          suggestion.textContent = location;
-          suggestion.addEventListener('click', function() {
-            inputField.value = location;
-            suggestionsContainer.style.display = 'none';
-            updateRoutePreview();
-            calculateRoute();
-          });
-          suggestionsContainer.appendChild(suggestion);
-        });
-        suggestionsContainer.style.display = 'block';
-      } else {
-        suggestionsContainer.style.display = 'none';
-      }
-    }
-
-    // Location suggestions setup
-    const originSuggestions = document.getElementById('originSuggestions');
-    const destinationSuggestions = document.getElementById('destinationSuggestions');
-
-    originField.addEventListener('input', function() {
-      showLocationSuggestions(this, originSuggestions);
+    
+    const container = originField.parentNode;
+    const quickDiv = document.createElement('div');
+    quickDiv.className = 'mt-2';
+    quickDiv.innerHTML = '<small class="text-muted">Quick locations:</small><br>';
+    
+    quickLocations.forEach(location => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-outline-secondary btn-sm me-1 mt-1';
+      btn.innerHTML = `<i class="${location.icon} me-1"></i>${location.name}`;
+      btn.addEventListener('click', () => {
+        originField.value = location.name;
+      });
+      quickDiv.appendChild(btn);
     });
-
-    destinationField.addEventListener('input', function() {
-      showLocationSuggestions(this, destinationSuggestions);
-    });
-
-    // Hide suggestions when clicking outside
-    document.addEventListener('click', function(e) {
-      if (!originField.contains(e.target) && !originSuggestions.contains(e.target)) {
-        originSuggestions.style.display = 'none';
-      }
-      if (!destinationField.contains(e.target) && !destinationSuggestions.contains(e.target)) {
-        destinationSuggestions.style.display = 'none';
-      }
-    });
-
-    // Quick location buttons functionality
-    function addQuickLocationButtons() {
-      const quickLocations = [
-        { name: 'Main Office', icon: 'fas fa-building' },
-        { name: 'Warehouse', icon: 'fas fa-warehouse' },
-        { name: 'Airport', icon: 'fas fa-plane' },
-        { name: 'City Center', icon: 'fas fa-city' }
-      ];
-
-      const originContainer = originField.parentNode;
-      const destinationContainer = destinationField.parentNode;
-
-      // Add quick buttons for origin
-      const originQuickDiv = document.createElement('div');
-      originQuickDiv.className = 'mt-2';
-      originQuickDiv.innerHTML = '<small class="text-muted">Quick locations:</small><br>';
-      
-      quickLocations.forEach(location => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn btn-outline-secondary btn-sm me-1 mt-1';
-        btn.innerHTML = `<i class="${location.icon} me-1"></i>${location.name}`;
-        btn.addEventListener('click', function() {
-          originField.value = location.name;
-          updateRoutePreview();
-          calculateRoute();
-        });
-        originQuickDiv.appendChild(btn);
-      });
-      
-      originContainer.appendChild(originQuickDiv);
-
-      // Add quick buttons for destination
-      const destinationQuickDiv = document.createElement('div');
-      destinationQuickDiv.className = 'mt-2';
-      destinationQuickDiv.innerHTML = '<small class="text-muted">Quick locations:</small><br>';
-      
-      quickLocations.forEach(location => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn btn-outline-secondary btn-sm me-1 mt-1';
-        btn.innerHTML = `<i class="${location.icon} me-1"></i>${location.name}`;
-        btn.addEventListener('click', function() {
-          destinationField.value = location.name;
-          updateRoutePreview();
-          calculateRoute();
-        });
-        destinationQuickDiv.appendChild(btn);
-      });
-      
-      destinationContainer.appendChild(destinationQuickDiv);
-    }
-
-    // Add quick location buttons
-    addQuickLocationButtons();
-
-    // End odometer functionality
-    const endOdometerField = document.getElementById('endOdometer');
-    const odometerComparison = document.getElementById('odometerComparison');
-
-    if (endOdometerField) {
-      endOdometerField.addEventListener('input', function() {
-        if (this.value && startOdometerField.value && mapDistance > 0) {
-          const startOdo = parseFloat(startOdometerField.value);
-          const endOdo = parseFloat(this.value);
-          const odometerDistance = (endOdo - startOdo).toFixed(2);
-          const difference = Math.abs(odometerDistance - mapDistance).toFixed(2);
-
-          document.getElementById('odometerDistanceText').textContent = `Odometer Distance: ${odometerDistance} km`;
-          document.getElementById('mapDistanceText').textContent = `Map Distance: ${mapDistance} km`;
-          document.getElementById('distanceDifference').textContent = `Difference: ${difference} km`;
-          
-          odometerComparison.style.display = 'block';
-        } else {
-          odometerComparison.style.display = 'none';
-        }
-      });
+    
+    container.appendChild(quickDiv);
+  }
+  
+  addQuickLocationButtons();
+  
+  // Step navigation
+  step1Next.addEventListener('click', () => {
+    step1.classList.remove('active');
+    step2.classList.add('active');
+    step1Indicator.classList.remove('active');
+    step1Indicator.classList.add('completed');
+    step2Indicator.classList.add('active');
+  });
+  
+  step2Back.addEventListener('click', () => {
+    step2.classList.remove('active');
+    step1.classList.add('active');
+    step2Indicator.classList.remove('active');
+    step1Indicator.classList.remove('completed');
+    step1Indicator.classList.add('active');
+  });
+  
+  step2Next.addEventListener('click', () => {
+    // Validation
+    if (!originField.value.trim()) {
+      alert('Please enter the starting location.');
+      originField.focus();
+      return;
     }
     
-    // Navigation between steps
-    if (step1Next) {
-      step1Next.addEventListener('click', function() {
-        step1.classList.remove('active');
-        step2.classList.add('active');
-        
-        step1Indicator.classList.remove('active');
-        step1Indicator.classList.add('completed');
-        step2Indicator.classList.add('active');
-      });
+    if (!startOdometerField.value) {
+      alert('Please enter the start odometer reading.');
+      startOdometerField.focus();
+      return;
     }
     
-    if (step2Back) {
-      step2Back.addEventListener('click', function() {
-        step2.classList.remove('active');
-        step1.classList.add('active');
-        
-        step2Indicator.classList.remove('active');
-        step1Indicator.classList.remove('completed');
-        step1Indicator.classList.add('active');
-      });
+    if (!purposeField.value.trim()) {
+      alert('Please enter the purpose of the trip.');
+      purposeField.focus();
+      return;
     }
     
-    if (step2Next) {
-      step2Next.addEventListener('click', function() {
-        // Validate step 2 fields
-        if (originField.value.trim() === '') {
-          alert('Please enter the starting location.');
-          originField.focus();
-          return;
-        }
-
-        if (destinationField.value.trim() === '') {
-          alert('Please enter the destination.');
-          destinationField.focus();
-          return;
-        }
-
-        if (originField.value.toLowerCase().trim() === destinationField.value.toLowerCase().trim()) {
-          alert('Starting location and destination cannot be the same.');
-          destinationField.focus();
-          return;
-        }
-        
-        if (startOdometerField.value === '') {
-          alert('Please enter the start odometer reading.');
-          startOdometerField.focus();
-          return;
-        }
-        
-        if (purposeField.value === '') {
-          alert('Please enter the purpose of the trip.');
-          purposeField.focus();
-          return;
-        }
-        
-        // Update confirmation page
-        updateConfirmationPage();
-        
-        // Navigate to step 3
-        step2.classList.remove('active');
-        step3.classList.add('active');
-        
-        step2Indicator.classList.remove('active');
-        step2Indicator.classList.add('completed');
-        step3Indicator.classList.add('active');
-      });
-    }
+    updateConfirmationPage();
     
-    if (step3Back) {
-      step3Back.addEventListener('click', function() {
-        step3.classList.remove('active');
-        step2.classList.add('active');
-        
-        step3Indicator.classList.remove('active');
-        step2Indicator.classList.remove('completed');
-        step2Indicator.classList.add('active');
-      });
-    }
+    step2.classList.remove('active');
+    step3.classList.add('active');
+    step2Indicator.classList.remove('active');
+    step2Indicator.classList.add('completed');
+    step3Indicator.classList.add('active');
+  });
+  
+  step3Back.addEventListener('click', () => {
+    step3.classList.remove('active');
+    step2.classList.add('active');
+    step3Indicator.classList.remove('active');
+    step2Indicator.classList.remove('completed');
+    step2Indicator.classList.add('active');
+  });
+  
+  // Update confirmation page
+  function updateConfirmationPage() {
+    const selectedVehicleInfo = document.getElementById('selectedVehicleInfo');
+    const startingLocationInfo = document.getElementById('startingLocationInfo');
+    const tripDetailsSummary = document.getElementById('tripDetailsSummary');
+    const driverInfo = document.getElementById('driverInfo');
     
-    // Update confirmation page
-    function updateConfirmationPage() {
-      const selectedVehicleInfo = document.getElementById('selectedVehicleInfo');
-      const routeInfo = document.getElementById('routeInfo');
-      const tripDetailsSummary = document.getElementById('tripDetailsSummary');
-      
-      if (selectedVehicleData) {
-        // Update vehicle info
-        selectedVehicleInfo.innerHTML = `
-          <div class="row">
-            <div class="col-md-4 text-center">
-              ${selectedVehicleData.image ? 
-                `<img src="${selectedVehicleData.image}" class="img-fluid rounded mb-2" alt="${selectedVehicleData.plate}">` :
-                '<i class="fas fa-car fa-3x text-muted mb-2"></i>'
-              }
-            </div>
-            <div class="col-md-8">
-              <p><strong>Vehicle:</strong> ${selectedVehicleData.name}</p>
-              <p><strong>License Plate:</strong> <span class="badge bg-primary">${selectedVehicleData.plate}</span></p>
-              <p><strong>Type:</strong> ${selectedVehicleData.type}</p>
-              <p><strong>Fuel Type:</strong> ${selectedVehicleData.fuel}</p>
-              <p><strong>Current Odometer:</strong> ${selectedVehicleData.odometer} km</p>
-            </div>
+    if (selectedVehicle) {
+      selectedVehicleInfo.innerHTML = `
+        <div class="row">
+          <div class="col-md-4 text-center">
+            ${selectedVehicle.image ? 
+              `<img src="${selectedVehicle.image}" class="img-fluid rounded mb-2" alt="${selectedVehicle.plate}" style="max-height: 150px;">` :
+              '<i class="fas fa-car fa-3x text-muted mb-2"></i>'
+            }
           </div>
-        `;
-      }
-
-      // Update route info with map data
-      routeInfo.innerHTML = `
-        <div class="d-flex align-items-center justify-content-center mb-3">
-          <div class="text-center">
-            <i class="fas fa-map-marker-alt text-success fa-lg"></i>
-            <div class="mt-1">
-              <strong class="text-success">${originField.value}</strong>
-            </div>
-            <small class="text-muted">Starting Point</small>
-          </div>
-          <div class="mx-4">
-            <i class="fas fa-long-arrow-alt-right text-primary fa-2x"></i>
-          </div>
-          <div class="text-center">
-            <i class="fas fa-map-marker-alt text-danger fa-lg"></i>
-            <div class="mt-1">
-              <strong class="text-danger">${destinationField.value}</strong>
-            </div>
-            <small class="text-muted">Destination</small>
+          <div class="col-md-8">
+            <p><strong>Vehicle:</strong> ${selectedVehicle.make} ${selectedVehicle.model}</p>
+            <p><strong>License Plate:</strong> <span class="badge bg-primary">${selectedVehicle.plate}</span></p>
+            <p><strong>Type:</strong> ${selectedVehicle.type}</p>
+            <p><strong>Fuel Type:</strong> ${selectedVehicle.fuel}</p>
+            <p><strong>Current Odometer:</strong> ${selectedVehicle.odometer} km</p>
           </div>
         </div>
-        ${mapDistance > 0 ? `
-        <div class="row mt-3 text-center">
-          <div class="col-md-6">
-            <div class="bg-light p-2 rounded">
-              <strong class="text-primary">${mapDistance} km</strong><br>
-              <small class="text-muted">Distance</small>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="bg-light p-2 rounded">
-              <strong class="text-primary">${estimatedTime} min</strong><br>
-              <small class="text-muted">Est. Time</small>
-            </div>
-          </div>
-        </div>` : ''}
       `;
-      
-      // Update trip details
-      tripDetailsSummary.innerHTML = `
-        <p><strong>Start Odometer:</strong> ${startOdometerField.value} km</p>
-        <p><strong>Purpose:</strong> ${purposeField.value}</p>
-        <p><strong>Notes:</strong> ${notesField.value || 'None'}</p>
-        <p><strong>Start Time:</strong> ${new Date().toLocaleString()}</p>
-        ${mapDistance > 0 ? `<p><strong>Expected Map Distance:</strong> ${mapDistance} km</p>` : ''}
-      `;
-      
-      // Update driver info
-      const driverInfo = document.getElementById('driverInfo');
-      const driverSelect = document.getElementById('driver');
-
-      if (driverSelect && driverSelect.value) {
-        // A specific driver was selected
-        const selectedDriverOption = driverSelect.options[driverSelect.selectedIndex];
-        driverInfo.innerHTML = `
-          <p><strong>Driver:</strong> ${selectedDriverOption.text}</p>
-          <p><strong>Assigned by:</strong> {{ user.get_full_name }} ({{ user.get_user_type_display }})</p>
-        `;
-      } else {
-        // No specific driver selected, current user is the driver
-        driverInfo.innerHTML = `
-          <p><strong>Driver:</strong> {{ user.get_full_name }}</p>
-          <p><strong>Email:</strong> {{ user.email }}</p>
-          {% if user.license_number %}<p><strong>License:</strong> {{ user.license_number }}</p>{% endif %}
-          {% if user.license_expiry %}<p><strong>License Expiry:</strong> {{ user.license_expiry }}</p>{% endif %}
-        `;
-      }
     }
-
-    // Initialize map when page loads
-    setTimeout(function() {
-      if (typeof google !== 'undefined') {
-        initMap();
-      }
-    }, 1000);
-  });
+    
+    startingLocationInfo.innerHTML = `
+      <div class="text-center p-3">
+        <i class="fas fa-map-marker-alt text-success fa-2x mb-2"></i>
+        <h5 class="text-success mb-1">${originField.value}</h5>
+        <small class="text-muted">Trip will begin from this location</small>
+      </div>
+    `;
+    
+    tripDetailsSummary.innerHTML = `
+      <p><strong>Start Odometer:</strong> ${startOdometerField.value} km</p>
+      <p><strong>Purpose:</strong> ${purposeField.value}</p>
+      <p><strong>Additional Notes:</strong> ${notesField.value || 'None'}</p>
+      <p><strong>Start Time:</strong> ${new Date().toLocaleString()}</p>
+      <div class="alert alert-info mt-3 mb-0">
+        <i class="fas fa-info-circle me-1"></i>
+        <strong>Destination:</strong> Will be added when you end the trip
+      </div>
+    `;
+    
+    const driverSelect = document.getElementById('driver');
+    if (driverSelect && driverSelect.value) {
+      const selectedDriverOption = driverSelect.options[driverSelect.selectedIndex];
+      driverInfo.innerHTML = `
+        <p><strong>Driver:</strong> ${selectedDriverOption.text}</p>
+        <p><strong>Assigned by:</strong> {{ user.get_full_name }} ({{ user.get_user_type_display }})</p>
+      `;
+    } else {
+      driverInfo.innerHTML = `
+        <p><strong>Driver:</strong> {{ user.get_full_name }}</p>
+        <p><strong>Email:</strong> {{ user.email }}</p>
+        {% if user.license_number %}<p><strong>License:</strong> {{ user.license_number }}</p>{% endif %}
+        {% if user.license_expiry %}<p><strong>License Expiry:</strong> {{ user.license_expiry }}</p>{% endif %}
+      `;
+    }
+  }
+});
 </script>
 {% endblock %}
