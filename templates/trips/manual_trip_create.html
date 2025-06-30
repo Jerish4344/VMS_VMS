@@ -91,6 +91,254 @@
     margin-bottom: 2rem;
     text-align: center;
   }
+  
+  /* Searchable Dropdown Styles */
+  .search-wrapper {
+    position: relative;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 0.75rem 2.5rem 0.75rem 0.75rem;
+    border: 1px solid #d1d3e2;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    background-color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .search-input:focus {
+    border-color: #4e73df;
+    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    outline: none;
+    cursor: text;
+  }
+
+  .search-input.has-value {
+    color: #5a5c69;
+    font-weight: 500;
+  }
+
+  .search-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #858796;
+    pointer-events: none;
+    transition: all 0.2s ease;
+  }
+
+  .search-clear {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #858796;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 50%;
+    display: none;
+    transition: all 0.2s ease;
+  }
+
+  .search-clear:hover {
+    color: #e74a3b;
+    background-color: #f8f9fc;
+  }
+
+  .dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    background: white;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.375rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    max-height: 400px;
+    display: none;
+    margin-top: 0.25rem;
+    overflow: hidden;
+  }
+
+  .dropdown.show {
+    display: block;
+    animation: dropdownFadeIn 0.2s ease-out;
+  }
+
+  @keyframes dropdownFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .dropdown-header {
+    padding: 0.75rem 1rem;
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #5a5c69;
+  }
+
+  .dropdown-list {
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .dropdown-item {
+    padding: 1rem;
+    border-bottom: 1px solid #f1f1f1;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .dropdown-item:hover {
+    background-color: #f8f9fc;
+  }
+
+  .dropdown-item:last-child {
+    border-bottom: none;
+  }
+
+  .dropdown-item.selected {
+    background-color: #e3f2fd;
+    border-left: 4px solid #4e73df;
+  }
+
+  .dropdown-item.focused {
+    background-color: #f0f8ff;
+    outline: 2px solid #4e73df;
+    outline-offset: -2px;
+  }
+
+  .item-image {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 0.375rem;
+    border: 1px solid #e3e6f0;
+  }
+
+  .item-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.375rem;
+    color: #858796;
+    font-size: 1.25rem;
+  }
+
+  .item-details {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .item-details h6 {
+    margin: 0 0 0.25rem 0;
+    font-weight: 600;
+    color: #5a5c69;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .item-details .text-muted {
+    font-size: 0.75rem;
+    margin: 0;
+    color: #858796;
+  }
+
+  .item-badges {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .item-badges .badge {
+    font-size: 0.65rem;
+    padding: 0.25rem 0.5rem;
+    white-space: nowrap;
+  }
+
+  .no-items-found {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #858796;
+  }
+
+  .no-items-found i {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: #d1d3e2;
+  }
+
+  .no-items-found h6 {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #5a5c69;
+  }
+
+  .no-items-found p {
+    margin: 0;
+    font-size: 0.875rem;
+  }
+
+  /* Custom scrollbar for dropdown */
+  .dropdown-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .dropdown-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+
+  .dropdown-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+  }
+
+  .dropdown-list::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+  }
+
+  /* Loading state */
+  .dropdown-loading {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: #858796;
+  }
+
+  .dropdown-loading i {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
 </style>
 {% endblock %}
 
@@ -101,16 +349,16 @@
     <div>
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-          <li class="breadcrumb-item"><a href="{% url 'trip_list' %}">Trip List</a></li>
-          <li class="breadcrumb-item active">Manual Trip Entry</li>
+          <li class="breadcrumb-item"><a href="{% url 'manual_trip_list' %}">Manual Trips</a></li>
+          <li class="breadcrumb-item active">Add New Trip</li>
         </ol>
       </nav>
       <h1 class="h3 mb-0 text-gray-800">Manual Trip Entry</h1>
       <p class="text-muted">Add trip data for drivers without mobile access</p>
     </div>
     <div>
-      <a href="{% url 'trip_list' %}" class="btn btn-secondary">
-        <i class="fas fa-arrow-left me-1"></i>Back to Trip List
+      <a href="{% url 'manual_trip_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Back to List
       </a>
     </div>
   </div>
@@ -145,19 +393,34 @@
           
           <div class="row">
             <div class="col-md-6 mb-3">
-              <label for="id_driver" class="form-label required-label">Driver</label>
-              <select class="form-select" id="id_driver" name="driver" required>
-                <option value="">Select a driver...</option>
-                {% for driver in drivers %}
-                <option value="{{ driver.id }}" 
-                        data-full-name="{{ driver.get_full_name }}"
-                        data-email="{{ driver.email }}"
-                        data-license="{{ driver.license_number|default:'' }}"
-                        data-license-expiry="{{ driver.license_expiry|default:'' }}">
-                  {{ driver.get_full_name }} ({{ driver.email }})
-                </option>
-                {% endfor %}
-              </select>
+              <label for="driverSearchInput" class="form-label required-label">Driver</label>
+              <div class="search-wrapper">
+                <input 
+                  type="text" 
+                  class="search-input" 
+                  id="driverSearchInput" 
+                  placeholder="Click to select or type to search drivers..."
+                  autocomplete="off"
+                  readonly
+                >
+                <i class="fas fa-chevron-down search-icon" id="driverSearchIcon"></i>
+                <button type="button" class="search-clear" id="driverSearchClear">
+                  <i class="fas fa-times"></i>
+                </button>
+                
+                <!-- Hidden form field -->
+                <input type="hidden" name="driver" id="{{ form.driver.id_for_label }}" value="">
+                
+                <!-- Custom dropdown -->
+                <div class="dropdown" id="driverDropdown">
+                  <div class="dropdown-header">
+                    <span id="driverDropdownHeader">Available Drivers</span>
+                  </div>
+                  <div class="dropdown-list" id="driverDropdownList">
+                    <!-- Populated by JavaScript -->
+                  </div>
+                </div>
+              </div>
               <div class="driver-preview" id="driverPreview">
                 <div class="preview-info">
                   <strong>Full Name:</strong> <span id="driverFullName"></span>
@@ -169,21 +432,34 @@
             </div>
             
             <div class="col-md-6 mb-3">
-              <label for="id_vehicle" class="form-label required-label">Vehicle</label>
-              <select class="form-select" id="id_vehicle" name="vehicle" required>
-                <option value="">Select a vehicle...</option>
-                {% for vehicle in vehicles %}
-                <option value="{{ vehicle.id }}"
-                        data-license-plate="{{ vehicle.license_plate }}"
-                        data-make="{{ vehicle.make }}"
-                        data-model="{{ vehicle.model }}"
-                        data-odometer="{{ vehicle.current_odometer }}"
-                        data-fuel="{{ vehicle.fuel_type }}"
-                        data-type="{{ vehicle.vehicle_type.name|default:'' }}">
-                  {{ vehicle.license_plate }} - {{ vehicle.make }} {{ vehicle.model }}
-                </option>
-                {% endfor %}
-              </select>
+              <label for="vehicleSearchInput" class="form-label required-label">Vehicle</label>
+              <div class="search-wrapper">
+                <input 
+                  type="text" 
+                  class="search-input" 
+                  id="vehicleSearchInput" 
+                  placeholder="Click to select or type to search vehicles..."
+                  autocomplete="off"
+                  readonly
+                >
+                <i class="fas fa-chevron-down search-icon" id="vehicleSearchIcon"></i>
+                <button type="button" class="search-clear" id="vehicleSearchClear">
+                  <i class="fas fa-times"></i>
+                </button>
+                
+                <!-- Hidden form field -->
+                <input type="hidden" name="vehicle" id="{{ form.vehicle.id_for_label }}" value="">
+                
+                <!-- Custom dropdown -->
+                <div class="dropdown" id="vehicleDropdown">
+                  <div class="dropdown-header">
+                    <span id="vehicleDropdownHeader">Available Vehicles</span>
+                  </div>
+                  <div class="dropdown-list" id="vehicleDropdownList">
+                    <!-- Populated by JavaScript -->
+                  </div>
+                </div>
+              </div>
               <div class="vehicle-preview" id="vehiclePreview">
                 <div class="preview-info">
                   <strong>License Plate:</strong> <span id="vehicleLicensePlate"></span>
@@ -398,8 +674,6 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     // Form elements
-    const driverSelect = document.getElementById('id_driver');
-    const vehicleSelect = document.getElementById('id_vehicle');
     const originInput = document.getElementById('id_origin');
     const destinationInput = document.getElementById('id_destination');
     const startTimeInput = document.getElementById('id_start_time');
@@ -414,41 +688,483 @@
     const odometerWarning = document.getElementById('odometerWarning');
     const distanceCalculation = document.getElementById('distanceCalculation');
     
+    // Driver search elements
+    const driverSearchInput = document.getElementById('driverSearchInput');
+    const driverSearchIcon = document.getElementById('driverSearchIcon');
+    const driverSearchClear = document.getElementById('driverSearchClear');
+    const driverDropdown = document.getElementById('driverDropdown');
+    const driverDropdownList = document.getElementById('driverDropdownList');
+    const driverDropdownHeader = document.getElementById('driverDropdownHeader');
+    const hiddenDriverField = document.getElementById('{{ form.driver.id_for_label }}');
+    
+    // Vehicle search elements
+    const vehicleSearchInput = document.getElementById('vehicleSearchInput');
+    const vehicleSearchIcon = document.getElementById('vehicleSearchIcon');
+    const vehicleSearchClear = document.getElementById('vehicleSearchClear');
+    const vehicleDropdown = document.getElementById('vehicleDropdown');
+    const vehicleDropdownList = document.getElementById('vehicleDropdownList');
+    const vehicleDropdownHeader = document.getElementById('vehicleDropdownHeader');
+    const hiddenVehicleField = document.getElementById('{{ form.vehicle.id_for_label }}');
+    
+    // Driver data and state
+    let allDrivers = [];
+    let filteredDrivers = [];
+    let selectedDriver = null;
+    let driverFocusedIndex = -1;
+    let isDriverDropdownOpen = false;
+    
+    // Vehicle data and state
+    let allVehicles = [];
+    let filteredVehicles = [];
+    let selectedVehicle = null;
+    let vehicleFocusedIndex = -1;
+    let isVehicleDropdownOpen = false;
     let selectedVehicleOdometer = 0;
     
-    // Driver selection handler
-    driverSelect.addEventListener('change', function() {
-      if (this.value) {
-        const selectedOption = this.options[this.selectedIndex];
+    // Build drivers data array
+    {% for driver in form.driver.field.queryset %}
+    allDrivers.push({
+      id: '{{ driver.id }}',
+      name: '{{ driver.get_full_name|default:driver.username }}',
+      email: '{{ driver.email }}',
+      username: '{{ driver.username }}',
+      searchText: '{{ driver.get_full_name|default:driver.username }} {{ driver.email }} {{ driver.username }}'.toLowerCase()
+    });
+    {% endfor %}
+    
+    filteredDrivers = [...allDrivers];
+    
+    // Build vehicles data array
+    {% for vehicle in form.vehicle.field.queryset %}
+    allVehicles.push({
+      id: '{{ vehicle.id }}',
+      make: '{{ vehicle.make }}',
+      model: '{{ vehicle.model }}',
+      plate: '{{ vehicle.license_plate }}',
+      type: '{{ vehicle.vehicle_type.name|default:"Unknown" }}',
+      fuel: '{{ vehicle.fuel_type|default:"Unknown" }}',
+      odometer: '{{ vehicle.current_odometer|default:"0" }}',
+      image: '{% if vehicle.image %}{{ vehicle.image.url }}{% endif %}',
+      searchText: '{{ vehicle.make }} {{ vehicle.model }} {{ vehicle.license_plate }} {{ vehicle.vehicle_type.name|default:"" }}'.toLowerCase()
+    });
+    {% endfor %}
+    
+    filteredVehicles = [...allVehicles];
+    
+    // Render driver dropdown items
+    function renderDriverDropdown() {
+      driverDropdownList.innerHTML = '';
+      
+      if (filteredDrivers.length === 0) {
+        driverDropdownList.innerHTML = `
+          <div class="no-items-found">
+            <i class="fas fa-user-slash"></i>
+            <h6>No Drivers Found</h6>
+            <p>No drivers match your search criteria.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      filteredDrivers.forEach((driver, index) => {
+        const item = document.createElement('div');
+        item.className = 'dropdown-item';
+        item.dataset.driverId = driver.id;
+        item.dataset.index = index;
         
-        document.getElementById('driverFullName').textContent = selectedOption.dataset.fullName;
-        document.getElementById('driverEmail').textContent = selectedOption.dataset.email;
+        if (selectedDriver && selectedDriver.id === driver.id) {
+          item.classList.add('selected');
+        }
         
-        driverPreview.style.display = 'block';
+        item.innerHTML = `
+          <div class="item-icon"><i class="fas fa-user"></i></div>
+          <div class="item-details">
+            <h6>${driver.name}</h6>
+            <div class="text-muted">${driver.email}</div>
+          </div>
+        `;
+        
+        item.addEventListener('click', () => selectDriver(driver));
+        driverDropdownList.appendChild(item);
+      });
+    }
+    
+    // Render vehicle dropdown items
+    function renderVehicleDropdown() {
+      vehicleDropdownList.innerHTML = '';
+      
+      if (filteredVehicles.length === 0) {
+        vehicleDropdownList.innerHTML = `
+          <div class="no-items-found">
+            <i class="fas fa-car-side"></i>
+            <h6>No Vehicles Found</h6>
+            <p>No vehicles match your search criteria.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      filteredVehicles.forEach((vehicle, index) => {
+        const item = document.createElement('div');
+        item.className = 'dropdown-item';
+        item.dataset.vehicleId = vehicle.id;
+        item.dataset.index = index;
+        
+        if (selectedVehicle && selectedVehicle.id === vehicle.id) {
+          item.classList.add('selected');
+        }
+        
+        item.innerHTML = `
+          ${vehicle.image ? 
+            `<img src="${vehicle.image}" class="item-image" alt="${vehicle.plate}">` :
+            '<div class="item-icon"><i class="fas fa-car"></i></div>'
+          }
+          <div class="item-details">
+            <h6>${vehicle.make} ${vehicle.model}</h6>
+            <div class="text-muted">${vehicle.plate} • ${vehicle.type}</div>
+          </div>
+          <div class="item-badges">
+            <span class="badge bg-primary">${vehicle.fuel}</span>
+            <span class="badge bg-secondary">${vehicle.odometer} km</span>
+          </div>
+        `;
+        
+        item.addEventListener('click', () => selectVehicle(vehicle));
+        vehicleDropdownList.appendChild(item);
+      });
+    }
+    
+    // Select driver
+    function selectDriver(driver) {
+      selectedDriver = driver;
+      hiddenDriverField.value = driver.id;
+      
+      // Update input display
+      driverSearchInput.value = driver.name;
+      driverSearchInput.classList.add('has-value');
+      
+      // Update preview
+      document.getElementById('driverFullName').textContent = driver.name;
+      document.getElementById('driverEmail').textContent = driver.email;
+      driverPreview.style.display = 'block';
+      
+      // Show clear button, hide dropdown
+      driverSearchClear.style.display = 'block';
+      driverSearchIcon.style.display = 'none';
+      closeDriverDropdown();
+      
+      // Make input readonly
+      driverSearchInput.setAttribute('readonly', true);
+    }
+    
+    // Select vehicle
+    function selectVehicle(vehicle) {
+      selectedVehicle = vehicle;
+      hiddenVehicleField.value = vehicle.id;
+      
+      // Update input display
+      vehicleSearchInput.value = `${vehicle.make} ${vehicle.model} (${vehicle.plate})`;
+      vehicleSearchInput.classList.add('has-value');
+      
+      // Update preview
+      document.getElementById('vehicleLicensePlate').textContent = vehicle.plate;
+      document.getElementById('vehicleMakeModel').textContent = `${vehicle.make} ${vehicle.model}`;
+      document.getElementById('vehicleOdometer').textContent = vehicle.odometer;
+      
+      // Update odometer
+      selectedVehicleOdometer = parseInt(vehicle.odometer);
+      startOdometerInput.min = selectedVehicleOdometer;
+      startOdometerInput.value = selectedVehicleOdometer;
+      
+      vehiclePreview.style.display = 'block';
+      validateOdometer();
+      
+      // Show clear button, hide dropdown
+      vehicleSearchClear.style.display = 'block';
+      vehicleSearchIcon.style.display = 'none';
+      closeVehicleDropdown();
+      
+      // Make input readonly
+      vehicleSearchInput.setAttribute('readonly', true);
+    }
+    
+    // Clear driver selection
+    function clearDriverSelection() {
+      selectedDriver = null;
+      hiddenDriverField.value = '';
+      driverSearchInput.value = '';
+      driverSearchInput.classList.remove('has-value');
+      driverSearchInput.removeAttribute('readonly');
+      
+      driverSearchClear.style.display = 'none';
+      driverSearchIcon.style.display = 'block';
+      
+      driverPreview.style.display = 'none';
+      renderDriverDropdown();
+    }
+    
+    // Clear vehicle selection
+    function clearVehicleSelection() {
+      selectedVehicle = null;
+      hiddenVehicleField.value = '';
+      vehicleSearchInput.value = '';
+      vehicleSearchInput.classList.remove('has-value');
+      vehicleSearchInput.removeAttribute('readonly');
+      
+      vehicleSearchClear.style.display = 'none';
+      vehicleSearchIcon.style.display = 'block';
+      
+      vehiclePreview.style.display = 'none';
+      selectedVehicleOdometer = 0;
+      renderVehicleDropdown();
+    }
+    
+    // Open driver dropdown
+    function openDriverDropdown() {
+      if (isDriverDropdownOpen) return;
+      
+      isDriverDropdownOpen = true;
+      driverDropdown.classList.add('show');
+      driverSearchIcon.style.transform = 'translateY(-50%) rotate(180deg)';
+      renderDriverDropdown();
+      driverFocusedIndex = -1;
+    }
+    
+    // Close driver dropdown
+    function closeDriverDropdown() {
+      if (!isDriverDropdownOpen) return;
+      
+      isDriverDropdownOpen = false;
+      driverDropdown.classList.remove('show');
+      driverSearchIcon.style.transform = 'translateY(-50%) rotate(0deg)';
+      driverFocusedIndex = -1;
+      
+      // Reset input if no selection
+      if (!selectedDriver) {
+        driverSearchInput.value = '';
+        driverSearchInput.setAttribute('readonly', true);
+      }
+    }
+    
+    // Open vehicle dropdown
+    function openVehicleDropdown() {
+      if (isVehicleDropdownOpen) return;
+      
+      isVehicleDropdownOpen = true;
+      vehicleDropdown.classList.add('show');
+      vehicleSearchIcon.style.transform = 'translateY(-50%) rotate(180deg)';
+      renderVehicleDropdown();
+      vehicleFocusedIndex = -1;
+    }
+    
+    // Close vehicle dropdown
+    function closeVehicleDropdown() {
+      if (!isVehicleDropdownOpen) return;
+      
+      isVehicleDropdownOpen = false;
+      vehicleDropdown.classList.remove('show');
+      vehicleSearchIcon.style.transform = 'translateY(-50%) rotate(0deg)';
+      vehicleFocusedIndex = -1;
+      
+      // Reset input if no selection
+      if (!selectedVehicle) {
+        vehicleSearchInput.value = '';
+        vehicleSearchInput.setAttribute('readonly', true);
+      }
+    }
+    
+    // Search drivers
+    function searchDrivers(query) {
+      const searchTerm = query.toLowerCase().trim();
+      
+      if (!searchTerm) {
+        filteredDrivers = [...allDrivers];
       } else {
-        driverPreview.style.display = 'none';
+        filteredDrivers = allDrivers.filter(driver => 
+          driver.searchText.includes(searchTerm)
+        );
+      }
+      
+      updateDriverDropdownHeader();
+      renderDriverDropdown();
+    }
+    
+    // Search vehicles
+    function searchVehicles(query) {
+      const searchTerm = query.toLowerCase().trim();
+      
+      if (!searchTerm) {
+        filteredVehicles = [...allVehicles];
+      } else {
+        filteredVehicles = allVehicles.filter(vehicle => 
+          vehicle.searchText.includes(searchTerm)
+        );
+      }
+      
+      updateVehicleDropdownHeader();
+      renderVehicleDropdown();
+    }
+    
+    // Update dropdown headers
+    function updateDriverDropdownHeader() {
+      const count = filteredDrivers.length;
+      driverDropdownHeader.textContent = `Available Drivers (${count})`;
+    }
+    
+    function updateVehicleDropdownHeader() {
+      const count = filteredVehicles.length;
+      vehicleDropdownHeader.textContent = `Available Vehicles (${count})`;
+    }
+    
+    // Handle keyboard navigation for driver dropdown
+    function handleDriverKeyNavigation(e) {
+      const items = driverDropdownList.querySelectorAll('.dropdown-item');
+      
+      switch(e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          driverFocusedIndex = Math.min(driverFocusedIndex + 1, items.length - 1);
+          updateDriverFocusedItem(items);
+          break;
+          
+        case 'ArrowUp':
+          e.preventDefault();
+          driverFocusedIndex = Math.max(driverFocusedIndex - 1, -1);
+          updateDriverFocusedItem(items);
+          break;
+          
+        case 'Enter':
+          e.preventDefault();
+          if (driverFocusedIndex >= 0 && items[driverFocusedIndex]) {
+            const driverId = items[driverFocusedIndex].dataset.driverId;
+            const driver = filteredDrivers.find(d => d.id === driverId);
+            if (driver) selectDriver(driver);
+          }
+          break;
+          
+        case 'Escape':
+          closeDriverDropdown();
+          driverSearchInput.blur();
+          break;
+      }
+    }
+    
+    // Handle keyboard navigation for vehicle dropdown
+    function handleVehicleKeyNavigation(e) {
+      const items = vehicleDropdownList.querySelectorAll('.dropdown-item');
+      
+      switch(e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          vehicleFocusedIndex = Math.min(vehicleFocusedIndex + 1, items.length - 1);
+          updateVehicleFocusedItem(items);
+          break;
+          
+        case 'ArrowUp':
+          e.preventDefault();
+          vehicleFocusedIndex = Math.max(vehicleFocusedIndex - 1, -1);
+          updateVehicleFocusedItem(items);
+          break;
+          
+        case 'Enter':
+          e.preventDefault();
+          if (vehicleFocusedIndex >= 0 && items[vehicleFocusedIndex]) {
+            const vehicleId = items[vehicleFocusedIndex].dataset.vehicleId;
+            const vehicle = filteredVehicles.find(v => v.id === vehicleId);
+            if (vehicle) selectVehicle(vehicle);
+          }
+          break;
+          
+        case 'Escape':
+          closeVehicleDropdown();
+          vehicleSearchInput.blur();
+          break;
+      }
+    }
+    
+    // Update focused items
+    function updateDriverFocusedItem(items) {
+      items.forEach((item, index) => {
+        item.classList.remove('focused');
+        if (index === driverFocusedIndex) {
+          item.classList.add('focused');
+          item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      });
+    }
+    
+    function updateVehicleFocusedItem(items) {
+      items.forEach((item, index) => {
+        item.classList.remove('focused');
+        if (index === vehicleFocusedIndex) {
+          item.classList.add('focused');
+          item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      });
+    }
+    
+    // Event listeners for driver search
+    driverSearchInput.addEventListener('click', () => {
+      if (!selectedDriver) {
+        driverSearchInput.removeAttribute('readonly');
+        openDriverDropdown();
       }
     });
     
-    // Vehicle selection handler
-    vehicleSelect.addEventListener('change', function() {
-      if (this.value) {
-        const selectedOption = this.options[this.selectedIndex];
-        
-        document.getElementById('vehicleLicensePlate').textContent = selectedOption.dataset.licensePlate;
-        document.getElementById('vehicleMakeModel').textContent = `${selectedOption.dataset.make} ${selectedOption.dataset.model}`;
-        document.getElementById('vehicleOdometer').textContent = selectedOption.dataset.odometer;
-        
-        selectedVehicleOdometer = parseInt(selectedOption.dataset.odometer) || 0;
-        startOdometerInput.min = selectedVehicleOdometer;
-        startOdometerInput.value = selectedVehicleOdometer;
-        
-        vehiclePreview.style.display = 'block';
-        validateOdometer();
-      } else {
-        vehiclePreview.style.display = 'none';
-        selectedVehicleOdometer = 0;
+    driverSearchInput.addEventListener('focus', () => {
+      if (!selectedDriver) {
+        driverSearchInput.removeAttribute('readonly');
+        openDriverDropdown();
       }
+    });
+    
+    driverSearchInput.addEventListener('input', (e) => {
+      if (selectedDriver) return;
+      
+      const query = e.target.value;
+      searchDrivers(query);
+      
+      if (!isDriverDropdownOpen) openDriverDropdown();
+      driverFocusedIndex = -1;
+    });
+    
+    driverSearchInput.addEventListener('keydown', handleDriverKeyNavigation);
+    
+    driverSearchClear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearDriverSelection();
+    });
+    
+    // Event listeners for vehicle search
+    vehicleSearchInput.addEventListener('click', () => {
+      if (!selectedVehicle) {
+        vehicleSearchInput.removeAttribute('readonly');
+        openVehicleDropdown();
+      }
+    });
+    
+    vehicleSearchInput.addEventListener('focus', () => {
+      if (!selectedVehicle) {
+        vehicleSearchInput.removeAttribute('readonly');
+        openVehicleDropdown();
+      }
+    });
+    
+    vehicleSearchInput.addEventListener('input', (e) => {
+      if (selectedVehicle) return;
+      
+      const query = e.target.value;
+      searchVehicles(query);
+      
+      if (!isVehicleDropdownOpen) openVehicleDropdown();
+      vehicleFocusedIndex = -1;
+    });
+    
+    vehicleSearchInput.addEventListener('keydown', handleVehicleKeyNavigation);
+    
+    vehicleSearchClear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearVehicleSelection();
     });
     
     // Route display update
@@ -468,7 +1184,7 @@
     originInput.addEventListener('input', updateRouteDisplay);
     destinationInput.addEventListener('input', updateRouteDisplay);
     
-    // Odometer validation - relaxed for manual entries
+    // Odometer validation
     function validateOdometer() {
       const startOdometer = parseInt(startOdometerInput.value) || 0;
       const endOdometer = parseInt(endOdometerInput.value) || 0;
@@ -489,7 +1205,7 @@
       if (endOdometer && startOdometer) {
         if (endOdometer <= startOdometer) {
           odometerWarning.style.display = 'block';
-          odometerWarning.className = 'odometer-warning'; // Reset to warning class
+          odometerWarning.className = 'odometer-warning'; // Reset to warning style
           document.getElementById('odometerWarningText').textContent = 
             `End odometer (${endOdometer}) must be greater than start odometer (${startOdometer})`;
           return false;
@@ -522,45 +1238,22 @@
       });
     });
     
-    // Form validation - updated for manual entries
-    document.getElementById('manualTripForm').addEventListener('submit', function(e) {
-      // Allow any odometer readings for manual entries - just validate end > start
-      const startOdometer = parseInt(startOdometerInput.value) || 0;
-      const endOdometer = parseInt(endOdometerInput.value) || 0;
-      
-      if (endOdometer && startOdometer && endOdometer <= startOdometer) {
-        e.preventDefault();
-        alert('End odometer must be greater than start odometer.');
-        endOdometerInput.focus();
-        return false;
+    // Click outside to close dropdowns
+    document.addEventListener('click', (e) => {
+      if (!driverSearchInput.contains(e.target) && !driverDropdown.contains(e.target)) {
+        closeDriverDropdown();
       }
       
-      const startTime = new Date(startTimeInput.value);
-      const endTime = endTimeInput.value ? new Date(endTimeInput.value) : null;
-      
-      if (endTime && endTime <= startTime) {
-        e.preventDefault();
-        alert('End time must be after start time.');
-        endTimeInput.focus();
-        return false;
+      if (!vehicleSearchInput.contains(e.target) && !vehicleDropdown.contains(e.target)) {
+        closeVehicleDropdown();
       }
-      
-      // Check if end time and end odometer are both provided or both empty
-      const hasEndTime = !!endTimeInput.value;
-      const hasEndOdometer = !!endOdometerInput.value;
-      
-      if (hasEndTime !== hasEndOdometer) {
-        const message = hasEndTime 
-          ? 'Please provide end odometer reading since end time is specified.'
-          : 'Please provide end time since end odometer is specified.';
-        
-        e.preventDefault();
-        alert(message);
-        return false;
-      }
-      
-      return true;
     });
+    
+    // Initialize dropdowns
+    updateDriverDropdownHeader();
+    updateVehicleDropdownHeader();
+    renderDriverDropdown();
+    renderVehicleDropdown();
   });
   
   // Utility functions
@@ -607,8 +1300,36 @@
   function resetForm() {
     if (confirm('Are you sure you want to reset all fields? This action cannot be undone.')) {
       document.getElementById('manualTripForm').reset();
+      
+      // Clear driver selection
+      const driverSearchInput = document.getElementById('driverSearchInput');
+      const driverSearchClear = document.getElementById('driverSearchClear');
+      const driverSearchIcon = document.getElementById('driverSearchIcon');
+      const hiddenDriverField = document.getElementById('id_driver');
+      
+      driverSearchInput.value = '';
+      driverSearchInput.classList.remove('has-value');
+      driverSearchInput.setAttribute('readonly', true);
+      driverSearchClear.style.display = 'none';
+      driverSearchIcon.style.display = 'block';
+      hiddenDriverField.value = '';
       document.getElementById('driverPreview').style.display = 'none';
+      
+      // Clear vehicle selection
+      const vehicleSearchInput = document.getElementById('vehicleSearchInput');
+      const vehicleSearchClear = document.getElementById('vehicleSearchClear');
+      const vehicleSearchIcon = document.getElementById('vehicleSearchIcon');
+      const hiddenVehicleField = document.getElementById('id_vehicle');
+      
+      vehicleSearchInput.value = '';
+      vehicleSearchInput.classList.remove('has-value');
+      vehicleSearchInput.setAttribute('readonly', true);
+      vehicleSearchClear.style.display = 'none';
+      vehicleSearchIcon.style.display = 'block';
+      hiddenVehicleField.value = '';
       document.getElementById('vehiclePreview').style.display = 'none';
+      
+      // Hide other elements
       document.getElementById('routeDisplay').style.display = 'none';
       document.getElementById('odometerWarning').style.display = 'none';
       document.getElementById('distanceCalculation').style.display = 'none';
@@ -620,8 +1341,8 @@
     const content = document.getElementById('tripPreviewContent');
     
     // Get form data
-    const driver = document.getElementById('id_driver');
-    const vehicle = document.getElementById('id_vehicle');
+    const driverInput = document.getElementById('driverSearchInput');
+    const vehicleInput = document.getElementById('vehicleSearchInput');
     const origin = document.getElementById('id_origin').value;
     const destination = document.getElementById('id_destination').value;
     const startTime = document.getElementById('id_start_time').value;
@@ -638,10 +1359,10 @@
       <div class="row">
         <div class="col-md-6">
           <h6>Driver Information</h6>
-          <p><strong>Driver:</strong> ${driver.selectedOptions[0]?.text || 'Not selected'}</p>
+          <p><strong>Driver:</strong> ${driverInput.value || 'Not selected'}</p>
           
           <h6>Vehicle Information</h6>
-          <p><strong>Vehicle:</strong> ${vehicle.selectedOptions[0]?.text || 'Not selected'}</p>
+          <p><strong>Vehicle:</strong> ${vehicleInput.value || 'Not selected'}</p>
           
           <h6>Route Information</h6>
           <p><strong>From:</strong> ${origin || 'Not entered'}</p>

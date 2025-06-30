@@ -37,14 +37,16 @@ class Trip(models.Model):
         help_text="Odometer reading at trip end in km"
     )
     
-    # Destination fields
+    # Location fields
     origin = models.CharField(
         max_length=255,
         help_text="Starting location/address"
     )
     destination = models.CharField(
         max_length=255,
-        help_text="Destination location/address"
+        blank=True,  # Allow blank for start trip
+        null=True,   # Allow null for start trip
+        help_text="Destination location/address (added when ending trip)"
     )
     
     purpose = models.CharField(max_length=255)
@@ -71,7 +73,8 @@ class Trip(models.Model):
         ordering = ['-start_time']
     
     def __str__(self):
-        return f"{self.vehicle} driven by {self.driver.get_full_name()} from {self.origin} to {self.destination} on {self.start_time.date()}"
+        destination = self.destination or "TBD"
+        return f"{self.vehicle} driven by {self.driver.get_full_name()} from {self.origin} to {destination} on {self.start_time.date()}"
     
     def clean(self):
         """Validate trip data."""
@@ -83,6 +86,12 @@ class Trip(models.Model):
                 raise ValidationError({
                     'end_odometer': f'End odometer ({self.end_odometer}) must be greater than start odometer ({self.start_odometer})'
                 })
+        
+        # Validate destination is required when trip is completed
+        if self.status == 'completed' and not self.destination:
+            raise ValidationError({
+                'destination': 'Destination is required when completing a trip'
+            })
     
     def save(self, *args, **kwargs):
         """
@@ -228,18 +237,23 @@ class Trip(models.Model):
     
     def get_route_summary(self):
         """Get a formatted route summary."""
-        return f"{self.origin} → {self.destination}"
+        destination = self.destination or "TBD"
+        return f"{self.origin} → {destination}"
     
-    def end_trip(self, end_odometer, notes=None):
+    def end_trip(self, destination, end_odometer, notes=None):
         """
         Safely end a trip with proper validation.
         """
         if self.status != 'ongoing':
             raise ValidationError("Can only end ongoing trips")
         
+        if not destination or len(destination.strip()) < 3:
+            raise ValidationError("Destination is required to end the trip")
+        
         if not end_odometer or end_odometer <= self.start_odometer:
             raise ValidationError(f"End odometer ({end_odometer}) must be greater than start odometer ({self.start_odometer})")
         
+        self.destination = destination.strip()
         self.end_odometer = end_odometer
         self.end_time = timezone.now()
         self.status = 'completed'

@@ -30,6 +30,7 @@
     align-items: center;
     gap: 0.5rem;
     margin: 1rem 0;
+    flex-wrap: wrap;
   }
   
   .location {
@@ -38,11 +39,22 @@
     border: 1px solid #b8daff;
     border-radius: 0.25rem;
     font-weight: 600;
+    flex: 1;
+    min-width: 200px;
+    text-align: center;
+  }
+  
+  .destination-placeholder {
+    background-color: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    color: #6c757d;
+    font-style: italic;
   }
   
   .route-arrow {
     font-size: 1.5rem;
     color: #6c757d;
+    margin: 0 0.5rem;
   }
   
   .current-duration {
@@ -81,72 +93,73 @@
     margin-bottom: 1rem;
   }
 
-  /* Google Maps Integration Styles */
-  #mapContainer {
-    height: 300px;
-    border-radius: 0.375rem;
-    overflow: hidden;
+  .destination-info {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .destination-info .icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .location-suggestions {
+    position: absolute;
+    z-index: 1000;
+    background: white;
     border: 1px solid #e3e6f0;
-    margin-top: 1rem;
-  }
-
-  #map {
-    height: 100%;
+    border-radius: 0.25rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    max-height: 200px;
+    overflow-y: auto;
     width: 100%;
+    display: none;
   }
 
-  .distance-comparison {
-    background-color: #e8f4fd;
-    border: 1px solid #bee5eb;
-    border-radius: 0.375rem;
-    padding: 1rem;
-    margin-top: 1rem;
+  .location-suggestion {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f1f1;
   }
 
-  .distance-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
+  .location-suggestion:hover {
+    background-color: #f8f9fc;
   }
 
-  .distance-item {
-    text-align: center;
-    flex: 1;
-    min-width: 120px;
-    margin: 0.5rem;
+  .location-suggestion:last-child {
+    border-bottom: none;
   }
 
-  .distance-value {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: #28a745;
+  .quick-locations {
+    margin-top: 0.75rem;
   }
 
-  .distance-label {
-    font-size: 0.85rem;
-    color: #6c757d;
-    margin-top: 0.25rem;
+  .quick-locations .btn {
+    margin: 0.25rem 0.25rem 0.25rem 0;
+    transition: all 0.2s ease;
   }
 
-  .difference-warning {
-    background-color: #fff3cd;
-    border: 1px solid #ffeaa7;
-    color: #856404;
-    padding: 0.75rem;
-    border-radius: 0.25rem;
-    margin-top: 0.5rem;
-    font-size: 0.9rem;
+  .quick-locations .btn:hover {
+    transform: translateY(-1px);
   }
 
-  .difference-good {
-    background-color: #d4edda;
-    border: 1px solid #c3e6cb;
-    color: #155724;
-    padding: 0.75rem;
-    border-radius: 0.25rem;
-    margin-top: 0.5rem;
-    font-size: 0.9rem;
+  @media (max-width: 768px) {
+    .route-display {
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    
+    .route-arrow {
+      transform: rotate(90deg);
+      margin: 0;
+    }
+    
+    .location {
+      min-width: 100%;
+    }
   }
 </style>
 {% endblock %}
@@ -204,7 +217,7 @@
         </div>
         
         <!-- Route Display -->
-        <div class="trip-info-label">Route</div>
+        <div class="trip-info-label">Current Route</div>
         <div class="route-display">
           <div class="location">
             <i class="fas fa-map-marker-alt text-success"></i> {{ trip.origin }}
@@ -212,35 +225,9 @@
           <div class="route-arrow">
             <i class="fas fa-arrow-right"></i>
           </div>
-          <div class="location">
-            <i class="fas fa-map-marker-alt text-danger"></i> {{ trip.destination }}
+          <div class="location destination-placeholder">
+            <i class="fas fa-map-marker-alt"></i> Destination will be added below
           </div>
-        </div>
-
-        <!-- Google Map Display -->
-        <div class="trip-info-label">Route Map</div>
-        <div id="mapContainer">
-          <div id="map"></div>
-        </div>
-
-        <!-- Distance Information -->
-        <div class="distance-comparison" id="distanceComparison" style="display: none;">
-          <div class="trip-info-label">Distance Information</div>
-          <div class="distance-info">
-            <div class="distance-item">
-              <div class="distance-value" id="mapDistanceValue">-- km</div>
-              <div class="distance-label">Map Distance</div>
-            </div>
-            <div class="distance-item">
-              <div class="distance-value" id="odometerDistanceValue">-- km</div>
-              <div class="distance-label">Odometer Distance</div>
-            </div>
-            <div class="distance-item">
-              <div class="distance-value" id="distanceDifferenceValue">-- km</div>
-              <div class="distance-label">Difference</div>
-            </div>
-          </div>
-          <div id="differenceMessage"></div>
         </div>
         
         {% if trip.notes %}
@@ -265,111 +252,133 @@
         and its odometer reading will be updated. Make sure all information is correct.
       </div>
       
-      <form method="post" action="{% url 'end_trip' trip.pk %}">
+      <form method="post" id="end-trip-form">
         {% csrf_token %}
         
-        <!-- Form Errors -->
-        {% if form.errors %}
-        <div class="alert alert-danger">
-          <h5>Please correct the following errors:</h5>
-          {% for field, errors in form.errors.items %}
-            <p><strong>{{ field }}:</strong> {{ errors|join:", " }}</p>
-          {% endfor %}
-        </div>
-        {% endif %}
-        
+        <!-- Destination field -->
         <div class="form-section">
-          <h5 class="form-section-title">Trip Completion Details</h5>
-          
-          <div class="row">
-            <div class="col-md-6 mb-3">
-              <label for="end_odometer" class="form-label required-label">End Odometer Reading (km)</label>
-              <input 
-                type="number" 
-                id="end_odometer" 
-                name="end_odometer" 
-                class="form-control" 
-                min="{{ trip.start_odometer|add:1 }}"
-                value="{{ form.end_odometer.value|default:'' }}"
-                step="0.1"
-                required
-              >
-              <div class="odometer-help">
-                Must be greater than start odometer ({{ trip.start_odometer }} km). 
-                Current vehicle odometer: {{ trip.vehicle.current_odometer }} km
-              </div>
-              <div id="distance-calculation" class="mt-2 text-info" style="display: none;">
-                <i class="fas fa-route"></i> <span id="calculated-distance"></span>
-              </div>
+            <div class="destination-info">
+                <div class="text-center">
+                    <i class="fas fa-map-marker-alt icon"></i>
+                    <h5 class="mb-2">Final Destination</h5>
+                    <p class="mb-0">Where did your trip end? This completes your route information.</p>
+                </div>
             </div>
-            
-            <div class="col-md-6 mb-3">
-              <label for="end_time" class="form-label">End Time</label>
-              <input 
-                type="datetime-local" 
-                id="end_time" 
-                name="end_time" 
-                class="form-control"
-                value="{% now 'Y-m-d\TH:i' %}"
-                readonly
-              >
-              <div class="odometer-help">Trip end time (automatically set to current time)</div>
+
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label for="id_destination" class="form-label required-label">
+                        <i class="fas fa-map-marker-alt text-danger me-1"></i>
+                        Final Destination
+                    </label>
+                    <div class="position-relative">
+                        {{ form.destination }}  <!-- Use Django form field -->
+                        <div class="location-suggestions" id="destinationSuggestions"></div>
+                    </div>
+                    {% if form.destination.errors %}
+                    <div class="invalid-feedback d-block">{{ form.destination.errors }}</div>
+                    {% endif %}
+                </div>
             </div>
-          </div>
-          
-          <div class="row">
-            <div class="col-md-12 mb-3">
-              <label for="notes" class="form-label">Additional Notes (Optional)</label>
-              <textarea 
-                id="notes" 
-                name="notes" 
-                class="form-control" 
-                rows="3"
-                placeholder="Any additional notes about the trip, fuel consumption, issues encountered, etc."
-              >{{ form.notes.value|default:'' }}</textarea>
+        </div>
+
+        <!-- End odometer field -->
+        <div class="form-section">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="id_end_odometer" class="form-label required-label">
+                        <i class="fas fa-tachometer-alt me-1"></i>End Odometer Reading (km)
+                    </label>
+                    {{ form.end_odometer }}  <!-- Use Django form field -->
+                    {% if form.end_odometer.errors %}
+                    <div class="invalid-feedback d-block">{{ form.end_odometer.errors }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-12 mb-3">
+                    <label for="id_notes" class="form-label">
+                        <i class="fas fa-sticky-note me-1"></i>Additional Notes (Optional)
+                    </label>
+                    {{ form.notes }}  <!-- Use Django form field -->
+                    {% if form.notes.errors %}
+                    <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+                    {% endif %}
+                </div>
             </div>
-          </div>
         </div>
         
-        <!-- Form Actions -->
+        <!-- Submit button -->
         <div class="form-actions mt-4">
-          <button type="submit" class="btn btn-danger" id="end-trip-btn">
-            <i class="fas fa-stop-circle me-1"></i> End Trip
-          </button>
-          <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-secondary ms-2">
-            <i class="fas fa-times me-1"></i> Cancel
-          </a>
+            <button type="submit" class="btn btn-danger btn-lg" id="end-trip-btn">
+                <i class="fas fa-stop-circle me-1"></i> End Trip
+            </button>
+            <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-secondary btn-lg ms-2">
+                <i class="fas fa-times me-1"></i> Cancel
+            </a>
         </div>
-      </form>
+    </form>
     </div>
   </div>
 </div>
 
 <!-- Confirmation Modal -->
 <div class="modal fade" id="confirmEndModal" tabindex="-1" aria-labelledby="confirmEndModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="confirmEndModalLabel">Confirm End Trip</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p>Are you sure you want to end this trip?</p>
-        <div class="alert alert-info">
-          <strong>Trip Summary:</strong><br>
-          Odometer Distance: <span id="modal-distance"></span> km<br>
-          Map Distance: <span id="modal-map-distance"></span> km<br>
-          Duration: <span id="modal-duration"></span><br>
-          End Odometer: <span id="modal-odometer"></span> km
+        <p>Are you sure you want to end this trip? Please review the details below:</p>
+        
+        <!-- Trip Summary in Modal -->
+        <div class="card mb-3">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-route me-1"></i>Complete Route</h6>
+          </div>
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-center">
+              <div class="text-center">
+                <i class="fas fa-map-marker-alt text-success fa-lg"></i>
+                <div class="mt-1">
+                  <strong class="text-success">{{ trip.origin }}</strong>
+                </div>
+                <small class="text-muted">Starting Point</small>
+              </div>
+              <div class="mx-4">
+                <i class="fas fa-long-arrow-alt-right text-primary fa-2x"></i>
+              </div>
+              <div class="text-center">
+                <i class="fas fa-map-marker-alt text-danger fa-lg"></i>
+                <div class="mt-1">
+                  <strong class="text-danger" id="modal-destination">-</strong>
+                </div>
+                <small class="text-muted">Final Destination</small>
+              </div>
+            </div>
+          </div>
         </div>
-        <div id="modal-difference-warning" style="display: none;" class="alert alert-warning">
-          <strong>Notice:</strong> There's a <span id="modal-difference-amount"></span> km difference between map distance and odometer reading.
+
+        <div class="alert alert-info">
+          <div class="row">
+            <div class="col-md-6">
+              <strong>Distance:</strong> <span id="modal-distance"></span> km<br>
+              <strong>Duration:</strong> <span id="modal-duration"></span>
+            </div>
+            <div class="col-md-6">
+              <strong>End Odometer:</strong> <span id="modal-odometer"></span> km<br>
+              <strong>Vehicle:</strong> {{ trip.vehicle.license_plate }}
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="fas fa-arrow-left me-1"></i>Cancel
+        </button>
         <button type="button" class="btn btn-danger" id="confirm-end-btn">
-          <i class="fas fa-stop-circle"></i> End Trip
+          <i class="fas fa-stop-circle me-1"></i> End Trip
         </button>
       </div>
     </div>
@@ -378,250 +387,62 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Google Maps API -->
-<script async defer 
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDMAkESwj75ZhnMIlLK25zHiM1oAUPZtbo&libraries=places&callback=initMap">
-</script>
-
 <script>
-  // Google Maps variables
-  let map, directionsService, directionsRenderer, mapDistance = 0;
-
-  // Trip data from Django
-  const tripData = {
-    origin: "{{ trip.origin|escapejs }}",
-    destination: "{{ trip.destination|escapejs }}",
-    startOdometer: {{ trip.start_odometer }}
-  };
-
-  // Initialize Google Maps
-  function initMap() {
-    map = new google.maps.Map(document.getElementById('map'), {
-      zoom: 13,
-      center: { lat: 12.9716, lng: 77.5946 }, // Default center
-      styles: [
-        {
-          featureType: 'poi',
-          elementType: 'labels',
-          stylers: [{ visibility: 'off' }]
-        }
-      ]
-    });
-
-    directionsService = new google.maps.DirectionsService();
-    directionsRenderer = new google.maps.DirectionsRenderer({
-      draggable: false,
-      panel: null
-    });
-    directionsRenderer.setMap(map);
-
-    // Calculate route immediately if we have trip data
-    if (tripData.origin && tripData.destination) {
-      calculateRoute();
-    }
-  }
-
-  function calculateRoute() {
-    if (!tripData.origin || !tripData.destination) return;
-
-    const request = {
-      origin: tripData.origin,
-      destination: tripData.destination,
-      travelMode: google.maps.TravelMode.DRIVING,
-      unitSystem: google.maps.UnitSystem.METRIC
-    };
-
-    directionsService.route(request, function(result, status) {
-      if (status === 'OK') {
-        directionsRenderer.setDirections(result);
-        
-        // Calculate distance
-        const route = result.routes[0];
-        let totalDistance = 0;
-        
-        route.legs.forEach(leg => {
-          totalDistance += leg.distance.value;
-        });
-        
-        mapDistance = (totalDistance / 1000).toFixed(2);
-        
-        // Update map distance display
-        document.getElementById('mapDistanceValue').textContent = mapDistance + ' km';
-        document.getElementById('distanceComparison').style.display = 'block';
-        
-        // Update comparison if end odometer is already entered
-        updateDistanceComparison();
-      } else {
-        console.error('Could not calculate route: ' + status);
-      }
-    });
-  }
-
-  function updateDistanceComparison() {
-    const endOdometerInput = document.getElementById('end_odometer');
-    const endOdometer = parseFloat(endOdometerInput.value);
-    
-    if (endOdometer && endOdometer > tripData.startOdometer && mapDistance > 0) {
-      const odometerDistance = (endOdometer - tripData.startOdometer).toFixed(2);
-      const difference = Math.abs(odometerDistance - mapDistance).toFixed(2);
-      const differencePercent = ((difference / mapDistance) * 100).toFixed(1);
-      
-      // Update display
-      document.getElementById('odometerDistanceValue').textContent = odometerDistance + ' km';
-      document.getElementById('distanceDifferenceValue').textContent = difference + ' km';
-      
-      // Show appropriate message based on difference
-      const differenceMessage = document.getElementById('differenceMessage');
-      if (difference <= 2) {
-        differenceMessage.className = 'difference-good';
-        differenceMessage.innerHTML = `<i class="fas fa-check-circle"></i> Good match! The odometer and map distances are very close (${differencePercent}% difference).`;
-      } else if (difference <= 5) {
-        differenceMessage.className = 'difference-warning';
-        differenceMessage.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Moderate difference of ${difference} km (${differencePercent}%). This might be due to route variations or detours.`;
-      } else {
-        differenceMessage.className = 'difference-warning';
-        differenceMessage.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Large difference of ${difference} km (${differencePercent}%). Please verify the odometer reading or check if there were significant detours.`;
-      }
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', function() {
-    const endOdometerInput = document.getElementById('end_odometer');
+document.addEventListener('DOMContentLoaded', function() {
+    const endOdometerInput = document.getElementById('id_end_odometer');
+    const destinationInput = document.getElementById('id_destination');
     const distanceCalculation = document.getElementById('distance-calculation');
     const calculatedDistance = document.getElementById('calculated-distance');
     const startOdometer = {{ trip.start_odometer }};
-    const endTripForm = document.getElementById('end-trip-form');
-    const endTripBtn = document.getElementById('end-trip-btn');
-    const confirmModal = new bootstrap.Modal(document.getElementById('confirmEndModal'));
-    const confirmEndBtn = document.getElementById('confirm-end-btn');
     
     // Calculate distance as user types
-    endOdometerInput.addEventListener('input', function() {
-      const endOdometer = parseFloat(this.value);
-      
-      if (endOdometer && endOdometer > startOdometer) {
-        const distance = (endOdometer - startOdometer).toFixed(2);
-        calculatedDistance.textContent = `Odometer Distance: ${distance} km`;
-        distanceCalculation.style.display = 'block';
-        
-        // Remove error styling
-        this.classList.remove('is-invalid');
-        
-        // Update distance comparison
-        updateDistanceComparison();
-      } else {
-        distanceCalculation.style.display = 'none';
-        
-        // Add error styling if value is invalid
-        if (this.value && endOdometer <= startOdometer) {
-          this.classList.add('is-invalid');
-        }
-      }
-    });
-    
-    // Form submission with confirmation
-    endTripForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      
-      const endOdometer = parseFloat(endOdometerInput.value);
-      
-      if (!endOdometer || endOdometer <= startOdometer) {
-        alert('Please enter a valid end odometer reading greater than ' + startOdometer + ' km');
-        endOdometerInput.focus();
-        return false;
-      }
-      
-      // Update modal with trip summary
-      const odometerDistance = (endOdometer - startOdometer).toFixed(2);
-      const difference = mapDistance > 0 ? Math.abs(odometerDistance - mapDistance).toFixed(2) : 0;
-      
-      document.getElementById('modal-distance').textContent = odometerDistance;
-      document.getElementById('modal-map-distance').textContent = mapDistance > 0 ? mapDistance : 'Not calculated';
-      document.getElementById('modal-duration').textContent = '{{ trip.duration|default:"Calculating..." }}';
-      document.getElementById('modal-odometer').textContent = endOdometer;
-      
-      // Show difference warning if significant
-      const differenceWarning = document.getElementById('modal-difference-warning');
-      const differenceAmount = document.getElementById('modal-difference-amount');
-      
-      if (mapDistance > 0 && difference > 2) {
-        differenceAmount.textContent = difference;
-        differenceWarning.style.display = 'block';
-      } else {
-        differenceWarning.style.display = 'none';
-      }
-      
-      // Show confirmation modal
-      confirmModal.show();
-    });
+    if (endOdometerInput) {
+        endOdometerInput.addEventListener('input', function() {
+            const endOdometer = parseInt(this.value);
+            
+            if (endOdometer && endOdometer > startOdometer) {
+                const distance = endOdometer - startOdometer;
+                calculatedDistance.textContent = `Distance: ${distance} km`;
+                distanceCalculation.style.display = 'block';
+                
+                // Remove error styling
+                this.classList.remove('is-invalid');
+            } else {
+                distanceCalculation.style.display = 'none';
+                
+                // Add error styling if value is invalid
+                if (this.value && endOdometer <= startOdometer) {
+                    this.classList.add('is-invalid');
+                }
+            }
+        });
+    }
 
-    // Confirm button in modal - this is the key fix
-    confirmEndBtn.addEventListener('click', function() {
-      confirmModal.hide();
-      
-      // Disable button to prevent double submission
-      endTripBtn.disabled = true;
-      endTripBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Ending Trip...';
-      
-      // Remove the preventDefault event listener temporarily
-      const formClone = endTripForm.cloneNode(true);
-      
-      // Ensure all form fields have the correct names for Django
-      const endOdometerField = formClone.querySelector('#end_odometer');
-      if (endOdometerField) {
-        endOdometerField.name = 'end_odometer';
-      }
-      
-      const notesField = formClone.querySelector('#notes');
-      if (notesField) {
-        notesField.name = 'notes';
-      }
-      
-      const endTimeField = formClone.querySelector('#end_time');
-      if (endTimeField) {
-        endTimeField.name = 'end_time';
-      }
-      
-      // Add CSRF token if missing
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-      if (csrfToken && !formClone.querySelector('[name=csrfmiddlewaretoken]')) {
-        const csrfClone = csrfToken.cloneNode(true);
-        formClone.appendChild(csrfClone);
-      }
-      
-      // Replace form in DOM and submit
-      endTripForm.parentNode.replaceChild(formClone, endTripForm);
-      formClone.submit();
-    });
+    // Location suggestions (simplified)
+    const commonDestinations = [
+        'Client Office', 'Delivery Point', 'Main Office', 'Service Location',
+        'Warehouse', 'Customer Site', 'Branch Office'
+    ];
 
-    // Alternative: Simple form submission without modal (if modal fails)
-    // Uncomment this and comment out the above if you want to bypass the modal
-    /*
-    endTripBtn.addEventListener('click', function(e) {
-      const endOdometer = parseFloat(endOdometerInput.value);
-      
-      if (!endOdometer || endOdometer <= startOdometer) {
-        e.preventDefault();
-        alert('Please enter a valid end odometer reading greater than ' + startOdometer + ' km');
-        endOdometerInput.focus();
-        return false;
-      }
-      
-      // Show loading state
-      endTripBtn.disabled = true;
-      endTripBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Ending Trip...';
-      
-      // Allow form to submit normally (remove any preventDefault)
-      return true;
+    // Quick location buttons
+    const quickLocationButtons = document.querySelectorAll('[data-location]');
+    quickLocationButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const location = this.dataset.location;
+            if (destinationInput) {
+                destinationInput.value = location;
+                
+                // Add visual feedback
+                this.classList.add('btn-primary');
+                this.classList.remove('btn-outline-primary');
+                
+                setTimeout(() => {
+                    this.classList.remove('btn-primary');
+                    this.classList.add('btn-outline-primary');
+                }, 300);
+            }
+        });
     });
-    */
-
-    // Initialize map when page loads
-    setTimeout(function() {
-      if (typeof google !== 'undefined') {
-        initMap();
-      }
-    }, 1000);
-  });
+});
 </script>
 {% endblock %}

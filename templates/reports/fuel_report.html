@@ -114,6 +114,41 @@
   .vehicle-type-hybrid {
     color: #f6c23e;
   }
+
+
+/* Invoice badge styling for fuel report */
+  .invoice-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    word-break: break-all;
+    max-width: 100px;
+    display: inline-block;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    cursor: help;
+  }
+  
+  .invoice-badge:hover {
+    transform: scale(1.05);
+    transition: transform 0.2s;
+  }
+  
+  /* Responsive table adjustments */
+  @media (max-width: 768px) {
+    .invoice-badge {
+      max-width: 80px;
+      font-size: 0.7rem;
+    }
+  }
+  
+  /* Finance team alert styling */
+  .alert-info {
+    border-left: 4px solid #17a2b8;
+  }
 </style>
 {% endblock %}
 
@@ -497,7 +532,7 @@
     </div>
   </div>
   
-  <!-- Fuel & Energy Transactions Table -->
+  !-- Fuel & Energy Transactions Table -->
   <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex justify-content-between align-items-center">
       <h6 class="m-0 font-weight-bold text-primary">Fuel & Energy Transactions</h6>
@@ -517,6 +552,8 @@
               <th>Unit Cost</th>
               <th>Duration</th>
               <th>Total Cost</th>
+              <th>Company Invoice</th>
+              <th>Station Invoice</th>
               <th>Odometer</th>
             </tr>
           </thead>
@@ -554,19 +591,45 @@
                   {% endif %}
                 </td>
                 <td>₹{{ transaction.total_cost|floatformat:2 }}</td>
+                <td>
+                  {% if transaction.company_invoice_number %}
+                    <span class="badge bg-primary invoice-badge" title="{{ transaction.company_invoice_number }}">
+                      {{ transaction.company_invoice_number|truncatechars:12 }}
+                    </span>
+                  {% else %}
+                    <small class="text-muted">-</small>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if transaction.station_invoice_number %}
+                    <span class="badge bg-info invoice-badge" title="{{ transaction.station_invoice_number }}">
+                      {{ transaction.station_invoice_number|truncatechars:12 }}
+                    </span>
+                  {% else %}
+                    <small class="text-muted">-</small>
+                  {% endif %}
+                </td>
                 <td>{{ transaction.odometer_reading }} km</td>
               </tr>
             {% empty %}
               <tr>
-                <td colspan="10" class="text-center">No fuel/energy transactions found for the selected period.</td>
+                <td colspan="12" class="text-center">No fuel/energy transactions found for the selected period.</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+      
+      <!-- Finance Team Note -->
+      <div class="mt-3">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>
+          <strong>For Finance Team:</strong> Company Invoice and Station Invoice columns are included in CSV/Excel exports for expense tracking and reconciliation. 
+          Hover over truncated invoice numbers to see the full number.
+        </div>
+      </div>
     </div>
   </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}

@@ -5,7 +5,7 @@ from .models import FuelTransaction, FuelStation
 from vehicles.models import Vehicle
 
 class FuelTransactionForm(forms.ModelForm):
-    """Simplified form for the FuelTransaction model supporting both fuel and electric vehicles."""
+    """Form for the FuelTransaction model supporting both fuel and electric vehicles."""
     
     class Meta:
         model = FuelTransaction
@@ -15,6 +15,8 @@ class FuelTransactionForm(forms.ModelForm):
             'fuel_type', 'quantity', 'cost_per_liter',
             # Electric vehicle fields
             'energy_consumed', 'cost_per_kwh', 'charging_duration_minutes',
+            # Invoice/Finance fields
+            'company_invoice_number', 'station_invoice_number',
             # Common fields
             'total_cost', 'odometer_reading', 'receipt_image', 'notes'
         ]
@@ -28,6 +30,8 @@ class FuelTransactionForm(forms.ModelForm):
             'charging_duration_minutes': forms.NumberInput(attrs={'min': 0}),
             'total_cost': forms.NumberInput(attrs={'min': 0, 'step': '0.01'}),
             'odometer_reading': forms.NumberInput(attrs={'min': 0}),
+            'company_invoice_number': forms.TextInput(attrs={'placeholder': 'e.g., INV-2024-001'}),
+            'station_invoice_number': forms.TextInput(attrs={'placeholder': 'e.g., RCP-12345'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -38,28 +42,24 @@ class FuelTransactionForm(forms.ModelForm):
         if not self.instance.pk:
             self.fields['date'].initial = timezone.now().date()
         
-        # If user is a driver, set them as driver and hide the field
+        # Restrict access for drivers - they should not be able to add transactions manually
         if self.user and self.user.user_type == 'driver':
-            self.fields['driver'].initial = self.user
-            self.fields['driver'].widget = forms.HiddenInput()
+            # Hide all fields for drivers since they shouldn't add transactions manually
+            for field_name in self.fields:
+                self.fields[field_name].widget = forms.HiddenInput()
             
-            # Restrict vehicle options for drivers
-            from trips.models import Trip
+            # Add a note for drivers
+            self.fields['notes'].widget = forms.Textarea(attrs={
+                'readonly': True,
+                'placeholder': 'Fuel transactions are added by admin/manager only. Please contact your manager for fuel transaction entries.',
+                'rows': 2
+            })
+        else:
+            # For admin/managers, show all fields properly
             
-            active_trip = Trip.objects.filter(
-                driver=self.user,
-                status='ongoing'
-            ).first()
-            
-            if active_trip:
-                self.fields['vehicle'].queryset = Vehicle.objects.filter(
-                    id=active_trip.vehicle.id
-                )
-                self.fields['vehicle'].initial = active_trip.vehicle
-            else:
-                self.fields['vehicle'].queryset = Vehicle.objects.filter(
-                    Q(status='available') | Q(status='in_use')
-                )
+            # Make invoice fields more prominent for finance tracking
+            self.fields['company_invoice_number'].help_text = "Internal company invoice number for finance department tracking"
+            self.fields['station_invoice_number'].help_text = "Invoice/receipt number provided by the fuel station"
         
         # Make fields not required to avoid validation issues
         self.fields['fuel_type'].required = False
@@ -68,11 +68,19 @@ class FuelTransactionForm(forms.ModelForm):
         self.fields['energy_consumed'].required = False
         self.fields['cost_per_kwh'].required = False
         self.fields['total_cost'].required = False
+        
+        # Invoice fields are optional but helpful for finance
+        self.fields['company_invoice_number'].required = False
+        self.fields['station_invoice_number'].required = False
     
     def clean(self):
-        """Basic validation - keep it simple to avoid issues."""
+        """Enhanced validation with invoice number recommendations."""
         cleaned_data = super().clean()
         vehicle = cleaned_data.get('vehicle')
+        
+        # Block drivers from submitting if they somehow access the form
+        if self.user and self.user.user_type == 'driver':
+            raise forms.ValidationError("Drivers are not authorized to add fuel transactions. Please contact your manager.")
         
         # Basic validation - just ensure we have minimum required data
         if not vehicle:
@@ -104,6 +112,16 @@ class FuelTransactionForm(forms.ModelForm):
         elif not cleaned_data.get('fuel_type'):
             # Set default fuel type for non-electric vehicles
             cleaned_data['fuel_type'] = vehicle.fuel_type or 'Petrol'
+        
+        # Validate invoice numbers format (optional but recommended)
+        company_invoice = cleaned_data.get('company_invoice_number')
+        station_invoice = cleaned_data.get('station_invoice_number')
+        
+        if company_invoice and len(company_invoice.strip()) < 3:
+            self.add_error('company_invoice_number', 'Company invoice number should be at least 3 characters long.')
+            
+        if station_invoice and len(station_invoice.strip()) < 3:
+            self.add_error('station_invoice_number', 'Station invoice number should be at least 3 characters long.')
         
         return cleaned_data
 

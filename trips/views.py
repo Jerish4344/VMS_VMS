@@ -366,12 +366,12 @@ class StartTripView(LoginRequiredMixin, CanDriveVehicleMixin, CreateView):
         if current_driver == self.request.user:
             messages.success(
                 self.request, 
-                f'Trip started successfully from {form.instance.origin} to {form.instance.destination}!'
+                f'Trip started successfully from {form.instance.origin}!'  # Remove destination reference
             )
         else:
             messages.success(
                 self.request, 
-                f'Trip started successfully for {current_driver.get_full_name()} from {form.instance.origin} to {form.instance.destination}!'
+                f'Trip started successfully for {current_driver.get_full_name()} from {form.instance.origin}!'  # Remove destination reference
             )
         
         return super().form_valid(form)
@@ -390,8 +390,8 @@ class StartTripView(LoginRequiredMixin, CanDriveVehicleMixin, CreateView):
 
 class EndTripView(LoginRequiredMixin, UpdateView):
     model = Trip
+    form_class = EndTripForm  # Use the form class instead of fields
     template_name = 'trips/end_trip_form.html'
-    fields = ['end_odometer', 'notes']
     
     def get_object(self):
         trip = get_object_or_404(Trip, pk=self.kwargs['pk'], status='ongoing')
@@ -417,19 +417,16 @@ class EndTripView(LoginRequiredMixin, UpdateView):
     
     def form_valid(self, form):
         trip = form.instance
+        destination = form.cleaned_data.get('destination')
         end_odometer = form.cleaned_data.get('end_odometer')
-        
-        # Validate end_odometer
-        if not end_odometer or end_odometer <= trip.start_odometer:
-            messages.error(
-                self.request, 
-                f'End odometer ({end_odometer}) must be greater than start odometer ({trip.start_odometer}).'
-            )
-            return self.form_invalid(form)
         
         try:
             # Use the model's end_trip method
-            trip.end_trip(end_odometer=end_odometer, notes=form.cleaned_data.get('notes'))
+            trip.end_trip(
+                destination=destination,
+                end_odometer=end_odometer, 
+                notes=form.cleaned_data.get('notes')
+            )
             
             # Success message with role indication
             user_role = self.request.user.get_user_type_display()

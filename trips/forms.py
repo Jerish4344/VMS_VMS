@@ -10,12 +10,10 @@ class TripForm(forms.ModelForm):
     class Meta:
         model = Trip
         fields = [
-            'vehicle', 'origin', 'destination', 
-            'start_odometer', 'purpose', 'notes'
+            'vehicle', 'origin', 'start_odometer', 'purpose', 'notes'
         ]
         widgets = {
             'origin': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter starting location'}),
-            'destination': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter destination'}),
             'start_odometer': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             'purpose': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Client Visit, Delivery'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Additional notes (optional)'}),
@@ -51,32 +49,18 @@ class TripForm(forms.ModelForm):
         if not origin or len(origin.strip()) < 3:
             raise forms.ValidationError("Please provide a valid starting location (minimum 3 characters).")
         return origin.strip()
-    
-    def clean_destination(self):
-        """Validate destination field."""
-        destination = self.cleaned_data.get('destination')
-        if not destination or len(destination.strip()) < 3:
-            raise forms.ValidationError("Please provide a valid destination (minimum 3 characters).")
-        return destination.strip()
-    
-    def clean(self):
-        """Cross-field validation."""
-        cleaned_data = super().clean()
-        origin = cleaned_data.get('origin')
-        destination = cleaned_data.get('destination')
-        
-        if origin and destination and origin.lower().strip() == destination.lower().strip():
-            raise forms.ValidationError("Origin and destination cannot be the same.")
-        
-        return cleaned_data
 
 class EndTripForm(forms.ModelForm):
     """Form for ending a trip."""
     
     class Meta:
         model = Trip
-        fields = ['end_odometer', 'notes']
+        fields = ['destination', 'end_odometer', 'notes']
         widgets = {
+            'destination': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter where your trip ended'
+            }),
             'end_odometer': forms.NumberInput(attrs={
                 'min': 0,
                 'class': 'form-control'
@@ -93,6 +77,7 @@ class EndTripForm(forms.ModelForm):
         
         # Add custom help text
         self.fields['end_odometer'].help_text = "Current odometer reading in kilometers"
+        self.fields['destination'].help_text = "Enter your final destination"
         
         # Set minimum value for end_odometer
         if self.instance and self.instance.start_odometer:
@@ -109,6 +94,13 @@ class EndTripForm(forms.ModelForm):
                 )
         
         return end_odometer
+    
+    def clean_destination(self):
+        """Validate destination field."""
+        destination = self.cleaned_data.get('destination')
+        if not destination or len(destination.strip()) < 3:
+            raise forms.ValidationError("Please provide a valid destination (minimum 3 characters).")
+        return destination.strip()
 
 class ManualTripForm(forms.ModelForm):
     """Form for manually creating trips by managers."""
