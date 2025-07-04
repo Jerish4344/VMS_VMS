@@ -112,6 +112,17 @@ DATABASES = {
     }
 }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'vms_vms',
+#         'USER': 'root',
+#         'PASSWORD': 'root@2001',
+#         'HOST': 'localhost',
+#         'PORT': '3306',
+#     }
+# }
+
 # Jazzmin Settings
 JAZZMIN_SETTINGS = {
     # title of the window (Will default to current_admin_site.site_title if absent or None)
