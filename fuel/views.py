@@ -2,7 +2,7 @@
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, Count
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.contrib.auth.decorators import login_required
@@ -59,47 +59,60 @@ class FuelTransactionListView(LoginRequiredMixin, ListView):
     model = FuelTransaction
     template_name = 'fuel/fuel_transaction_list.html'
     context_object_name = 'transactions'
-    paginate_by = 20
+    paginate_by = 20  # Show 20 transactions per page
     
     def get_queryset(self):
-        queryset = super().get_queryset().select_related('vehicle', 'driver', 'fuel_station')
+        queryset = super().get_queryset().select_related('vehicle', 'driver', 'fuel_station').prefetch_related('vehicle__vehicle_type')
         
-        # Search functionality
+        # Search functionality - improved with invoice number search
         search_query = self.request.GET.get('search', None)
         if search_query:
             queryset = queryset.filter(
                 Q(vehicle__license_plate__icontains=search_query) |
                 Q(driver__first_name__icontains=search_query) |
                 Q(driver__last_name__icontains=search_query) |
-                Q(fuel_station__name__icontains=search_query)
+                Q(driver__username__icontains=search_query) |
+                Q(fuel_station__name__icontains=search_query) |
+                Q(company_invoice_number__icontains=search_query) |
+                Q(station_invoice_number__icontains=search_query) |
+                Q(notes__icontains=search_query)
             )
             
         # Filter by vehicle
         vehicle_filter = self.request.GET.get('vehicle', None)
         if vehicle_filter:
-            queryset = queryset.filter(vehicle_id=vehicle_filter)
+            try:
+                queryset = queryset.filter(vehicle_id=int(vehicle_filter))
+            except (ValueError, TypeError):
+                pass
             
         # Filter by driver
         driver_filter = self.request.GET.get('driver', None)  
         if driver_filter:
-            queryset = queryset.filter(driver_id=driver_filter)
+            try:
+                queryset = queryset.filter(driver_id=int(driver_filter))
+            except (ValueError, TypeError):
+                pass
             
-        # Filter by fuel station - FIX: Check both 'fuel_station' and 'station' parameters
+        # Filter by fuel station - Enhanced filtering
         fuel_station_filter = self.request.GET.get('fuel_station', None) or self.request.GET.get('station', None)
         if fuel_station_filter:
-            queryset = queryset.filter(fuel_station_id=fuel_station_filter)
+            try:
+                queryset = queryset.filter(fuel_station_id=int(fuel_station_filter))
+            except (ValueError, TypeError):
+                pass
             
-        # Filter by transaction type (fuel vs electric)
+        # Filter by transaction type (fuel vs electric) - Improved logic
         transaction_type_filter = self.request.GET.get('transaction_type', None)
         if transaction_type_filter == 'fuel':
             queryset = queryset.filter(
-                Q(vehicle__vehicle_type__category__in=['personal', 'commercial']) |
-                Q(fuel_type__isnull=False) & ~Q(fuel_type='Electric')
+                Q(fuel_type__isnull=False) & ~Q(fuel_type='Electric') |
+                Q(quantity__isnull=False, quantity__gt=0)
             )
         elif transaction_type_filter == 'electric':
             queryset = queryset.filter(
-                Q(vehicle__vehicle_type__category='electric') |
-                Q(fuel_type='Electric')
+                Q(fuel_type='Electric') |
+                Q(energy_consumed__isnull=False, energy_consumed__gt=0)
             )
             
         # Filter by fuel type
@@ -112,44 +125,82 @@ class FuelTransactionListView(LoginRequiredMixin, ListView):
         end_date = self.request.GET.get('end_date', None)
         
         if start_date:
-            queryset = queryset.filter(date__gte=start_date)
+            try:
+                queryset = queryset.filter(date__gte=start_date)
+            except ValueError:
+                pass
         if end_date:
-            queryset = queryset.filter(date__lte=end_date)
+            try:
+                queryset = queryset.filter(date__lte=end_date)
+            except ValueError:
+                pass
             
-        # Default ordering
-        return queryset.order_by('-date')
+        # Default ordering - most recent first
+        return queryset.order_by('-date', '-id')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['vehicles'] = Vehicle.objects.all().order_by('license_plate')
-        context['fuel_types'] = FuelTransaction.objects.values_list('fuel_type', flat=True).distinct().order_by('fuel_type')
-        context['fuel_stations'] = FuelStation.objects.all().order_by('name')  # Add this for filtering
         
-        # Get summary data for both fuel and electric vehicles
-        queryset = self.get_queryset()
+        # Get all vehicles for filtering
+        context['vehicles'] = Vehicle.objects.select_related('vehicle_type').order_by('license_plate')
         
-        # Calculate aggregates
-        aggregates = queryset.aggregate(
+        # Get all fuel types for filtering
+        context['fuel_types'] = FuelTransaction.objects.values_list('fuel_type', flat=True).distinct().exclude(fuel_type__isnull=True).exclude(fuel_type='').order_by('fuel_type')
+        
+        # Get all fuel stations for filtering - with transaction counts
+        fuel_stations = FuelStation.objects.annotate(
+            transaction_count=Count('fueltransaction')
+        ).order_by('name')
+        context['fuel_stations'] = fuel_stations
+        
+        # Get summary data for the current filtered queryset (not just current page)
+        all_filtered_transactions = self.get_queryset()
+        
+        # Calculate aggregates for all filtered data
+        aggregates = all_filtered_transactions.aggregate(
             total_quantity=Sum('quantity'),
             total_energy=Sum('energy_consumed'),
-            total_cost=Sum('total_cost')
+            total_cost=Sum('total_cost'),
+            total_count=Count('id')
         )
         
         summary = {
             'total_quantity': aggregates['total_quantity'] or 0,
             'total_energy': aggregates['total_energy'] or 0,
             'total_cost': aggregates['total_cost'] or 0,
+            'total_count': aggregates['total_count'] or 0,
         }
             
         context['summary'] = summary
         
-        # Add selected filters to context for display
+        # Add selected filters to context for display and form persistence
         context['selected_fuel_station'] = self.request.GET.get('fuel_station', None) or self.request.GET.get('station', None)
         if context['selected_fuel_station']:
             try:
-                context['selected_fuel_station_obj'] = FuelStation.objects.get(id=context['selected_fuel_station'])
-            except FuelStation.DoesNotExist:
+                context['selected_fuel_station_obj'] = FuelStation.objects.get(id=int(context['selected_fuel_station']))
+            except (FuelStation.DoesNotExist, ValueError, TypeError):
                 context['selected_fuel_station_obj'] = None
+        
+        # Add current filter values for template
+        context['current_filters'] = {
+            'search': self.request.GET.get('search', ''),
+            'vehicle': self.request.GET.get('vehicle', ''),
+            'transaction_type': self.request.GET.get('transaction_type', ''),
+            'fuel_type': self.request.GET.get('fuel_type', ''),
+            'fuel_station': self.request.GET.get('fuel_station', ''),
+            'start_date': self.request.GET.get('start_date', ''),
+            'end_date': self.request.GET.get('end_date', ''),
+        }
+        
+        # Add pagination info
+        if context['is_paginated']:
+            context['pagination_info'] = {
+                'showing_start': (context['page_obj'].number - 1) * self.paginate_by + 1,
+                'showing_end': min(context['page_obj'].number * self.paginate_by, context['paginator'].count),
+                'total_count': context['paginator'].count,
+                'current_page': context['page_obj'].number,
+                'total_pages': context['paginator'].num_pages,
+            }
         
         return context
 
