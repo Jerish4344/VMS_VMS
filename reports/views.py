@@ -13,6 +13,7 @@ from maintenance.models import Maintenance
 from fuel.models import FuelTransaction
 from accidents.models import Accident
 from accounts.models import CustomUser
+from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 import csv
 from datetime import datetime, timedelta
 import io
@@ -876,6 +877,73 @@ class MaintenanceReportView(ReportBaseView):
 class FuelReportView(ReportBaseView):
     template_name = 'reports/fuel_report.html'
     
+    def get(self, request, *args, **kwargs):
+        # Check if it's an AJAX request
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.GET.get('ajax'):
+            # For AJAX requests, return JSON data
+            context = self.get_context_data(**kwargs)
+            
+            # Prepare data for JSON response
+            transactions_data = []
+            for transaction in context['fuel_report_page']:
+                transactions_data.append({
+                    'date': transaction['date'].strftime('%b %d, %Y') if transaction['date'] else '',
+                    'vehicle': transaction['vehicle'],
+                    'driver': transaction['driver'],
+                    'fuel_type': transaction['fuel_type'],
+                    'fuel_station': transaction['fuel_station'],
+                    'quantity': transaction['quantity'],
+                    'energy_consumed': transaction['energy_consumed'],
+                    'cost_per_liter': transaction['cost_per_liter'],
+                    'cost_per_kwh': transaction['cost_per_kwh'],
+                    'charging_duration_minutes': transaction['charging_duration_minutes'],
+                    'total_cost': transaction['total_cost'],
+                    'company_invoice_number': transaction['company_invoice_number'],
+                    'station_invoice_number': transaction['station_invoice_number'],
+                    'odometer_reading': transaction['odometer_reading'],
+                    'is_electric': transaction['is_electric']
+                })
+            
+            return JsonResponse({
+                'success': True,
+                'transactions': transactions_data,
+                'pagination': {
+                    'current_page': context['fuel_report_page'].number,
+                    'total_pages': context['paginator'].num_pages,
+                    'total_count': context['paginator'].count,
+                    'start_index': context['fuel_report_page'].start_index,
+                    'end_index': context['fuel_report_page'].end_index,
+                    'has_previous': context['fuel_report_page'].has_previous(),
+                    'has_next': context['fuel_report_page'].has_next(),
+                    'previous_page_number': context['fuel_report_page'].previous_page_number if context['fuel_report_page'].has_previous() else None,
+                    'next_page_number': context['fuel_report_page'].next_page_number if context['fuel_report_page'].has_next() else None,
+                },
+                'page_size': context['page_size'],
+                'filters': {
+                    'start_date': request.GET.get('start_date', ''),
+                    'end_date': request.GET.get('end_date', ''),
+                    'vehicle': request.GET.get('vehicle', ''),
+                    'fuel_type': request.GET.get('fuel_type', ''),
+                    'station': request.GET.get('station', '')
+                }
+            })
+        
+        # Check if export is requested
+        if 'export' in request.GET:
+            context = self.get_context_data(**kwargs)
+            export_format = request.GET.get('export')
+            
+            if hasattr(self, 'get_export_data'):
+                data, filename, headers = self.get_export_data(context)
+                
+                if export_format == 'excel':
+                    return self.export_as_excel(data, filename, headers)
+                elif export_format == 'csv':
+                    return self.export_as_csv(data, filename, headers)
+        
+        # Regular page load
+        return super().get(request, *args, **kwargs)
+    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         start_date, end_date = self.get_date_range_filters()
@@ -905,6 +973,11 @@ class FuelReportView(ReportBaseView):
         fuel_type = self.request.GET.get('fuel_type')
         if fuel_type:
             fuel_transactions = fuel_transactions.filter(fuel_type=fuel_type)
+        
+        # Filter by fuel station
+        station_id = self.request.GET.get('station')
+        if station_id:
+            fuel_transactions = fuel_transactions.filter(fuel_station_id=station_id)
         
         # Separate fuel and electric transactions
         fuel_only_transactions = fuel_transactions.exclude(fuel_type='Electric')
@@ -1048,9 +1121,9 @@ class FuelReportView(ReportBaseView):
             vehicle_efficiency.append(vehicle_data)
         
         # Prepare data for detailed report INCLUDING INVOICE FIELDS
-        fuel_report = []
+        fuel_report_all = []
         for transaction in fuel_transactions.order_by('-date'):  # Order by date descending for better display
-            fuel_report.append({
+            fuel_report_all.append({
                 'id': transaction.id,
                 'date': transaction.date,
                 'vehicle': f"{transaction.vehicle.license_plate} ({transaction.vehicle.make} {transaction.vehicle.model})",
@@ -1064,11 +1137,28 @@ class FuelReportView(ReportBaseView):
                 'charging_duration_minutes': transaction.charging_duration_minutes,
                 'total_cost': transaction.total_cost,
                 'odometer_reading': transaction.odometer_reading,
-                # NEW: Include invoice fields
+                # Include invoice fields
                 'company_invoice_number': transaction.company_invoice_number or '',
                 'station_invoice_number': transaction.station_invoice_number or '',
                 'is_electric': transaction.fuel_type == 'Electric'
             })
+        
+        # **PAGINATION IMPLEMENTATION FOR FUEL TRANSACTIONS**
+        page = self.request.GET.get('page', 1)
+        page_size = int(self.request.GET.get('page_size', 20))  # Default 20 per page
+        
+        # Validate page_size
+        if page_size not in [10, 20, 50, 100]:
+            page_size = 20
+        
+        paginator = Paginator(fuel_report_all, page_size)
+        
+        try:
+            fuel_report_page = paginator.page(page)
+        except PageNotAnInteger:
+            fuel_report_page = paginator.page(1)
+        except EmptyPage:
+            fuel_report_page = paginator.page(paginator.num_pages)
         
         # Station type analysis
         station_type_analysis = {}
@@ -1097,7 +1187,10 @@ class FuelReportView(ReportBaseView):
                 station_type_analysis[station_type]['electric_transactions'] += station['electric_transactions']
                 station_type_analysis[station_type]['revenue'] += station['total_revenue'] or 0
         
-        context['fuel_report'] = fuel_report
+        context['fuel_report_page'] = fuel_report_page  # Paginated data for display
+        context['fuel_report'] = fuel_report_all  # All data for charts and export
+        context['paginator'] = paginator
+        context['page_obj'] = fuel_report_page
         context['summary'] = summary
         context['monthly_data'] = monthly_data
         context['vehicle_efficiency'] = vehicle_efficiency
@@ -1106,6 +1199,21 @@ class FuelReportView(ReportBaseView):
         context['end_date'] = end_date
         context['vehicles'] = Vehicle.objects.all()
         context['fuel_types'] = FuelTransaction.objects.values_list('fuel_type', flat=True).distinct()
+        context['fuel_stations'] = FuelTransaction.objects.select_related('fuel_station').values(
+            'fuel_station__id', 'fuel_station__name'
+        ).distinct().order_by('fuel_station__name')
+        context['page_size'] = page_size  # For the page size selector
+        
+        # Debug info
+        context['debug_info'] = {
+            'total_transactions': len(fuel_report_all),
+            'current_page': fuel_report_page.number,
+            'total_pages': paginator.num_pages,
+            'transactions_on_page': len(fuel_report_page),
+            'page_size': page_size,
+            'date_range': f"{start_date} to {end_date}",
+            'is_ajax': self.request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        }
         
         return context
     
@@ -1118,9 +1226,9 @@ class FuelReportView(ReportBaseView):
             'Company Invoice Number', 'Station Invoice Number', 'Type'
         ]
         
-        # Transform data for export
+        # Transform data for export - use ALL data, not just current page
         export_data = []
-        for transaction in context['fuel_report']:
+        for transaction in context['fuel_report']:  # This contains all data
             export_data.append({
                 'date': transaction['date'].strftime('%Y-%m-%d') if transaction['date'] else '',
                 'vehicle': transaction['vehicle'],
