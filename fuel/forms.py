@@ -70,8 +70,8 @@ class FuelTransactionForm(forms.ModelForm):
         self.fields['total_cost'].required = False
         
         # Invoice fields are optional but helpful for finance
-        self.fields['company_invoice_number'].required = False
-        self.fields['station_invoice_number'].required = False
+        self.fields['company_invoice_number'].required = True
+        self.fields['station_invoice_number'].required = True
     
     def clean(self):
         """Enhanced validation with invoice number recommendations."""

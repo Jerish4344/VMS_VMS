@@ -115,8 +115,7 @@
     color: #f6c23e;
   }
 
-
-/* Invoice badge styling for fuel report */
+  /* Invoice badge styling for fuel report */
   .invoice-badge {
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
@@ -159,10 +158,10 @@
     <h1 class="h3 mb-0 text-gray-800">Fuel & Energy Report</h1>
     
     <div class="d-flex">
-      <a href="{% url 'fuel_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}export=excel" class="btn btn-sm btn-success shadow-sm btn-export">
+      <a href="{% url 'fuel_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}export=excel" class="btn btn-sm btn-success shadow-sm btn-export">
         <i class="fas fa-file-excel fa-sm text-white-50"></i> Export to Excel
       </a>
-      <a href="{% url 'fuel_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}export=csv" class="btn btn-sm btn-primary shadow-sm btn-export">
+      <a href="{% url 'fuel_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}export=csv" class="btn btn-sm btn-primary shadow-sm btn-export">
         <i class="fas fa-file-csv fa-sm text-white-50"></i> Export to CSV
       </a>
     </div>
@@ -201,7 +200,7 @@
             </div>
           </div>
           
-          <div class="col-md-3">
+          <div class="col-md-2">
             <div class="mb-3">
               <label for="fuel-type-filter" class="form-label">Energy Type</label>
               <select name="fuel_type" id="fuel-type-filter" class="form-select">
@@ -209,6 +208,20 @@
                 {% for fuel_type in fuel_types %}
                   <option value="{{ fuel_type }}" {% if request.GET.fuel_type == fuel_type %}selected{% endif %}>
                     {{ fuel_type }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          
+          <div class="col-md-3">
+            <div class="mb-3">
+              <label for="station-filter" class="form-label">Fuel Station</label>
+              <select name="station" id="station-filter" class="form-select">
+                <option value="">All Stations</option>
+                {% for station in fuel_stations %}
+                  <option value="{{ station.fuel_station__id }}" {% if request.GET.station == station.fuel_station__id|stringformat:"i" %}selected{% endif %}>
+                    {{ station.fuel_station__name|default:"Unknown Station" }}
                   </option>
                 {% endfor %}
               </select>
@@ -343,7 +356,179 @@
     </div>
   </div>
   
-  <!-- Charts Row -->
+  <!-- ========================================= -->
+  <!-- MOVED: Fuel & Energy Transactions Table  -->
+  <!-- ========================================= -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+      <h6 class="m-0 font-weight-bold text-primary">Fuel & Energy Transactions</h6>
+      <div class="d-flex align-items-center">
+        <span class="badge bg-primary me-2">{{ summary.total_count }} Total Transactions</span>
+        <span>Period: {{ start_date }} to {{ end_date }}</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <!-- Pagination info and controls at top -->
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <small class="text-muted">
+            Showing {{ fuel_report_page.start_index }} to {{ fuel_report_page.end_index }} 
+            of {{ paginator.count }} transactions
+          </small>
+        </div>
+        <div>
+          <!-- Page size selector -->
+          <select class="form-select form-select-sm" id="pageSizeSelector" style="width: auto;">
+            <option value="10" {% if page_size == 10 %}selected{% endif %}>10 per page</option>
+            <option value="20" {% if page_size == 20 %}selected{% endif %}>20 per page</option>
+            <option value="50" {% if page_size == 50 %}selected{% endif %}>50 per page</option>
+            <option value="100" {% if page_size == 100 %}selected{% endif %}>100 per page</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="table-responsive">
+        <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Vehicle</th>
+              <th>Driver</th>
+              <th>Type</th>
+              <th>Station</th>
+              <th>Quantity/Energy</th>
+              <th>Unit Cost</th>
+              <th>Duration</th>
+              <th>Total Cost</th>
+              <th>Company Invoice</th>
+              <th>Station Invoice</th>
+              <th>Odometer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for transaction in fuel_report_page %}
+              <tr>
+                <td>{{ transaction.date|date:"M d, Y" }}</td>
+                <td>{{ transaction.vehicle }}</td>
+                <td>{{ transaction.driver }}</td>
+                <td>
+                  <span class="fuel-type-badge {% if transaction.is_electric %}fuel-type-electric{% endif %}">
+                    {{ transaction.fuel_type }}
+                  </span>
+                </td>
+                <td>{{ transaction.fuel_station }}</td>
+                <td>
+                  {% if transaction.is_electric %}
+                    {{ transaction.energy_consumed|floatformat:2 }} kWh
+                  {% else %}
+                    {{ transaction.quantity|floatformat:2 }} L
+                  {% endif %}
+                </td>
+                <td>
+                  {% if transaction.is_electric %}
+                    ₹{{ transaction.cost_per_kwh|floatformat:2 }}/kWh
+                  {% else %}
+                    ₹{{ transaction.cost_per_liter|floatformat:2 }}/L
+                  {% endif %}
+                </td>
+                <td>
+                  {% if transaction.is_electric and transaction.charging_duration_minutes %}
+                    {{ transaction.charging_duration_minutes }} min
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td>₹{{ transaction.total_cost|floatformat:2 }}</td>
+                <td>
+                  {% if transaction.company_invoice_number %}
+                    <span class="badge bg-primary invoice-badge" title="{{ transaction.company_invoice_number }}">
+                      {{ transaction.company_invoice_number|truncatechars:12 }}
+                    </span>
+                  {% else %}
+                    <small class="text-muted">-</small>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if transaction.station_invoice_number %}
+                    <span class="badge bg-info invoice-badge" title="{{ transaction.station_invoice_number }}">
+                      {{ transaction.station_invoice_number|truncatechars:12 }}
+                    </span>
+                  {% else %}
+                    <small class="text-muted">-</small>
+                  {% endif %}
+                </td>
+                <td>{{ transaction.odometer_reading }} km</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="12" class="text-center">No fuel/energy transactions found for the selected period.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Pagination Controls -->
+      {% if paginator.num_pages > 1 %}
+        <nav aria-label="Fuel transactions pagination" class="mt-4">
+          <div class="d-flex justify-content-between align-items-center">
+            <!-- Results info -->
+            <div>
+              <small class="text-muted">
+                Page {{ fuel_report_page.number }} of {{ paginator.num_pages }} 
+                ({{ paginator.count }} total transactions)
+              </small>
+            </div>
+            
+            <!-- Pagination -->
+            <ul class="pagination pagination-sm mb-0">
+              {% if fuel_report_page.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page=1" aria-label="First">
+                    <span aria-hidden="true">&laquo;&laquo;</span>
+                  </a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ fuel_report_page.previous_page_number }}" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                  </a>
+                </li>
+              {% endif %}
+              
+              {% for num in fuel_report_page.paginator.page_range %}
+                {% if fuel_report_page.number == num %}
+                  <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                  </li>
+                {% elif num > fuel_report_page.number|add:'-3' and num < fuel_report_page.number|add:'3' %}
+                  <li class="page-item">
+                    <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ num }}">{{ num }}</a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+              
+              {% if fuel_report_page.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ fuel_report_page.next_page_number }}" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                  </a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ paginator.num_pages }}" aria-label="Last">
+                    <span aria-hidden="true">&raquo;&raquo;</span>
+                  </a>
+                </li>
+              {% endif %}
+            </ul>
+          </div>
+        </nav>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- ========================================= -->
+  <!-- Charts Row (Now Below Transactions)      -->
+  <!-- ========================================= -->
   <div class="row mb-4">
     <!-- Monthly Trend Chart -->
     <div class="col-lg-6">
@@ -531,112 +716,13 @@
       </div>
     </div>
   </div>
-  
-  !-- Fuel & Energy Transactions Table -->
-  <div class="card shadow mb-4">
-    <div class="card-header py-3 d-flex justify-content-between align-items-center">
-      <h6 class="m-0 font-weight-bold text-primary">Fuel & Energy Transactions</h6>
-      <span>Period: {{ start_date }} to {{ end_date }}</span>
-    </div>
-    <div class="card-body">
-      <div class="table-responsive">
-        <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Vehicle</th>
-              <th>Driver</th>
-              <th>Type</th>
-              <th>Station</th>
-              <th>Quantity/Energy</th>
-              <th>Unit Cost</th>
-              <th>Duration</th>
-              <th>Total Cost</th>
-              <th>Company Invoice</th>
-              <th>Station Invoice</th>
-              <th>Odometer</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for transaction in fuel_report %}
-              <tr>
-                <td>{{ transaction.date|date:"M d, Y" }}</td>
-                <td>{{ transaction.vehicle }}</td>
-                <td>{{ transaction.driver }}</td>
-                <td>
-                  <span class="fuel-type-badge {% if transaction.is_electric %}fuel-type-electric{% endif %}">
-                    {{ transaction.fuel_type }}
-                  </span>
-                </td>
-                <td>{{ transaction.fuel_station }}</td>
-                <td>
-                  {% if transaction.is_electric %}
-                    {{ transaction.energy_consumed|floatformat:2 }} kWh
-                  {% else %}
-                    {{ transaction.quantity|floatformat:2 }} L
-                  {% endif %}
-                </td>
-                <td>
-                  {% if transaction.is_electric %}
-                    ₹{{ transaction.cost_per_kwh|floatformat:2 }}/kWh
-                  {% else %}
-                    ₹{{ transaction.cost_per_liter|floatformat:2 }}/L
-                  {% endif %}
-                </td>
-                <td>
-                  {% if transaction.is_electric and transaction.charging_duration_minutes %}
-                    {{ transaction.charging_duration_minutes }} min
-                  {% else %}
-                    -
-                  {% endif %}
-                </td>
-                <td>₹{{ transaction.total_cost|floatformat:2 }}</td>
-                <td>
-                  {% if transaction.company_invoice_number %}
-                    <span class="badge bg-primary invoice-badge" title="{{ transaction.company_invoice_number }}">
-                      {{ transaction.company_invoice_number|truncatechars:12 }}
-                    </span>
-                  {% else %}
-                    <small class="text-muted">-</small>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if transaction.station_invoice_number %}
-                    <span class="badge bg-info invoice-badge" title="{{ transaction.station_invoice_number }}">
-                      {{ transaction.station_invoice_number|truncatechars:12 }}
-                    </span>
-                  {% else %}
-                    <small class="text-muted">-</small>
-                  {% endif %}
-                </td>
-                <td>{{ transaction.odometer_reading }} km</td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="12" class="text-center">No fuel/energy transactions found for the selected period.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      
-      <!-- Finance Team Note -->
-      <div class="mt-3">
-        <div class="alert alert-info">
-          <i class="fas fa-info-circle me-2"></i>
-          <strong>For Finance Team:</strong> Company Invoice and Station Invoice columns are included in CSV/Excel exports for expense tracking and reconciliation. 
-          Hover over truncated invoice numbers to see the full number.
-        </div>
-      </div>
-    </div>
-  </div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded, initializing charts...');
+    console.log('DOM loaded, initializing fuel report...');
     
     // Check if Chart.js is loaded
     if (typeof Chart === 'undefined') {
@@ -644,7 +730,9 @@
       return;
     }
     
-    // Format dates
+    // ======================
+    // DATE FILTER HANDLING
+    // ======================
     const today = new Date().toISOString().split('T')[0];
     const startDateInput = document.querySelector('input[name="start_date"]');
     const endDateInput = document.querySelector('input[name="end_date"]');
@@ -674,18 +762,255 @@
       }
     }
     
-    // Style form controls
+    // ======================
+    // AJAX PAGINATION FUNCTIONALITY
+    // ======================
+    
+    // Page size selector functionality with AJAX
+    const pageSizeSelector = document.getElementById('pageSizeSelector');
+    if (pageSizeSelector) {
+      // Set default value to 20 if not already set
+      if (!pageSizeSelector.value) {
+        pageSizeSelector.value = '20';
+      }
+      
+      pageSizeSelector.addEventListener('change', function() {
+        loadPage(1, this.value); // Load first page with new page size
+      });
+    }
+    
+    // Add AJAX functionality to pagination links
+    document.querySelectorAll('.pagination .page-link').forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        e.preventDefault(); // Prevent default redirect
+        
+        // Don't process disabled or active links
+        if (this.closest('.page-item').classList.contains('disabled') || 
+            this.closest('.page-item').classList.contains('active')) {
+          return;
+        }
+        
+        // Extract page number from href
+        const url = new URL(this.href);
+        const pageNumber = url.searchParams.get('page') || 1;
+        const pageSize = url.searchParams.get('page_size') || 20;
+        
+        loadPage(pageNumber, pageSize);
+      });
+    });
+    
+    // Function to load page content via AJAX
+    function loadPage(pageNumber, pageSize) {
+      // Show loading indicator
+      showLoadingIndicator();
+      
+      // Build URL with current filters
+      const url = new URL(window.location);
+      url.searchParams.set('page', pageNumber);
+      url.searchParams.set('page_size', pageSize);
+      url.searchParams.set('ajax', '1'); // Add AJAX flag
+      
+      // Make AJAX request
+      fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json, text/html'
+        }
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.text();
+      })
+      .then(html => {
+        // Parse the response HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        // Extract the table content
+        const newTableContent = doc.querySelector('#dataTable tbody');
+        const newPaginationContent = doc.querySelector('.pagination').closest('nav');
+        const newPageInfo = doc.querySelector('.card-body .d-flex.justify-content-between.align-items-center');
+        
+        if (newTableContent && newPaginationContent) {
+          // Update table content
+          const currentTable = document.querySelector('#dataTable tbody');
+          if (currentTable) {
+            currentTable.innerHTML = newTableContent.innerHTML;
+          }
+          
+          // Update pagination
+          const currentPagination = document.querySelector('.pagination').closest('nav');
+          if (currentPagination) {
+            currentPagination.innerHTML = newPaginationContent.innerHTML;
+          }
+          
+          // Update page info
+          if (newPageInfo) {
+            const currentPageInfo = document.querySelector('.card-body .d-flex.justify-content-between.align-items-center');
+            if (currentPageInfo) {
+              currentPageInfo.innerHTML = newPageInfo.innerHTML;
+            }
+          }
+          
+          // Update URL without redirect
+          const newUrl = new URL(window.location);
+          newUrl.searchParams.set('page', pageNumber);
+          newUrl.searchParams.set('page_size', pageSize);
+          newUrl.searchParams.delete('ajax');
+          window.history.pushState({}, '', newUrl.toString());
+          
+          // Re-attach event listeners to new pagination links
+          attachPaginationListeners();
+          
+          // Scroll to table top smoothly
+          document.querySelector('#dataTable').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+          });
+          
+          // Update page size selector
+          const newPageSizeSelector = document.getElementById('pageSizeSelector');
+          if (newPageSizeSelector) {
+            newPageSizeSelector.value = pageSize;
+            attachPageSizeListener();
+          }
+          
+          // Re-initialize tooltips for invoice badges
+          initializeInvoiceTooltips();
+          
+          console.log(`AJAX pagination: Loaded page ${pageNumber} with ${pageSize} records per page`);
+        } else {
+          throw new Error('Could not find table content in response');
+        }
+      })
+      .catch(error => {
+        console.error('AJAX pagination error:', error);
+        
+        // Fallback to regular page redirect
+        const fallbackUrl = new URL(window.location);
+        fallbackUrl.searchParams.set('page', pageNumber);
+        fallbackUrl.searchParams.set('page_size', pageSize);
+        window.location.href = fallbackUrl.toString();
+      });
+    }
+    
+    // Function to re-attach pagination event listeners
+    function attachPaginationListeners() {
+      document.querySelectorAll('.pagination .page-link').forEach(function(link) {
+        // Remove existing listeners by cloning
+        const newLink = link.cloneNode(true);
+        link.parentNode.replaceChild(newLink, link);
+        
+        // Add new listener
+        newLink.addEventListener('click', function(e) {
+          e.preventDefault();
+          
+          if (this.closest('.page-item').classList.contains('disabled') || 
+              this.closest('.page-item').classList.contains('active')) {
+            return;
+          }
+          
+          const url = new URL(this.href);
+          const pageNumber = url.searchParams.get('page') || 1;
+          const pageSize = url.searchParams.get('page_size') || 20;
+          
+          loadPage(pageNumber, pageSize);
+        });
+      });
+    }
+    
+    // Function to re-attach page size selector listener
+    function attachPageSizeListener() {
+      const pageSizeSelector = document.getElementById('pageSizeSelector');
+      if (pageSizeSelector) {
+        // Remove existing listener by cloning
+        const newSelector = pageSizeSelector.cloneNode(true);
+        pageSizeSelector.parentNode.replaceChild(newSelector, pageSizeSelector);
+        
+        // Add new listener
+        newSelector.addEventListener('change', function() {
+          loadPage(1, this.value);
+        });
+      }
+    }
+    
+    // Function to show loading indicator in table
+    function showLoadingIndicator() {
+      const tbody = document.querySelector('#dataTable tbody');
+      if (tbody) {
+        const colCount = document.querySelectorAll('#dataTable thead th').length || 12;
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="${colCount}" class="text-center py-4">
+              <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+              <div class="mt-2">Loading transactions...</div>
+            </td>
+          </tr>
+        `;
+      }
+    }
+    
+    // Function to initialize invoice badge tooltips
+    function initializeInvoiceTooltips() {
+      document.querySelectorAll('.invoice-badge').forEach(function(badge) {
+        badge.addEventListener('mouseenter', function() {
+          const fullNumber = this.getAttribute('title');
+          if (fullNumber && fullNumber !== this.textContent.trim()) {
+            // Remove existing tooltip
+            if (this._tooltip) {
+              document.body.removeChild(this._tooltip);
+            }
+            
+            // Create new tooltip
+            const tooltip = document.createElement('div');
+            tooltip.className = 'invoice-tooltip';
+            tooltip.textContent = fullNumber;
+            tooltip.style.cssText = `
+              position: absolute;
+              background: #333;
+              color: white;
+              padding: 5px 10px;
+              border-radius: 4px;
+              font-size: 12px;
+              z-index: 1000;
+              white-space: nowrap;
+              pointer-events: none;
+            `;
+            
+            document.body.appendChild(tooltip);
+            
+            // Position tooltip
+            const rect = this.getBoundingClientRect();
+            tooltip.style.left = rect.left + 'px';
+            tooltip.style.top = (rect.bottom + 5) + 'px';
+            
+            // Store tooltip reference
+            this._tooltip = tooltip;
+          }
+        });
+        
+        badge.addEventListener('mouseleave', function() {
+          if (this._tooltip) {
+            document.body.removeChild(this._tooltip);
+            this._tooltip = null;
+          }
+        });
+      });
+    }
+    
+    // ======================
+    // FORM STYLING
+    // ======================
     document.querySelectorAll('select').forEach(function(element) {
       element.classList.add('form-select');
     });
     
-    // Initialize DataTable
-    if (typeof $ !== 'undefined' && $.fn.DataTable) {
-      $('#dataTable').DataTable({
-        order: [[0, 'desc']], // Sort by date
-        pageLength: 25
-      });
-    }
+    // ======================
+    // CHART DATA PREPARATION
+    // ======================
     
     // Prepare Monthly Data for Chart
     const monthlyData = [
@@ -716,14 +1041,18 @@
     
     console.log('Fuel Type Data:', fuelTypeData);
     
-    // Colors for charts
+    // ======================
+    // CHART COLORS
+    // ======================
     const primaryColor = 'rgba(78, 115, 223, 1)';
     const successColor = 'rgba(28, 200, 138, 1)';
     const warningColor = 'rgba(246, 194, 62, 1)';
     const dangerColor = 'rgba(231, 74, 59, 1)';
     const infoColor = 'rgba(54, 185, 204, 1)';
     
-    // Monthly Consumption Chart
+    // ======================
+    // MONTHLY CONSUMPTION CHART
+    // ======================
     const monthlyCanvas = document.getElementById('monthlyConsumptionChart');
     if (monthlyCanvas) {
       const monthlyCtx = monthlyCanvas.getContext('2d');
@@ -823,7 +1152,9 @@
       console.error('Monthly chart canvas not found');
     }
     
-    // Fuel Type Chart
+    // ======================
+    // FUEL TYPE DISTRIBUTION CHART
+    // ======================
     const fuelTypeCanvas = document.getElementById('fuelTypeChart');
     if (fuelTypeCanvas) {
       const fuelTypeCtx = fuelTypeCanvas.getContext('2d');
@@ -903,7 +1234,10 @@
       console.error('Fuel type chart canvas not found');
     }
     
-    console.log('Chart initialization complete');
+    // Initialize tooltips for invoice badges on page load
+    initializeInvoiceTooltips();
+    
+    console.log('Fuel report initialization complete');
   });
 </script>
 {% endblock %}
