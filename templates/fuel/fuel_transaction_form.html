@@ -840,10 +840,27 @@
       infoText += '<br><small><i class="fas fa-gas-pump"></i> Fuel vehicle - fuel information required.</small>';
       vehicleTypeInfo.className = 'vehicle-type-info info-fuel';
       
-      // Set default fuel type
+      /* -----------------------------------------------------------
+         Automatically populate fuel type from the selected vehicle
+         -----------------------------------------------------------
+         • Always take the vehicle's stored `fuel` value when a
+           non-electric vehicle is selected.
+         • Fallback to 'Petrol' when the vehicle record has no
+           meaningful value (empty / 'Unknown').
+      */
       const fuelTypeField = document.getElementById('id_fuel_type');
-      if (fuelTypeField && (!fuelTypeField.value || fuelTypeField.value === 'Electric')) {
-        fuelTypeField.value = 'Petrol'; // Default fuel type
+      if (fuelTypeField) {
+        // Normalise & decide the value we want to use
+        let vehicleFuel = (selectedVehicle.fuel || '').trim();
+        if (!vehicleFuel || vehicleFuel.toLowerCase() === 'unknown') {
+          vehicleFuel = 'Petrol';   // sensible fallback
+        }
+        // Always set fuel type for each non-electric vehicle selection
+        fuelTypeField.value = vehicleFuel;
+
+        // Helpful console log for debugging
+        console.log('[VMS] Fuel type auto-set to:', fuelTypeField.value,
+                    'for vehicle:', selectedVehicle.plate);
       }
     }
     

@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Delete Consultant Rate | Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .delete-card {
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+    }
+    .delete-card:hover {
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+    .delete-header {
+        background: linear-gradient(135deg, #e74a3b, #c0392b);
+        color: white;
+        border-radius: 15px 15px 0 0;
+        padding: 20px;
+    }
+    .delete-body {
+        padding: 30px;
+    }
+    .delete-footer {
+        background-color: #f8f9fc;
+        border-radius: 0 0 15px 15px;
+        padding: 15px 30px;
+    }
+    .rate-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #4e73df;
+    }
+    .info-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+    }
+    .info-value {
+        font-size: 1.1rem;
+        font-weight: 500;
+        color: #5a5c69;
+        margin-bottom: 20px;
+    }
+    .warning-icon {
+        font-size: 4rem;
+        color: #e74a3b;
+        margin-bottom: 20px;
+    }
+    .btn-delete {
+        background: linear-gradient(135deg, #e74a3b, #c0392b);
+        border: none;
+        color: white;
+        font-weight: 600;
+        border-radius: 10px;
+        padding: 10px 20px;
+        transition: all 0.3s ease;
+    }
+    .btn-delete:hover {
+        background: linear-gradient(135deg, #c0392b, #a71e2a);
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(231, 74, 59, 0.3);
+    }
+    .status-badge-active {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+    .status-badge-inactive {
+        background: linear-gradient(135deg, #6c757d, #495057);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-trash me-2"></i> Delete Consultant Rate
+        </h1>
+        <a href="{% url 'consultant_rate_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i> Back to List
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card delete-card">
+                <div class="delete-header d-flex justify-content-between align-items-center">
+                    <h5 class="m-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i> Confirm Deletion
+                    </h5>
+                    <span class="{% if consultant_rate.status == 'active' %}status-badge-active{% else %}status-badge-inactive{% endif %}">
+                        {% if consultant_rate.status == 'active' %}
+                        <i class="fas fa-check-circle me-1"></i> Active
+                        {% else %}
+                        <i class="fas fa-pause-circle me-1"></i> Inactive
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <div class="delete-body">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-exclamation-triangle warning-icon"></i>
+                        <h4 class="mb-3">Are you sure you want to delete this consultant rate?</h4>
+                        <p class="text-danger mb-4">This action cannot be undone. All related payment calculations will be affected.</p>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12 text-center mb-4">
+                            <div class="rate-value">
+                                ₹{{ consultant_rate.rate_per_km }}/km
+                            </div>
+                            <div class="text-muted">Consultant Driver Rate</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-label">Driver</div>
+                            <div class="info-value">
+                                <i class="fas fa-user me-2"></i>
+                                {{ consultant_rate.driver.get_full_name }}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-label">Vehicle</div>
+                            <div class="info-value">
+                                <i class="fas fa-car me-2"></i>
+                                {{ consultant_rate.vehicle.make }} {{ consultant_rate.vehicle.model }} ({{ consultant_rate.vehicle.license_plate }})
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-label">Created</div>
+                            <div class="info-value">
+                                <i class="fas fa-calendar-plus me-2"></i>
+                                {{ consultant_rate.created_at|date:"M d, Y" }}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-label">Last Updated</div>
+                            <div class="info-value">
+                                <i class="fas fa-calendar-alt me-2"></i>
+                                {{ consultant_rate.updated_at|date:"M d, Y" }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-info-circle me-2"></i>
+                            If you delete this rate, any future trips by this driver with this vehicle will not have a consultant rate applied.
+                        </div>
+                    
+                </div>
+                
+                <div class="delete-footer d-flex justify-content-between">
+                    <a href="{% url 'consultant_rate_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-2"></i> Cancel
+                    </a>
+                    <button type="submit" class="btn btn-delete">
+                        <i class="fas fa-trash me-2"></i> Delete Rate
+                    </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animation for delete card
+        const deleteCard = document.querySelector('.delete-card');
+        deleteCard.style.opacity = '0';
+        deleteCard.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            deleteCard.style.transition = 'all 0.5s ease';
+            deleteCard.style.opacity = '1';
+            deleteCard.style.transform = 'translateY(0)';
+        }, 100);
+        
+        // Confirm delete with extra warning
+        const deleteForm = document.querySelector('form');
+        const deleteButton = document.querySelector('.btn-delete');
+        
+        deleteButton.addEventListener('click', function(e) {
+            if (!confirm('Are you absolutely sure you want to delete this consultant rate?')) {
+                e.preventDefault();
+            }
+        });
+    });
+</script>
+{% endblock %}

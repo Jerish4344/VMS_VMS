@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+{% if is_update %}Edit{% else %}Add{% endif %} Consultant Rate | Vehicle Management System
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-card {
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    }
+    .form-header {
+        background: linear-gradient(135deg, #4e73df, #224abe);
+        color: white;
+        border-radius: 15px 15px 0 0;
+        padding: 20px;
+    }
+    .form-body {
+        padding: 30px;
+    }
+    .form-footer {
+        background-color: #f8f9fc;
+        border-radius: 0 0 15px 15px;
+        padding: 15px 30px;
+    }
+    .form-control, .form-select {
+        border-radius: 10px;
+        padding: 10px 15px;
+    }
+    .form-label {
+        font-weight: 600;
+        color: #5a5c69;
+    }
+    .btn-submit {
+        border-radius: 10px;
+        padding: 10px 20px;
+        font-weight: 600;
+    }
+    .readonly-field {
+        background-color: #f8f9fc;
+        cursor: not-allowed;
+    }
+    .rate-input {
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+    .rate-addon {
+        background: linear-gradient(135deg, #4e73df, #224abe);
+        color: white;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-money-bill-wave me-2"></i> 
+            {% if is_update %}
+            Edit Consultant Rate
+            {% else %}
+            Add New Consultant Rate
+            {% endif %}
+        </h1>
+        <a href="{% url 'consultant_rate_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i> Back to List
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card form-card">
+                <div class="form-header">
+                    <h5 class="m-0">
+                        <i class="fas fa-{% if is_update %}edit{% else %}plus-circle{% endif %} me-2"></i>
+                        {% if is_update %}
+                        Update Consultant Rate Details
+                        {% else %}
+                        Enter Consultant Rate Details
+                        {% endif %}
+                    </h5>
+                </div>
+                
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    <div class="form-body">
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            <p>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if is_update %}
+                        <!-- Read-only fields for update -->
+                        <div class="mb-4">
+                            <label class="form-label">Driver</label>
+                            <input type="text" class="form-control readonly-field" value="{{ object.driver.get_full_name }}" readonly>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Vehicle</label>
+                            <input type="text" class="form-control readonly-field" value="{{ object.vehicle.make }} {{ object.vehicle.model }} ({{ object.vehicle.license_plate }})" readonly>
+                        </div>
+                        {% else %}
+                        <!-- Driver selection for new rate -->
+                        <div class="mb-4">
+                            <label for="{{ form.driver.id_for_label }}" class="form-label">Driver</label>
+                            {{ form.driver.errors }}
+                            <select name="{{ form.driver.name }}" id="{{ form.driver.id_for_label }}" class="form-select {% if form.driver.errors %}is-invalid{% endif %}">
+                                <option value="">Select a driver</option>
+                                {% for choice in form.driver.field.queryset %}
+                                <option value="{{ choice.id }}" {% if form.driver.value|stringformat:"s" == choice.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ choice.get_full_name }} ({{ choice.username }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            {% if form.driver.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.driver.errors.0 }}
+                            </div>
+                            {% endif %}
+                            <div class="form-text">Select the consultant driver</div>
+                        </div>
+                        
+                        <!-- Vehicle selection for new rate -->
+                        <div class="mb-4">
+                            <label for="{{ form.vehicle.id_for_label }}" class="form-label">Vehicle</label>
+                            {{ form.vehicle.errors }}
+                            <select name="{{ form.vehicle.name }}" id="{{ form.vehicle.id_for_label }}" class="form-select {% if form.vehicle.errors %}is-invalid{% endif %}">
+                                <option value="">Select a vehicle</option>
+                                {% for choice in form.vehicle.field.queryset %}
+                                <option value="{{ choice.id }}" {% if form.vehicle.value|stringformat:"s" == choice.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ choice.make }} {{ choice.model }} ({{ choice.license_plate }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            {% if form.vehicle.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.vehicle.errors.0 }}
+                            </div>
+                            {% endif %}
+                            <div class="form-text">Select the vehicle assigned to this consultant</div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Rate per km -->
+                        <div class="mb-4">
+                            <label for="{{ form.rate_per_km.id_for_label }}" class="form-label">Rate per Kilometer</label>
+                            {{ form.rate_per_km.errors }}
+                            <div class="input-group">
+                                <span class="input-group-text rate-addon">₹</span>
+                                <input type="number" name="{{ form.rate_per_km.name }}" id="{{ form.rate_per_km.id_for_label }}" 
+                                    value="{{ form.rate_per_km.value|default:'' }}" 
+                                    step="0.01" min="0.01" 
+                                    class="form-control rate-input {% if form.rate_per_km.errors %}is-invalid{% endif %}" 
+                                    placeholder="0.00">
+                                <span class="input-group-text rate-addon">/km</span>
+                                {% if form.rate_per_km.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.rate_per_km.errors.0 }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="form-text">Enter the rate per kilometer (e.g., 16.00)</div>
+                        </div>
+                        
+                        <!-- Status -->
+                        <div class="mb-4">
+                            <label for="{{ form.status.id_for_label }}" class="form-label">Status</label>
+                            {{ form.status.errors }}
+                            <select name="{{ form.status.name }}" id="{{ form.status.id_for_label }}" class="form-select {% if form.status.errors %}is-invalid{% endif %}">
+                                {% for value, text in form.status.field.choices %}
+                                <option value="{{ value }}" {% if form.status.value == value %}selected{% elif not form.status.value and value == 'active' %}selected{% endif %}>
+                                    {{ text }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            {% if form.status.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.status.errors.0 }}
+                            </div>
+                            {% endif %}
+                            <div class="form-text">Set whether this rate is currently active</div>
+                        </div>
+                        
+                        <!-- Notes -->
+                        <div class="mb-4">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">Notes</label>
+                            {{ form.notes.errors }}
+                            <textarea name="{{ form.notes.name }}" id="{{ form.notes.id_for_label }}" 
+                                class="form-control {% if form.notes.errors %}is-invalid{% endif %}" 
+                                rows="3" placeholder="Additional notes about this consultant rate (optional)">{{ form.notes.value|default:'' }}</textarea>
+                            {% if form.notes.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.notes.errors.0 }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="form-footer d-flex justify-content-between">
+                        <a href="{% url 'consultant_rate_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-2"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-submit">
+                            <i class="fas fa-{% if is_update %}save{% else %}plus-circle{% endif %} me-2"></i>
+                            {% if is_update %}
+                            Update Rate
+                            {% else %}
+                            Save Rate
+                            {% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animation for form appearance
+        const formCard = document.querySelector('.form-card');
+        formCard.style.opacity = '0';
+        formCard.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            formCard.style.transition = 'all 0.5s ease';
+            formCard.style.opacity = '1';
+            formCard.style.transform = 'translateY(0)';
+        }, 100);
+        
+        // Format rate input with 2 decimal places on blur
+        const rateInput = document.getElementById('{{ form.rate_per_km.id_for_label }}');
+        if (rateInput) {
+            rateInput.addEventListener('blur', function() {
+                if (this.value) {
+                    this.value = parseFloat(this.value).toFixed(2);
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

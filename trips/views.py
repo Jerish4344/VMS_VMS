@@ -11,6 +11,8 @@ from accounts.models import CustomUser
 from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin, DriverRequiredMixin
 from .models import Trip
 from vehicles.models import Vehicle
+# For filter dropdown
+from vehicles.models import VehicleType
 from .forms import TripForm, EndTripForm, ManualTripForm
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
@@ -90,6 +92,10 @@ class TripListView(LoginRequiredMixin, ListView):
         vehicle_id = self.request.GET.get('vehicle', '')
         if vehicle_id:
             queryset = queryset.filter(vehicle_id=vehicle_id)
+        # Apply vehicle type filter
+        vehicle_type_id = self.request.GET.get('vehicle_type')
+        if vehicle_type_id and vehicle_type_id.isdigit():
+            queryset = queryset.filter(vehicle__vehicle_type_id=int(vehicle_type_id))
             
         # Apply status filter
         status = self.request.GET.get('status', '')
@@ -199,6 +205,8 @@ class TripListView(LoginRequiredMixin, ListView):
             ).distinct()
         else:
             context['vehicles'] = Vehicle.objects.all()
+        # Vehicle types for UI filter
+        context['vehicle_types'] = VehicleType.objects.all().order_by('name')
         
         # Add search parameters for maintaining filters in pagination
         search_params = {}
@@ -206,6 +214,8 @@ class TripListView(LoginRequiredMixin, ListView):
             search_params['search'] = self.request.GET.get('search')
         if self.request.GET.get('vehicle'):
             search_params['vehicle'] = self.request.GET.get('vehicle')
+        if self.request.GET.get('vehicle_type'):
+            search_params['vehicle_type'] = self.request.GET.get('vehicle_type')
         if self.request.GET.get('status'):
             search_params['status'] = self.request.GET.get('status')
         if self.request.GET.get('date_from'):
@@ -241,6 +251,116 @@ class TripDetailView(LoginRequiredMixin, DetailView):
         
         return context
     
+# ---------------------------------------------------------------------------
+#  DriverTripsView – list trips for a specific driver (from Driver Report link)
+# ---------------------------------------------------------------------------
+
+class DriverTripsView(LoginRequiredMixin, ListView):
+    """
+    Show all trips for a specific driver.  This view is reached by clicking a
+    driver name in the Driver Performance Report.
+    """
+    model = Trip
+    template_name = 'trips/driver_trips.html'
+    context_object_name = 'trips'
+    paginate_by = 20
+
+    # ---- helpers ----------------------------------------------------------
+    def _get_driver(self):
+        """Return the driver object referenced by the URL, or 404."""
+        driver_id = self.kwargs.get('driver_id')
+        return get_object_or_404(CustomUser, id=driver_id, user_type='driver')
+
+    # ---- queryset ---------------------------------------------------------
+    def get_queryset(self):
+        """
+        Base queryset -> all trips for the driver, optionally filtered
+        by status / date range, ordered by most-recent first.
+        """
+        driver = self._get_driver()
+
+        qs = Trip.objects.filter(driver=driver).select_related('vehicle', 'driver')
+
+        # Status filter
+        status = self.request.GET.get('status', '').strip()
+        if status:
+            qs = qs.filter(status=status)
+
+        # ----------------------------------------------------
+        # Robust Date-Range Filtering
+        #   HTML <input type="date"> sends value as YYYY-MM-DD.
+        #   Build a single filter_kwargs dict so an incomplete
+        #   range (only from / only to) is also respected.
+        # ----------------------------------------------------
+        date_from_raw = self.request.GET.get('date_from', '').strip()
+        date_to_raw   = self.request.GET.get('date_to', '').strip()
+
+        filter_kwargs = {}
+
+        if date_from_raw:
+            try:
+                date_from_obj = datetime.strptime(date_from_raw, '%Y-%m-%d').date()
+                filter_kwargs['start_time__gte'] = timezone.make_aware(
+                    datetime.combine(date_from_obj, datetime.min.time())
+                )
+            except ValueError:
+                logger.warning("DriverTripsView: invalid date_from %s", date_from_raw)
+
+        if date_to_raw:
+            try:
+                date_to_obj = datetime.strptime(date_to_raw, '%Y-%m-%d').date()
+                filter_kwargs['start_time__lte'] = timezone.make_aware(
+                    datetime.combine(date_to_obj, datetime.max.time())
+                )
+            except ValueError:
+                logger.warning("DriverTripsView: invalid date_to %s", date_to_raw)
+
+        if filter_kwargs:
+            qs = qs.filter(**filter_kwargs)
+
+        # Debug: log final count after filtering
+        logger.debug(
+            "DriverTripsView: driver=%s filters=%s resulting_count=%d",
+            driver.id, filter_kwargs, qs.count()
+        )
+
+        # Order newest first
+        return qs.order_by('-start_time')
+
+    # ---- context ----------------------------------------------------------
+    def get_context_data(self, **kwargs):
+        """
+        Add driver object and current filters to template context for use in
+        breadcrumb navigation and retaining filters across pagination.
+        """
+        context = super().get_context_data(**kwargs)
+
+        driver = self._get_driver()
+        context['driver'] = driver
+
+        # ------------------------------------------------------------------
+        # Preserve *all* filter values (including blanks) so templates can
+        # safely reference `filter_params.<key>` without extra existence
+        # checks.  This helps pagination / form-persistence and makes the
+        # behaviour explicit.
+        # ------------------------------------------------------------------
+        filter_params = {
+            'status':    self.request.GET.get('status', '').strip(),
+            'date_from': self.request.GET.get('date_from', '').strip(),
+            'date_to':   self.request.GET.get('date_to', '').strip(),
+        }
+
+        # Debug log for easier troubleshooting in development
+        logger.debug(
+            "DriverTripsView context filter_params for driver=%s -> %s",
+            driver.id,
+            filter_params,
+        )
+
+        context['filter_params'] = filter_params
+
+        return context
+
 class TripTrackingView(LoginRequiredMixin, CanDriveVehicleMixin, TemplateView):
     """
     View for users to track their active trip with geolocation.

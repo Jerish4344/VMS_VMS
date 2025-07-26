@@ -353,6 +353,20 @@
         </select>
       </div>
       
+      <!-- Vehicle Type filter -->
+      <div class="col-md-2">
+        <label for="vehicle_type" class="form-label">Vehicle&nbsp;Type</label>
+        <select class="form-select" id="vehicle_type" name="vehicle_type">
+          <option value="">All Types</option>
+          {% for vtype in vehicle_types %}
+          <option value="{{ vtype.id }}"
+                  {% if search_params.vehicle_type == vtype.id|stringformat:"s" %}selected{% endif %}>
+            {{ vtype.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      
       <div class="col-md-2">
         <label for="status" class="form-label">Status</label>
         <select class="form-select" id="status" name="status">

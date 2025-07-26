@@ -4,7 +4,16 @@ from django.urls import path, include
 from . import views
 from .views import (
     TripListView, TripDetailView, StartTripView, EndTripView, TripTrackingView,
-    ManualTripCreateView, ManualTripListView,
+    ManualTripCreateView, ManualTripListView, DriverTripsView,
+)
+# Import consultant rate views
+from .consultant_views import (
+    ConsultantRateListView,
+    ConsultantRateCreateView,
+    ConsultantRateUpdateView,
+    ConsultantRateDeleteView,
+    ConsultantRateDetailView,
+    ConsultantRateToggleView,
 )
 
 urlpatterns = [
@@ -16,9 +25,50 @@ urlpatterns = [
     path('manual/', ManualTripListView.as_view(), name='manual_trip_list'),
     path('manual/create/', ManualTripCreateView.as_view(), name='manual_trip_create'),
     
+    # ------------------------------------------------------------------
+    # Consultant Driver Rate URLs
+    # ------------------------------------------------------------------
+    path(
+        'consultant-rates/',
+        ConsultantRateListView.as_view(),
+        name='consultant_rate_list'
+    ),
+    path(
+        'consultant-rates/create/',
+        ConsultantRateCreateView.as_view(),
+        name='consultant_rate_create'
+    ),
+    path(
+        'consultant-rates/<int:pk>/',
+        ConsultantRateDetailView.as_view(),
+        name='consultant_rate_detail'
+    ),
+    path(
+        'consultant-rates/<int:pk>/edit/',
+        ConsultantRateUpdateView.as_view(),
+        name='consultant_rate_update'
+    ),
+    path(
+        'consultant-rates/<int:pk>/delete/',
+        ConsultantRateDeleteView.as_view(),
+        name='consultant_rate_delete'
+    ),
+    path(
+        'consultant-rates/<int:pk>/toggle/',
+        ConsultantRateToggleView.as_view(),
+        name='consultant_rate_toggle'
+    ),
+
     # Trip management URLs
     path('', TripListView.as_view(), name='trip_list'),
     path('start/', StartTripView.as_view(), name='start_trip'),
+    
+    # View trips by driver (must come before generic pk-based routes)
+    path(
+        'driver/<int:driver_id>/trips/',
+        DriverTripsView.as_view(),
+        name='driver_trips'
+    ),
     
     # Dynamic URLs with primary keys (should come after static URLs)
     path('<int:pk>/', TripDetailView.as_view(), name='trip_detail'),

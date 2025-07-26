@@ -1056,3 +1056,25 @@
   </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+  // Activate the correct tab based on `tab` query-string parameter
+  document.addEventListener('DOMContentLoaded', function () {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam  = urlParams.get('tab');          // e.g. ?tab=trips
+
+    if (tabParam) {
+      const tabTriggerEl = document.getElementById(`${tabParam}-tab`);
+      if (tabTriggerEl) {
+        // Initialise and show the requested tab
+        const tab = new bootstrap.Tab(tabTriggerEl);
+        tab.show();
+
+        // Optional UX: scroll to the tab pane so the user sees the content immediately
+        tabTriggerEl.scrollIntoView({ behaviour: 'smooth', block: 'start' });
+      }
+    }
+  });
+</script>
+{% endblock %}

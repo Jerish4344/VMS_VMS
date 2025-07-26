@@ -1,0 +1,387 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Consultant Rate Details | Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detail-card {
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+    }
+    .detail-card:hover {
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+    .detail-header {
+        background: linear-gradient(135deg, #4e73df, #224abe);
+        color: white;
+        border-radius: 15px 15px 0 0;
+        padding: 20px;
+    }
+    .detail-body {
+        padding: 25px;
+    }
+    .detail-footer {
+        background-color: #f8f9fc;
+        border-radius: 0 0 15px 15px;
+        padding: 15px 25px;
+    }
+    .status-badge-active {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+    .status-badge-inactive {
+        background: linear-gradient(135deg, #6c757d, #495057);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+    .rate-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #4e73df;
+    }
+    .info-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+    }
+    .info-value {
+        font-size: 1.1rem;
+        font-weight: 500;
+        color: #5a5c69;
+        margin-bottom: 20px;
+    }
+    .summary-card {
+        border-radius: 15px;
+        transition: all 0.3s ease;
+        border: none;
+    }
+    .summary-card:hover {
+        transform: translateY(-5px);
+    }
+    .summary-icon {
+        font-size: 2rem;
+        opacity: 0.8;
+    }
+    .trip-card {
+        border-radius: 10px;
+        transition: all 0.2s ease;
+        margin-bottom: 15px;
+        border-left: 4px solid #4e73df;
+    }
+    .trip-card:hover {
+        transform: translateX(5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    }
+    .trip-header {
+        background-color: #f8f9fc;
+        padding: 15px;
+        border-radius: 10px 10px 0 0;
+        border-bottom: 1px solid #e3e6f0;
+    }
+    .trip-body {
+        padding: 15px;
+    }
+    .trip-footer {
+        background-color: #f8f9fc;
+        padding: 10px 15px;
+        border-radius: 0 0 10px 10px;
+        border-top: 1px solid #e3e6f0;
+    }
+    .payment-value {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #28a745;
+    }
+    .distance-value {
+        font-weight: 600;
+        color: #4e73df;
+    }
+    .no-trips {
+        text-align: center;
+        padding: 50px 0;
+        color: #6c757d;
+    }
+    .notes-box {
+        background-color: #f8f9fc;
+        border-radius: 10px;
+        padding: 15px;
+        margin-top: 10px;
+        border-left: 4px solid #4e73df;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-money-bill-wave me-2"></i> Consultant Rate Details
+        </h1>
+        <div>
+            <a href="{% url 'consultant_rate_update' consultant_rate.id %}" class="btn btn-primary me-2">
+                <i class="fas fa-edit me-2"></i> Edit Rate
+            </a>
+            <a href="{% url 'consultant_rate_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Consultant Rate Details -->
+        <div class="col-lg-5 mb-4">
+            <div class="card detail-card">
+                <div class="detail-header d-flex justify-content-between align-items-center">
+                    <h5 class="m-0">
+                        <i class="fas fa-info-circle me-2"></i> Rate Information
+                    </h5>
+                    <span class="{% if consultant_rate.status == 'active' %}status-badge-active{% else %}status-badge-inactive{% endif %}">
+                        {% if consultant_rate.status == 'active' %}
+                        <i class="fas fa-check-circle me-1"></i> Active
+                        {% else %}
+                        <i class="fas fa-pause-circle me-1"></i> Inactive
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="detail-body">
+                    <div class="text-center mb-4">
+                        <div class="rate-value">
+                            ₹{{ consultant_rate.rate_per_km }}/km
+                        </div>
+                        <div class="text-muted">Consultant Driver Rate</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="info-label">Driver</div>
+                            <div class="info-value">
+                                <i class="fas fa-user me-2"></i>
+                                {{ consultant_rate.driver.get_full_name }}
+                            </div>
+                        </div>
+
+                        <div class="col-md-12">
+                            <div class="info-label">Vehicle</div>
+                            <div class="info-value">
+                                <i class="fas fa-car me-2"></i>
+                                {{ consultant_rate.vehicle.make }} {{ consultant_rate.vehicle.model }} ({{ consultant_rate.vehicle.license_plate }})
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-label">Created</div>
+                            <div class="info-value">
+                                <i class="fas fa-calendar-plus me-2"></i>
+                                {{ consultant_rate.created_at|date:"M d, Y" }}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-label">Last Updated</div>
+                            <div class="info-value">
+                                <i class="fas fa-calendar-alt me-2"></i>
+                                {{ consultant_rate.updated_at|date:"M d, Y" }}
+                            </div>
+                        </div>
+
+                        {% if consultant_rate.notes %}
+                        <div class="col-md-12">
+                            <div class="info-label">Notes</div>
+                            <div class="notes-box">
+                                {{ consultant_rate.notes|linebreaks }}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="detail-footer d-flex justify-content-between">
+                    <a href="{% url 'consultant_rate_toggle' consultant_rate.id %}" class="btn {% if consultant_rate.status == 'active' %}btn-warning{% else %}btn-success{% endif %}">
+                        {% if consultant_rate.status == 'active' %}
+                        <i class="fas fa-pause-circle me-2"></i> Deactivate
+                        {% else %}
+                        <i class="fas fa-check-circle me-2"></i> Activate
+                        {% endif %}
+                    </a>
+                    <a href="{% url 'consultant_rate_delete' consultant_rate.id %}" class="btn btn-danger">
+                        <i class="fas fa-trash me-2"></i> Delete
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trip Summary -->
+        <div class="col-lg-7 mb-4">
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="card summary-card bg-white shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Trips</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ trip_count }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-route summary-icon text-primary"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4 mb-4">
+                    <div class="card summary-card bg-white shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Distance</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_distance|floatformat:1 }} km</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-road summary-icon text-info"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4 mb-4">
+                    <div class="card summary-card bg-white shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Payment</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">₹{{ total_payment|floatformat:2 }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-rupee-sign summary-icon text-success"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trip History -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-history me-2"></i> Trip History
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if trips %}
+                        {% for trip in trips %}
+                        <div class="trip-card shadow-sm">
+                            <div class="trip-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="badge bg-primary">{{ trip.start_time|date:"M d, Y" }}</span>
+                                    {% if trip.duration %}
+                                    <span class="badge bg-secondary ms-2">{{ trip.duration }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="payment-value">
+                                    ₹{{ trip.consultant_payment|floatformat:2 }}
+                                </div>
+                            </div>
+                            <div class="trip-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="info-label">Route</div>
+                                        <div class="info-value">
+                                            <i class="fas fa-map-marker-alt text-danger me-2"></i>
+                                            {{ trip.origin }}
+                                            <i class="fas fa-arrow-right mx-2"></i>
+                                            <i class="fas fa-map-marker-alt text-success me-2"></i>
+                                            {{ trip.destination }}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="info-label">Distance</div>
+                                        <div class="info-value distance-value">
+                                            <i class="fas fa-road me-2"></i>
+                                            {{ trip.distance_traveled }} km
+                                        </div>
+                                    </div>
+                                </div>
+                                {% if trip.purpose %}
+                                <div class="mt-2">
+                                    <div class="info-label">Purpose</div>
+                                    <div>{{ trip.purpose }}</div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="trip-footer d-flex justify-content-between">
+                                <div class="small text-muted">
+                                    <i class="fas fa-calculator me-1"></i>
+                                    {{ trip.distance_traveled }} km × ₹{{ consultant_rate.rate_per_km }} = ₹{{ trip.consultant_payment|floatformat:2 }}
+                                </div>
+                                <a href="{% url 'trip_detail' trip.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye me-1"></i> View Trip
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="no-trips">
+                            <i class="fas fa-route fa-3x mb-3 text-muted"></i>
+                            <h5>No trips found</h5>
+                            <p>There are no completed trips for this driver-vehicle combination.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animation for cards
+        const detailCard = document.querySelector('.detail-card');
+        const summaryCards = document.querySelectorAll('.summary-card');
+        const tripCards = document.querySelectorAll('.trip-card');
+        
+        // Animate detail card
+        detailCard.style.opacity = '0';
+        detailCard.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            detailCard.style.transition = 'all 0.5s ease';
+            detailCard.style.opacity = '1';
+            detailCard.style.transform = 'translateY(0)';
+        }, 100);
+        
+        // Animate summary cards
+        summaryCards.forEach((card, index) => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                card.style.transition = 'all 0.5s ease';
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, 200 + (index * 100));
+        });
+        
+        // Animate trip cards
+        tripCards.forEach((card, index) => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateX(-20px)';
+            setTimeout(() => {
+                card.style.transition = 'all 0.3s ease';
+                card.style.opacity = '1';
+                card.style.transform = 'translateX(0)';
+            }, 500 + (index * 100));
+        });
+    });
+</script>
+{% endblock %}

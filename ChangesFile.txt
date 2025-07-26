@@ -20,7 +20,6 @@ python manage.py migrate
 
 python manage.py runserver
 
-
     06/06/2025
 
 Morning :
@@ -37,14 +36,9 @@ vms/templates/maintenance/maintenance_form.html
 vms/reports/views.py
 vms/templates/reports/driver_report.html
 
-
 Afternoon :
 
 vms/templates/trips/manual_trip_create.html
 
 vms/templates/trips/start_trip.html   --------> work going on
 vms/templates/trips/end_trip_form.html -------> work going on
-
-
-
-
