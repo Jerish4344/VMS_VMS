@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Trips for {{ driver.get_full_name }} - VMS{% endblock %}
+
+{% block extra_css %}
+<style>
+  .table th, .table td {
+    vertical-align: middle;
+  }
+  .route-summary {
+    font-weight: 500;
+  }
+  .route-details {
+    font-size: 0.85rem;
+    color: #6c757d;
+  }
+  .badge-status {
+    font-size: 0.8rem;
+    padding: 0.4em 0.7em;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+
+  <!-- Page Header & Breadcrumb -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">Trips for {{ driver.get_full_name }}</h1>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'driver_report' %}">Driver Report</a></li>
+          <li class="breadcrumb-item active" aria-current="page">{{ driver.username }}'s Trips</li>
+        </ol>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Filters Card -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">Filter Trips</h6>
+    </div>
+    <div class="card-body">
+      <form id="trip-filters" method="get" class="mb-0">
+        <div class="row align-items-end">
+          <!-- Status Filter -->
+          <div class="col-md-4 mb-3">
+            <label for="status" class="form-label">Status</label>
+            <select name="status" id="status" class="form-select">
+              <option value="" {% if not filter_params.status %}selected{% endif %}>All Statuses</option>
+              <option value="ongoing" {% if filter_params.status == 'ongoing' %}selected{% endif %}>Ongoing</option>
+              <option value="completed" {% if filter_params.status == 'completed' %}selected{% endif %}>Completed</option>
+              <option value="cancelled" {% if filter_params.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+            </select>
+          </div>
+
+          <!-- Date Range Filter -->
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Date Range</label>
+            <div class="input-group">
+              <input type="date" name="date_from" class="form-control" value="{{ filter_params.date_from|default:'' }}" placeholder="Start Date">
+              <span class="input-group-text">to</span>
+              <input type="date" name="date_to" class="form-control" value="{{ filter_params.date_to|default:'' }}" placeholder="End Date">
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="col-md-2 mb-3 d-flex">
+            <button type="submit" class="btn btn-primary me-2 flex-grow-1">
+              <i class="fas fa-filter fa-sm"></i> Filter
+            </button>
+            <a href="{% url 'driver_trips' driver.id %}" class="btn btn-secondary flex-grow-1">
+              <i class="fas fa-redo fa-sm"></i>
+            </a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Trips Table Card -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+      <h6 class="m-0 font-weight-bold text-primary">Trip List ({{ paginator.count }} total)</h6>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover" id="tripsTable" width="100%" cellspacing="0">
+          <thead>
+            <tr>
+              <th>Date/Time</th>
+              <th>Vehicle</th>
+              <th>Route</th>
+              <th>Distance</th>
+              <th>Duration</th>
+              <th>Purpose</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for trip in trips %}
+              <tr>
+                <td>
+                  <div class="fw-bold">{{ trip.start_time|date:"M d, Y" }}</div>
+                  <div class="small text-muted">{{ trip.start_time|time:"h:i A" }}</div>
+                </td>
+                <td>
+                  <div class="fw-bold">{{ trip.vehicle.make }} {{ trip.vehicle.model }}</div>
+                  <div class="small text-muted">{{ trip.vehicle.license_plate }}</div>
+                </td>
+                <td>
+                  <div class="route-summary">{{ trip.get_route_summary }}</div>
+                </td>
+                <td>
+                  {% if trip.status == 'completed' and trip.distance_traveled > 0 %}
+                    <span class="fw-bold">{{ trip.distance_traveled|floatformat:1 }} km</span>
+                  {% elif trip.status == 'ongoing' %}
+                     <span class="text-muted fst-italic">In progress...</span>
+                  {% else %}
+                    <span class="text-muted">--</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if trip.duration %}
+                    {{ trip.duration }}
+                  {% else %}
+                    <span class="text-muted">--</span>
+                  {% endif %}
+                </td>
+                <td>{{ trip.purpose|truncatechars:30 }}</td>
+                <td>
+                  {% if trip.status == 'completed' %}
+                    <span class="badge rounded-pill bg-success badge-status">Completed</span>
+                  {% elif trip.status == 'ongoing' %}
+                    <span class="badge rounded-pill bg-primary badge-status">Ongoing</span>
+                  {% elif trip.status == 'cancelled' %}
+                    <span class="badge rounded-pill bg-danger badge-status">Cancelled</span>
+                  {% else %}
+                    <span class="badge rounded-pill bg-secondary badge-status">{{ trip.status|title }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-eye fa-sm"></i> View
+                  </a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="8" class="text-center py-5">
+                  <div class="text-muted">
+                    <i class="fas fa-route fa-3x mb-3"></i>
+                    <h4>No Trips Found</h4>
+                    <p>There are no trips matching your current filters for this driver.</p>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination - Updated to explicitly include all filter parameters -->
+      {% if is_paginated %}
+        <nav aria-label="Page navigation">
+          <ul class="pagination justify-content-center">
+            {% with status=request.GET.status date_from=request.GET.date_from date_to=request.GET.date_to %}
+              <!-- First page link -->
+              {% if page_obj.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?page=1{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="First">
+                    &laquo;&laquo;
+                  </a>
+                </li>
+                <!-- Previous page link -->
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="Previous">
+                    &laquo;
+                  </a>
+                </li>
+              {% endif %}
+
+              <!-- Page numbers -->
+              {% for num in paginator.page_range %}
+                {% if page_obj.number == num %}
+                  <li class="page-item active" aria-current="page">
+                    <span class="page-link">{{ num }}</span>
+                  </li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">{{ num }}</a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+
+              <!-- Next page link -->
+              {% if page_obj.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="Next">
+                    &raquo;
+                  </a>
+                </li>
+                <!-- Last page link -->
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ paginator.num_pages }}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="Last">
+                    &raquo;&raquo;
+                  </a>
+                </li>
+              {% endif %}
+            {% endwith %}
+          </ul>
+        </nav>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

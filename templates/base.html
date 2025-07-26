@@ -349,6 +349,12 @@
                 <i class="fas fa-plus-circle me-2"></i>Add Single Trip
               </a>
             </li>
+            <!-- Consultant Rate Management -->
+            <li>
+              <a href="{% url 'consultant_rate_list' %}" class="menu-item-enhanced">
+                <i class="fas fa-money-bill-wave me-2"></i>Consultant Rates
+              </a>
+            </li>
             {% endif %}
           </ul>
         </li>
@@ -458,6 +464,9 @@
             </li>
             <li>
               <a href="{% url 'fuel_report' %}" class="menu-item-enhanced">Fuel Report</a>
+            </li>
+            <li>
+              <a href="{% url 'consultant_report' %}" class="menu-item-enhanced">Consultant Report</a>
             </li>
           </ul>
         </li>

@@ -452,7 +452,11 @@
             {% for driver in driver_report %}
               <tr>
                 <td>
-                  <div class="font-weight-bold">{{ driver.name|default:"Unknown Driver" }}</div>
+                  <div class="font-weight-bold">
+                    <a href="{% url 'driver_trips' driver.id %}" class="text-decoration-none text-dark">
+                      {{ driver.name|default:"Unknown Driver" }}
+                    </a>
+                  </div>
                   <div class="small text-muted">@{{ driver.username|default:"N/A" }}</div>
                 </td>
                 <td>

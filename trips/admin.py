@@ -1,5 +1,12 @@
 from django.contrib import admin
+
+# Import Trip from the main trips.models module
 from .models import Trip
+
+# Import ConsultantRate directly from consultant_models to avoid
+# relying on re-export behaviour in trips.__init__, which can lead
+# to circular-import issues during Django app loading.
+from .consultant_models import ConsultantRate
 
 @admin.register(Trip)
 class TripAdmin(admin.ModelAdmin):
@@ -44,3 +51,36 @@ class TripAdmin(admin.ModelAdmin):
             minutes = (duration.seconds % 3600) // 60
             return f"{hours}h {minutes}m"
         return "In progress"
+
+
+# ------------------------------------------------------------------
+# ConsultantRate admin
+# ------------------------------------------------------------------
+
+@admin.register(ConsultantRate)
+class ConsultantRateAdmin(admin.ModelAdmin):
+    """Admin configuration for ConsultantRate model."""
+
+    list_display = ('id', 'driver', 'vehicle', 'rate_per_km', 'status', 'updated_at')
+    list_filter = ('status', 'driver', 'vehicle')
+    search_fields = (
+        'driver__first_name',
+        'driver__last_name',
+        'driver__username',
+        'vehicle__license_plate',
+        'vehicle__make',
+        'vehicle__model',
+    )
+    readonly_fields = ('created_at', 'updated_at')
+
+    fieldsets = (
+        ('Rate Details', {
+            'fields': ('driver', 'vehicle', 'rate_per_km', 'status')
+        }),
+        ('Additional Information', {
+            'fields': ('notes',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )

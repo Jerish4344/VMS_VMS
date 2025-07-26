@@ -3,6 +3,9 @@ from django.utils import timezone
 from django.db.models import Q
 from .models import FuelTransaction, FuelStation
 from vehicles.models import Vehicle
+import logging
+
+logger = logging.getLogger(__name__)
 
 class FuelTransactionForm(forms.ModelForm):
     """Form for the FuelTransaction model supporting both fuel and electric vehicles."""
@@ -106,13 +109,35 @@ class FuelTransactionForm(forms.ModelForm):
                 elif not total_cost:
                     self.add_error('total_cost', 'Total cost is required for fuel vehicles. Either enter total cost or quantity + cost per liter.')
         
-        # Set fuel type for electric vehicles
+        # ------------------------------------------------------------------
+        # Fuel-type resolution & normalisation
+        # ------------------------------------------------------------------
+        #  1. For electric vehicles -> always "Electric"
+        #  2. For others:
+        #       a. use value typed in the form (highest priority)
+        #       b. else fall back to Vehicle.fuel_type
+        #       c. finally use "Petrol" as sane default
+        #  All intermediate values are normalised (strip/empty-check)
+        # ------------------------------------------------------------------
+
+        supplied_fuel_type = (cleaned_data.get('fuel_type') or '').strip()
+        vehicle_fuel_type = (getattr(vehicle, 'fuel_type', '') or '').strip()
+
+        logger.debug(
+            "FuelType resolution – supplied:'%s', vehicle:'%s', is_electric:%s",
+            supplied_fuel_type, vehicle_fuel_type, vehicle.is_electric()
+        )
+
         if vehicle.is_electric():
             cleaned_data['fuel_type'] = 'Electric'
-        elif not cleaned_data.get('fuel_type'):
-            # Set default fuel type for non-electric vehicles
-            cleaned_data['fuel_type'] = vehicle.fuel_type or 'Petrol'
-        
+        else:
+            # use supplied if present, else vehicle's value, else default
+            chosen = supplied_fuel_type or vehicle_fuel_type or 'Petrol'
+            cleaned_data['fuel_type'] = chosen
+
+        logger.debug("Final fuel_type set to '%s' for vehicle %s",
+                     cleaned_data['fuel_type'], vehicle)
+
         # Validate invoice numbers format (optional but recommended)
         company_invoice = cleaned_data.get('company_invoice_number')
         station_invoice = cleaned_data.get('station_invoice_number')

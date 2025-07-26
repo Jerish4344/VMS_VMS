@@ -3,6 +3,11 @@ from django.utils import timezone
 from vehicles.models import Vehicle
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.apps import apps  # Lazy model lookup to avoid circular imports
+
+# Lazy reference to ConsultantRate to prevent circular-import issues.
+# Will be resolved the first time it's actually needed.
+ConsultantRate = None
 
 class Trip(models.Model):
     """Record of a vehicle trip."""
@@ -279,3 +284,30 @@ class Trip(models.Model):
         
         # The save method will handle vehicle status update
         self.save()
+
+    # ------------------------------------------------------------------
+    #  Consultant driver payment helpers
+    # ------------------------------------------------------------------
+
+    def get_consultant_rate(self):
+        """
+        Lazily fetch the ConsultantRate model and then return the active rate
+        object for the current driver/vehicle combination (if any).
+        """
+        global ConsultantRate
+        if ConsultantRate is None:
+            # Resolve the model only once; afterwards it's cached in the module.
+            ConsultantRate = apps.get_model('trips', 'ConsultantRate')
+        return ConsultantRate.get_active_rate(self.driver, self.vehicle)
+
+    def consultant_payment(self):
+        """
+        Calculate the consultant driver's payment for this trip
+        based on the active rate and the distance travelled.
+        Returns a float amount in Rupees. If no active rate exists
+        for this driver-vehicle pair, returns 0.
+        """
+        rate_obj = self.get_consultant_rate()
+        if not rate_obj:
+            return 0
+        return rate_obj.calculate_payment(self.distance_traveled())

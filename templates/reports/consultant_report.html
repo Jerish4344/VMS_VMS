@@ -1,0 +1,481 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Consultant Driver Report | Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card {
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+    }
+    .report-card:hover {
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+    .report-header {
+        background: linear-gradient(135deg, #4e73df, #224abe);
+        color: white;
+        border-radius: 15px 15px 0 0;
+        padding: 20px;
+    }
+    .report-body {
+        padding: 25px;
+    }
+    .report-footer {
+        background-color: #f8f9fc;
+        border-radius: 0 0 15px 15px;
+        padding: 15px 25px;
+    }
+    .summary-card {
+        border-radius: 15px;
+        border: none;
+        transition: all 0.3s ease;
+    }
+    .summary-card:hover {
+        transform: translateY(-5px);
+    }
+    .summary-icon {
+        font-size: 2rem;
+        opacity: 0.8;
+    }
+    .filter-form .form-control, .filter-form .form-select {
+        border-radius: 10px;
+    }
+    .btn-export {
+        border-radius: 10px;
+        font-weight: 600;
+    }
+    .payment-value {
+        font-weight: 700;
+        color: #28a745;
+    }
+    .distance-value {
+        font-weight: 600;
+        color: #4e73df;
+    }
+    .rate-value {
+        font-weight: 600;
+        color: #e74a3b;
+    }
+    .table-responsive {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .table th {
+        background-color: #f8f9fc;
+        font-weight: 600;
+    }
+    .trip-row {
+        transition: all 0.2s ease;
+    }
+    .trip-row:hover {
+        background-color: rgba(78, 115, 223, 0.05);
+        transform: translateX(5px);
+    }
+    .pagination .page-link {
+        border-radius: 5px;
+        margin: 0 2px;
+    }
+    .pagination .page-item.active .page-link {
+        background: linear-gradient(135deg, #4e73df, #224abe);
+        border-color: #224abe;
+    }
+    .no-data {
+        text-align: center;
+        padding: 50px 0;
+        color: #6c757d;
+    }
+    .summary-table th {
+        background-color: #f8f9fc;
+    }
+    .summary-table tr {
+        transition: all 0.2s ease;
+    }
+    .summary-table tr:hover {
+        background-color: rgba(78, 115, 223, 0.05);
+    }
+    .chart-container {
+        position: relative;
+        height: 300px;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-money-bill-wave me-2"></i> Consultant Driver Report
+        </h1>
+        <div class="btn-group">
+            <a href="{% url 'consultant_report' %}?{% if request.GET.driver %}driver={{ request.GET.driver }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}export=csv" class="btn btn-success btn-export">
+                <i class="fas fa-file-csv me-2"></i> Export CSV
+            </a>
+            <a href="{% url 'consultant_report' %}?{% if request.GET.driver %}driver={{ request.GET.driver }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}export=excel" class="btn btn-primary btn-export">
+                <i class="fas fa-file-excel me-2"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-filter me-2"></i> Filter Report
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3 filter-form">
+                <div class="col-md-3">
+                    <label for="start_date" class="form-label">Start Date</label>
+                    <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="end_date" class="form-label">End Date</label>
+                    <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="driver" class="form-label">Driver</label>
+                    <select class="form-select" id="driver" name="driver">
+                        <option value="">All Consultant Drivers</option>
+                        {% for driver in consultant_drivers %}
+                        <option value="{{ driver.id }}" {% if selected_driver|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
+                            {{ driver.get_full_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="vehicle" class="form-label">Vehicle</label>
+                    <select class="form-select" id="vehicle" name="vehicle">
+                        <option value="">All Vehicles</option>
+                        {% for vehicle in vehicles %}
+                        <option value="{{ vehicle.id }}" {% if selected_vehicle|stringformat:"s" == vehicle.id|stringformat:"s" %}selected{% endif %}>
+                            {{ vehicle.license_plate }} ({{ vehicle.make }} {{ vehicle.model }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-12 text-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-2"></i> Apply Filters
+                    </button>
+                    <a href="{% url 'consultant_report' %}" class="btn btn-outline-secondary ms-2">
+                        <i class="fas fa-undo me-2"></i> Reset Filters
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card summary-card bg-white shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Trips</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_trips }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-route summary-icon text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card summary-card bg-white shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Distance</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_distance|floatformat:1 }} km</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-road summary-icon text-info"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card summary-card bg-white shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Payment</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">₹{{ total_payment|floatformat:2 }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-rupee-sign summary-icon text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Driver Summary -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-user me-2"></i> Driver Summary
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if driver_summary %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered summary-table">
+                            <thead>
+                                <tr>
+                                    <th>Driver</th>
+                                    <th class="text-center">Trips</th>
+                                    <th class="text-center">Distance (km)</th>
+                                    <th class="text-end">Payment (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for driver in driver_summary %}
+                                <tr>
+                                    <td>{{ driver.driver_name }}</td>
+                                    <td class="text-center">{{ driver.trip_count }}</td>
+                                    <td class="text-center">{{ driver.total_distance|floatformat:1 }}</td>
+                                    <td class="text-end payment-value">₹{{ driver.total_payment|floatformat:2 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="no-data">
+                        <i class="fas fa-user fa-3x mb-3 text-muted"></i>
+                        <h5>No driver data available</h5>
+                        <p>Try adjusting your filter criteria.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Vehicle Summary -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-car me-2"></i> Vehicle Summary
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if vehicle_summary %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered summary-table">
+                            <thead>
+                                <tr>
+                                    <th>Vehicle</th>
+                                    <th class="text-center">Trips</th>
+                                    <th class="text-center">Distance (km)</th>
+                                    <th class="text-end">Payment (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for vehicle in vehicle_summary %}
+                                <tr>
+                                    <td>{{ vehicle.vehicle }}</td>
+                                    <td class="text-center">{{ vehicle.trip_count }}</td>
+                                    <td class="text-center">{{ vehicle.total_distance|floatformat:1 }}</td>
+                                    <td class="text-end payment-value">₹{{ vehicle.total_payment|floatformat:2 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="no-data">
+                        <i class="fas fa-car fa-3x mb-3 text-muted"></i>
+                        <h5>No vehicle data available</h5>
+                        <p>Try adjusting your filter criteria.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Trip Report -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-list-alt me-2"></i> Detailed Trip Report
+            </h6>
+            <div class="dropdown no-arrow">
+                <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="dropdownMenuLink">
+                    <div class="dropdown-header">Display Options:</div>
+                    <a class="dropdown-item" href="?{% if request.GET.driver %}driver={{ request.GET.driver }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}page_size=10">10 per page</a>
+                    <a class="dropdown-item" href="?{% if request.GET.driver %}driver={{ request.GET.driver }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}page_size=20">20 per page</a>
+                    <a class="dropdown-item" href="?{% if request.GET.driver %}driver={{ request.GET.driver }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}page_size=50">50 per page</a>
+                    <a class="dropdown-item" href="?{% if request.GET.driver %}driver={{ request.GET.driver }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}page_size=100">100 per page</a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="{% url 'consultant_report' %}?{% if request.GET.driver %}driver={{ request.GET.driver }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}export=csv">
+                        <i class="fas fa-file-csv fa-sm fa-fw me-2 text-gray-400"></i> Export as CSV
+                    </a>
+                    <a class="dropdown-item" href="{% url 'consultant_report' %}?{% if request.GET.driver %}driver={{ request.GET.driver }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}export=excel">
+                        <i class="fas fa-file-excel fa-sm fa-fw me-2 text-gray-400"></i> Export as Excel
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if consultant_report_page %}
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Driver</th>
+                            <th>Vehicle</th>
+                            <th>Origin</th>
+                            <th>Destination</th>
+                            <th class="text-center">Distance (km)</th>
+                            <th class="text-center">Rate (₹/km)</th>
+                            <th class="text-end">Payment (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for trip in consultant_report_page %}
+                        <tr class="trip-row">
+                            <td>{{ trip.start_time|date:"M d, Y" }}</td>
+                            <td>{{ trip.driver_name }}</td>
+                            <td>{{ trip.vehicle }}</td>
+                            <td>{{ trip.origin }}</td>
+                            <td>{{ trip.destination }}</td>
+                            <td class="text-center distance-value">{{ trip.distance|floatformat:1 }}</td>
+                            <td class="text-center rate-value">{{ trip.rate_per_km|floatformat:2 }}</td>
+                            <td class="text-end payment-value">₹{{ trip.payment|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if paginator.num_pages > 1 %}
+            <div class="d-flex justify-content-between align-items-center mt-4">
+                <div>
+                    Showing {{ consultant_report_page.start_index }} to {{ consultant_report_page.end_index }} of {{ paginator.count }} entries
+                </div>
+                <nav aria-label="Page navigation">
+                    <ul class="pagination">
+                        {% if consultant_report_page.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET.driver %}&driver={{ request.GET.driver }}{% endif %}{% if request.GET.vehicle %}&vehicle={{ request.GET.vehicle }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}{% if request.GET.page_size %}&page_size={{ request.GET.page_size }}{% endif %}" aria-label="First">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ consultant_report_page.previous_page_number }}{% if request.GET.driver %}&driver={{ request.GET.driver }}{% endif %}{% if request.GET.vehicle %}&vehicle={{ request.GET.vehicle }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}{% if request.GET.page_size %}&page_size={{ request.GET.page_size }}{% endif %}" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        {% for num in paginator.page_range %}
+                            {% if consultant_report_page.number == num %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                            {% elif num > consultant_report_page.number|add:'-3' and num < consultant_report_page.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% if request.GET.driver %}&driver={{ request.GET.driver }}{% endif %}{% if request.GET.vehicle %}&vehicle={{ request.GET.vehicle }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}{% if request.GET.page_size %}&page_size={{ request.GET.page_size }}{% endif %}">{{ num }}</a>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if consultant_report_page.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ consultant_report_page.next_page_number }}{% if request.GET.driver %}&driver={{ request.GET.driver }}{% endif %}{% if request.GET.vehicle %}&vehicle={{ request.GET.vehicle }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}{% if request.GET.page_size %}&page_size={{ request.GET.page_size }}{% endif %}" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ paginator.num_pages }}{% if request.GET.driver %}&driver={{ request.GET.driver }}{% endif %}{% if request.GET.vehicle %}&vehicle={{ request.GET.vehicle }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}{% if request.GET.page_size %}&page_size={{ request.GET.page_size }}{% endif %}" aria-label="Last">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div class="no-data">
+                <i class="fas fa-search fa-3x mb-3 text-muted"></i>
+                <h5>No consultant trip data found</h5>
+                <p>Try adjusting your filter criteria or check if consultant rates are set up.</p>
+                <a href="{% url 'consultant_rate_list' %}" class="btn btn-primary mt-3">
+                    <i class="fas fa-money-bill-wave me-2"></i> Manage Consultant Rates
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animation for cards
+        const summaryCards = document.querySelectorAll('.summary-card');
+        const reportCards = document.querySelectorAll('.card');
+        
+        // Animate summary cards
+        summaryCards.forEach((card, index) => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                card.style.transition = 'all 0.5s ease';
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, 100 + (index * 100));
+        });
+        
+        // Animate report cards (except summary cards)
+        reportCards.forEach((card, index) => {
+            if (!card.classList.contains('summary-card')) {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.5s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, 400 + (index * 100));
+            }
+        });
+        
+        // Set default date range if not already set
+        const startDateInput = document.getElementById('start_date');
+        const endDateInput = document.getElementById('end_date');
+        
+        if (!startDateInput.value) {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
+        }
+        
+        if (!endDateInput.value) {
+            const today = new Date();
+            endDateInput.value = today.toISOString().split('T')[0];
+        }
+    });
+</script>
+{% endblock %}

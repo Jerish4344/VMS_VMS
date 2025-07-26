@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Consultant Rates | Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .rate-card {
+        transition: all 0.2s ease;
+    }
+    .rate-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .status-badge-active {
+        background: linear-gradient(135deg, #28a745, #20c997);
+    }
+    .status-badge-inactive {
+        background: linear-gradient(135deg, #6c757d, #495057);
+    }
+    .rate-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+    .search-box {
+        border-radius: 30px;
+        padding-left: 20px;
+    }
+    .filter-dropdown {
+        border-radius: 30px;
+    }
+    .summary-card {
+        border-radius: 15px;
+        border: none;
+        transition: all 0.3s ease;
+    }
+    .summary-card:hover {
+        transform: translateY(-5px);
+    }
+    .summary-icon {
+        font-size: 2rem;
+        opacity: 0.8;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-money-bill-wave me-2"></i> Consultant Driver Rates
+        </h1>
+        <a href="{% url 'consultant_rate_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus-circle me-2"></i> Add New Rate
+        </a>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card summary-card bg-white shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Rates</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_rates }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-list-alt summary-icon text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card summary-card bg-white shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Active Rates</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ active_rates }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle summary-icon text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card summary-card bg-white shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">Inactive Rates</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ inactive_rates }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-pause-circle summary-icon text-secondary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-search me-2"></i> Search & Filter
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" name="search" class="form-control search-box" placeholder="Search by driver name, vehicle plate, make or model..." value="{{ search_query }}">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-filter"></i></span>
+                        <select name="status" class="form-select filter-dropdown">
+                            <option value="">All Statuses</option>
+                            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                            <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-2"></i> Search
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Rates List -->
+    {% if consultant_rates %}
+    <div class="row">
+        {% for rate in consultant_rates %}
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card rate-card shadow">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        {{ rate.driver.get_full_name }}
+                    </h6>
+                    <div class="dropdown no-arrow">
+                        <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink{{ rate.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="dropdownMenuLink{{ rate.id }}">
+                            <li><a class="dropdown-item" href="{% url 'consultant_rate_detail' rate.id %}">
+                                <i class="fas fa-eye fa-sm fa-fw me-2 text-gray-400"></i> View Details
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'consultant_rate_update' rate.id %}">
+                                <i class="fas fa-edit fa-sm fa-fw me-2 text-gray-400"></i> Edit Rate
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'consultant_rate_toggle' rate.id %}">
+                                {% if rate.status == 'active' %}
+                                <i class="fas fa-pause-circle fa-sm fa-fw me-2 text-gray-400"></i> Deactivate
+                                {% else %}
+                                <i class="fas fa-check-circle fa-sm fa-fw me-2 text-gray-400"></i> Activate
+                                {% endif %}
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="{% url 'consultant_rate_delete' rate.id %}">
+                                <i class="fas fa-trash fa-sm fa-fw me-2 text-danger"></i> Delete
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="badge {% if rate.status == 'active' %}status-badge-active{% else %}status-badge-inactive{% endif %} text-white px-3 py-2">
+                            {% if rate.status == 'active' %}
+                            <i class="fas fa-check-circle me-1"></i> Active
+                            {% else %}
+                            <i class="fas fa-pause-circle me-1"></i> Inactive
+                            {% endif %}
+                        </span>
+                        <div class="rate-value text-primary">
+                            ₹{{ rate.rate_per_km }}/km
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">Vehicle</div>
+                        <div class="h6 mb-0 text-gray-800">
+                            <i class="fas fa-car me-2"></i>
+                            {{ rate.vehicle.make }} {{ rate.vehicle.model }} ({{ rate.vehicle.license_plate }})
+                        </div>
+                    </div>
+                    {% if rate.notes %}
+                    <div class="mb-0">
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">Notes</div>
+                        <div class="small text-gray-800">{{ rate.notes|truncatechars:100 }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="small text-muted">
+                        <i class="fas fa-clock me-1"></i> Updated {{ rate.updated_at|timesince }} ago
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav aria-label="Page navigation">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" aria-label="First">
+                    <span aria-hidden="true">&laquo;&laquo;</span>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
+            </li>
+            {% endif %}
+
+            {% for num in paginator.page_range %}
+                {% if page_obj.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{ num }}</a>
+                </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" aria-label="Last">
+                    <span aria-hidden="true">&raquo;&raquo;</span>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="card shadow mb-4">
+        <div class="card-body text-center py-5">
+            <div class="text-gray-500 mb-3">
+                <i class="fas fa-search fa-3x mb-3"></i>
+                <h5>No consultant rates found</h5>
+                <p>Try adjusting your search criteria or add a new consultant rate.</p>
+            </div>
+            <a href="{% url 'consultant_rate_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-2"></i> Add New Rate
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add animation to rate cards
+        const rateCards = document.querySelectorAll('.rate-card');
+        rateCards.forEach((card, index) => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                card.style.transition = 'all 0.3s ease';
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, 100 * index);
+        });
+    });
+</script>
+{% endblock %}
