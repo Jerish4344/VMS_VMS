@@ -9,6 +9,7 @@ urlpatterns = [
     
     # Dashboard
     path('', DashboardView.as_view(), name='dashboard'),
+    path('dashboard/', include('dashboard.urls')),
     
     # Authentication
     path('accounts/', include('accounts.urls')),

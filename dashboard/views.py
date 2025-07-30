@@ -6,6 +6,8 @@ from django.utils import timezone
 from datetime import timedelta, date, datetime, time
 from pytz import timezone as pytz_timezone
 from calendar import month_name
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
 from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin
 from vehicles.models import Vehicle
 from trips.models import Trip
@@ -74,8 +76,24 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         # Vehicles by type
         context['vehicle_types'] = Vehicle.objects.values('vehicle_type__name').annotate(count=Count('id'))
         
-        # Ongoing trips
-        context['ongoing_trips'] = Trip.objects.filter(status='ongoing').select_related('vehicle', 'driver')
+        # Ongoing trips grouped by vehicle type
+        ongoing_trips = Trip.objects.filter(status='ongoing').select_related('vehicle', 'driver', 'vehicle__vehicle_type')
+        
+        # Group ongoing trips by vehicle type
+        ongoing_trips_by_type = {}
+        for trip in ongoing_trips:
+            vehicle_type = trip.vehicle.vehicle_type.name
+            if vehicle_type not in ongoing_trips_by_type:
+                ongoing_trips_by_type[vehicle_type] = []
+            ongoing_trips_by_type[vehicle_type].append(trip)
+        
+        context['ongoing_trips'] = ongoing_trips  # Keep original for backward compatibility
+        context['ongoing_trips_by_type'] = ongoing_trips_by_type
+        
+        # Add summary counts by vehicle type
+        context['ongoing_trips_summary'] = {}
+        for vehicle_type, trips in ongoing_trips_by_type.items():
+            context['ongoing_trips_summary'][vehicle_type] = len(trips)
         
         # Recent accidents
         context['recent_accidents'] = Accident.objects.all().order_by('-date_time')[:5]
@@ -345,11 +363,22 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     def add_driver_data(self, context):
         driver = self.request.user
         
-        # Driver's ongoing trips
-        context['ongoing_trips'] = Trip.objects.filter(
+        # Driver's ongoing trips with vehicle type information
+        ongoing_trips = Trip.objects.filter(
             driver=driver,
             status='ongoing'
-        ).select_related('vehicle')
+        ).select_related('vehicle', 'vehicle__vehicle_type')
+        
+        # Group by vehicle type for driver too
+        ongoing_trips_by_type = {}
+        for trip in ongoing_trips:
+            vehicle_type = trip.vehicle.vehicle_type.name
+            if vehicle_type not in ongoing_trips_by_type:
+                ongoing_trips_by_type[vehicle_type] = []
+            ongoing_trips_by_type[vehicle_type].append(trip)
+        
+        context['ongoing_trips'] = ongoing_trips
+        context['ongoing_trips_by_type'] = ongoing_trips_by_type
         
         # Driver's recent trips
         recent_trips = Trip.objects.filter(
@@ -694,3 +723,48 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 'month': month_name_str,
                 'distance': int(distance)  # Convert to integer
             })
+
+
+@require_http_methods(["GET"])
+def ongoing_trips_by_type_api(request):
+    """API endpoint to get ongoing trips grouped by vehicle type"""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    # Get ongoing trips with vehicle type information
+    ongoing_trips = Trip.objects.filter(status='ongoing').select_related(
+        'vehicle', 'driver', 'vehicle__vehicle_type'
+    )
+    
+    # Group by vehicle type
+    trips_by_type = {}
+    total_count = 0
+    
+    for trip in ongoing_trips:
+        vehicle_type = trip.vehicle.vehicle_type.name
+        
+        if vehicle_type not in trips_by_type:
+            trips_by_type[vehicle_type] = {
+                'type': vehicle_type,
+                'count': 0,
+                'trips': []
+            }
+        
+        trips_by_type[vehicle_type]['count'] += 1
+        trips_by_type[vehicle_type]['trips'].append({
+            'id': trip.id,
+            'vehicle_license': trip.vehicle.license_plate,
+            'vehicle_make_model': f"{trip.vehicle.make} {trip.vehicle.model}",
+            'driver_name': trip.driver.get_full_name(),
+            'start_time': trip.start_time.strftime('%Y-%m-%d %H:%M'),
+            'origin': trip.origin,
+            'destination': trip.destination or 'TBD',
+            'purpose': trip.purpose
+        })
+        total_count += 1
+    
+    return JsonResponse({
+        'success': True,
+        'total_count': total_count,
+        'trips_by_type': trips_by_type
+    })
