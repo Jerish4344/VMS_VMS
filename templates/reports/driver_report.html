@@ -184,7 +184,7 @@
             <div class="col mr-2">
               <div class="stats-label">Total Drivers</div>
               <div class="stats-value text-primary">
-                {{ driver_report|length }}
+                {{ total_drivers }}
               </div>
             </div>
             <div class="col-auto">
@@ -589,6 +589,58 @@
           </tbody>
         </table>
       </div>
+      
+      <!-- Pagination -->
+      {% if is_paginated %}
+        <div class="mt-4 d-flex justify-content-between align-items-center">
+          <div>
+            <small class="text-muted">
+              Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ paginator.count }} drivers
+            </small>
+          </div>
+          <nav aria-label="Driver report pagination">
+            <ul class="pagination pagination-sm mb-0">
+              {% if page_obj.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?page=1{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" aria-label="First">
+                    <span aria-hidden="true">&laquo;&laquo;</span>
+                  </a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                  </a>
+                </li>
+              {% endif %}
+              
+              {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                  <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                  </li>
+                {% else %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}">{{ num }}</a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+              
+              {% if page_obj.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                  </a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ paginator.num_pages }}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" aria-label="Last">
+                    <span aria-hidden="true">&raquo;&raquo;</span>
+                  </a>
+                </li>
+              {% endif %}
+            </ul>
+          </nav>
+        </div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -602,7 +654,7 @@
     
     // Prepare enhanced driver data with fuel and energy
     const rawDriverData = [
-      {% for driver in driver_report %}
+      {% for driver in driver_report_all %}
         {
           name: "{{ driver.name|escapejs|default:'Unknown' }}",
           distance: parseFloat("{{ driver.total_distance|default:0 }}") || 0,

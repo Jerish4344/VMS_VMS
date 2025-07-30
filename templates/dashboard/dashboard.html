@@ -81,6 +81,100 @@
   #dailyActivityChart, #weeklyActivityChart {
     max-height: 100%;
   }
+
+  /* Vehicle Type Section Styles */
+  .vehicle-type-section {
+    border-left: 4px solid #e3e6f0;
+    padding-left: 1rem;
+    margin-left: 1rem;
+  }
+
+  .vehicle-type-section:hover {
+    border-left-color: #4e73df;
+    background-color: #f8f9fc;
+    border-radius: 0 0.35rem 0.35rem 0;
+  }
+
+  /* Base style for all vehicle type badges */
+  .badge-vehicle-type {
+    font-weight: 600;
+    font-size: 0.75rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.375rem;
+  }
+
+  /* Bikes and Motorcycles - Green */
+  .badge-vehicle-type[data-type*="Bike"], 
+  .badge-vehicle-type[data-type*="Motorcycle"] {
+    background-color: #1cc88a !important;
+    color: #ffffff !important;
+  }
+
+  /* Cars - Blue */
+  .badge-vehicle-type[data-type*="Car"] {
+    background-color: #36b9cc !important;
+    color: #ffffff !important;
+  }
+
+  /* Trucks - Yellow with dark text */
+  .badge-vehicle-type[data-type*="Truck"] {
+    background-color: #f6c23e !important;
+    color: #1a1a1a !important;
+  }
+
+  /* Vans - Red */
+  .badge-vehicle-type[data-type*="Van"] {
+    background-color: #e74a3b !important;
+    color: #ffffff !important;
+  }
+
+  /* SUVs - Purple */
+  .badge-vehicle-type[data-type*="SUV"] {
+    background-color: #6f42c1 !important;
+    color: #ffffff !important;
+  }
+
+  /* Electric Vehicles - Electric Blue */
+  .badge-vehicle-type[data-type*="Electric"],
+  .badge-vehicle-type[data-type*="EV"],
+  .badge-vehicle-type[data-type*="Hybrid"] {
+    background-color: #17a2b8 !important;
+    color: #ffffff !important;
+  }
+
+  /* Commercial Vehicles - Orange */
+  .badge-vehicle-type[data-type*="Commercial"] {
+    background-color: #fd7e14 !important;
+    color: #ffffff !important;
+  }
+
+  /* Pickup - Brown */
+  .badge-vehicle-type[data-type*="Pickup"] {
+    background-color: #795548 !important;
+    color: #ffffff !important;
+  }
+
+  /* Bus - Dark Blue */
+  .badge-vehicle-type[data-type*="Bus"] {
+    background-color: #343a40 !important;
+    color: #ffffff !important;
+  }
+
+  /* Default for any other vehicle types - Gray */
+  .badge-vehicle-type:not([data-type*="Bike"]):not([data-type*="Motorcycle"]):not([data-type*="Car"]):not([data-type*="Truck"]):not([data-type*="Van"]):not([data-type*="SUV"]):not([data-type*="Electric"]):not([data-type*="EV"]):not([data-type*="Hybrid"]):not([data-type*="Commercial"]):not([data-type*="Pickup"]):not([data-type*="Bus"]) {
+    background-color: #6c757d !important;
+    color: #ffffff !important;
+  }
+
+  .trip-type-toggle .btn.active {
+    background-color: #4e73df;
+    border-color: #4e73df;
+    color: white;
+  }
+
+  .vehicle-type-icon {
+    min-width: 40px;
+  }
 </style>
 {% endblock %}
 
@@ -287,54 +381,194 @@
     </div>
   </div>
   
+  <!-- Enhanced Ongoing Trips Section -->
   <div class="row">
-    <!-- Ongoing Trips Table -->
-    <div class="col-lg-6">
+    <div class="col-lg-12">
       <div class="card mb-4">
-        <div class="card-header">
-          <h5 class="card-title">Ongoing Trips</h5>
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">
+            <i class="fas fa-route me-2"></i>Ongoing Trips by Vehicle Type
+          </h5>
+          <div class="trip-type-toggle">
+            <button class="btn btn-sm btn-outline-primary active" data-view="grouped">
+              <i class="fas fa-layer-group me-1"></i>Grouped
+            </button>
+            <button class="btn btn-sm btn-outline-primary" data-view="list">
+              <i class="fas fa-list me-1"></i>List
+            </button>
+          </div>
         </div>
         <div class="card-body">
-          <div class="table-responsive">
-            <table class="table table-hover">
-              <thead>
-                <tr>
-                  <th>Vehicle</th>
-                  <th>Driver</th>
-                  <th>Started</th>
-                  <th>Location</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for trip in ongoing_trips %}
-                <tr>
-                  <td>{{ trip.vehicle.license_plate }}</td>
-                  <td>{{ trip.driver.get_full_name }}</td>
-                  <td>{{ trip.start_time|date:"M d, Y H:i" }}</td>
-                  <td>
-                    <button class="btn btn-sm btn-primary view-location" data-trip-id="{{ trip.id }}">
-                      <i class="fas fa-map-marker-alt"></i> View
-                    </button>
-                  </td>
-                  <td>
-                    <a href="{% url 'trip_detail' trip.id %}" class="btn btn-sm btn-info">
-                      <i class="fas fa-info-circle"></i>
-                    </a>
-                  </td>
-                </tr>
-                {% empty %}
-                <tr>
-                  <td colspan="5" class="text-center">No ongoing trips</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+          <!-- Summary Cards -->
+          {% if ongoing_trips_summary %}
+          <div class="row mb-4">
+            {% for vehicle_type, count in ongoing_trips_summary.items %}
+            <div class="col-lg-3 col-md-6 mb-3">
+              <div class="card bg-light border-0">
+                <div class="card-body text-center">
+                  <div class="text-primary mb-2">
+                    {% if 'Bike' in vehicle_type or 'Motorcycle' in vehicle_type %}
+                      <i class="fas fa-motorcycle fa-2x"></i>
+                    {% elif 'Car' in vehicle_type %}
+                      <i class="fas fa-car fa-2x"></i>
+                    {% elif 'Truck' in vehicle_type %}
+                      <i class="fas fa-truck fa-2x"></i>
+                    {% elif 'Van' in vehicle_type %}
+                      <i class="fas fa-van fa-2x"></i>
+                    {% elif 'SUV' in vehicle_type %}
+                      <i class="fas fa-car-side fa-2x"></i>
+                    {% else %}
+                      <i class="fas fa-car fa-2x"></i>
+                    {% endif %}
+                  </div>
+                  <h6 class="mb-1">{{ vehicle_type }}</h6>
+                  <h4 class="text-primary mb-0">{{ count }}</h4>
+                  <small class="text-muted">Active Trips</small>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <!-- Grouped View -->
+          <div id="grouped-view">
+            {% if ongoing_trips_by_type %}
+              {% for vehicle_type, trips in ongoing_trips_by_type.items %}
+              <div class="vehicle-type-section mb-4">
+                <div class="d-flex align-items-center mb-3">
+                  <div class="vehicle-type-icon me-3">
+                    {% if 'Bike' in vehicle_type or 'Motorcycle' in vehicle_type %}
+                      <i class="fas fa-motorcycle text-primary fa-lg"></i>
+                    {% elif 'Car' in vehicle_type %}
+                      <i class="fas fa-car text-success fa-lg"></i>
+                    {% elif 'Truck' in vehicle_type %}
+                      <i class="fas fa-truck text-warning fa-lg"></i>
+                    {% elif 'Van' in vehicle_type %}
+                      <i class="fas fa-van text-info fa-lg"></i>
+                    {% elif 'SUV' in vehicle_type %}
+                      <i class="fas fa-car-side text-secondary fa-lg"></i>
+                    {% else %}
+                      <i class="fas fa-car text-primary fa-lg"></i>
+                    {% endif %}
+                  </div>
+                  <h6 class="mb-0">{{ vehicle_type }} <span class="badge bg-primary">{{ trips|length }}</span></h6>
+                </div>
+                
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Vehicle</th>
+                        <th>Driver</th>
+                        <th>Started</th>
+                        <th>From → To</th>
+                        <th>Purpose</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for trip in trips %}
+                      <tr>
+                        <td>
+                          <strong>{{ trip.vehicle.license_plate }}</strong><br>
+                          <small class="text-muted">{{ trip.vehicle.make }} {{ trip.vehicle.model }}</small>
+                        </td>
+                        <td>{{ trip.driver.get_full_name }}</td>
+                        <td>{{ trip.start_time|date:"M d, H:i" }}</td>
+                        <td>
+                          <span class="text-truncate d-inline-block" style="max-width: 150px;" title="{{ trip.origin }} → {{ trip.destination|default:'TBD' }}">
+                            {{ trip.origin|truncatechars:15 }} → {{ trip.destination|default:'TBD'|truncatechars:15 }}
+                          </span>
+                        </td>
+                        <td>{{ trip.purpose|truncatechars:20 }}</td>
+                        <td>
+                          <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary view-location" data-trip-id="{{ trip.id }}" title="View Location">
+                              <i class="fas fa-map-marker-alt"></i>
+                            </button>
+                            <a href="{% url 'trip_detail' trip.id %}" class="btn btn-outline-info" title="Trip Details">
+                              <i class="fas fa-info-circle"></i>
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {% endfor %}
+            {% else %}
+              <div class="text-center py-5">
+                <i class="fas fa-route fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Ongoing Trips</h5>
+                <p class="text-muted">All vehicles are currently available.</p>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- List View (Hidden by default) -->
+          <div id="list-view" style="display: none;">
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Vehicle</th>
+                    <th>Driver</th>
+                    <th>Started</th>
+                    <th>From → To</th>
+                    <th>Purpose</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for trip in ongoing_trips %}
+                  <tr>
+                    <td>
+                      <span class="badge badge-vehicle-type" data-type="{{ trip.vehicle.vehicle_type.name }}">
+                        {{ trip.vehicle.vehicle_type.name }}
+                      </span>
+                    </td>
+                    <td>
+                      <strong>{{ trip.vehicle.license_plate }}</strong><br>
+                      <small class="text-muted">{{ trip.vehicle.make }} {{ trip.vehicle.model }}</small>
+                    </td>
+                    <td>{{ trip.driver.get_full_name }}</td>
+                    <td>{{ trip.start_time|date:"M d, H:i" }}</td>
+                    <td>
+                      <span class="text-truncate d-inline-block" style="max-width: 150px;">
+                        {{ trip.origin|truncatechars:15 }} → {{ trip.destination|default:'TBD'|truncatechars:15 }}
+                      </span>
+                    </td>
+                    <td>{{ trip.purpose|truncatechars:20 }}</td>
+                    <td>
+                      <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary view-location" data-trip-id="{{ trip.id }}">
+                          <i class="fas fa-map-marker-alt"></i>
+                        </button>
+                        <a href="{% url 'trip_detail' trip.id %}" class="btn btn-outline-info">
+                          <i class="fas fa-info-circle"></i>
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                  {% empty %}
+                  <tr>
+                    <td colspan="7" class="text-center">No ongoing trips</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
     </div>
-    
+  </div>
+  
+  <div class="row">
     <!-- Recent Accidents -->
     <div class="col-lg-6">
       <div class="card mb-4">
@@ -1826,6 +2060,32 @@ document.addEventListener('DOMContentLoaded', function() {
         // clearMapElements();
       });
     }
+  }
+
+  // Toggle between grouped and list view for ongoing trips
+  const toggleButtons = document.querySelectorAll('.trip-type-toggle .btn');
+  const groupedView = document.getElementById('grouped-view');
+  const listView = document.getElementById('list-view');
+  
+  if (toggleButtons.length > 0 && groupedView && listView) {
+    toggleButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        const view = this.dataset.view;
+        
+        // Update active button
+        toggleButtons.forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Show/hide views
+        if (view === 'grouped') {
+          groupedView.style.display = 'block';
+          listView.style.display = 'none';
+        } else {
+          groupedView.style.display = 'none';
+          listView.style.display = 'block';
+        }
+      });
+    });
   }
 });
 </script>
