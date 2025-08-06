@@ -1,0 +1,1038 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Vehicle Tracking Dashboard | {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS for maps -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+<style>
+  /* Dashboard Layout */
+  .stats-card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+  }
+  
+  .stats-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  }
+  
+  .stats-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+  }
+  
+  /* Map container */
+  #trackingMap {
+    height: 500px;
+    width: 100%;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Vehicle markers */
+  .vehicle-marker-active {
+    color: #28a745;
+  }
+  
+  .vehicle-marker-idle {
+    color: #17a2b8;
+  }
+  
+  .vehicle-marker-inactive {
+    color: #ffc107;
+  }
+  
+  .vehicle-marker-unknown {
+    color: #6c757d;
+  }
+  
+  /* Vehicle table */
+  .vehicle-table th {
+    position: sticky;
+    top: 0;
+    background-color: #fff;
+    z-index: 1;
+  }
+  
+  .vehicle-row {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  .vehicle-row:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+  }
+  
+  .vehicle-row.active {
+    background-color: rgba(0, 123, 255, 0.1);
+  }
+  
+  /* Status indicators */
+  .status-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  
+  .status-active {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+  }
+  
+  .status-idle {
+    background-color: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+    border: 1px solid rgba(23, 162, 184, 0.2);
+  }
+  
+  .status-inactive {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.2);
+  }
+  
+  .status-unknown {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    border: 1px solid rgba(108, 117, 125, 0.2);
+  }
+  
+  .status-no-data {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.2);
+  }
+  
+  /* Last update indicator */
+  .last-update-indicator {
+    font-size: 0.8rem;
+    color: #6c757d;
+  }
+  
+  /* Filter section */
+  .filter-section {
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+  
+  /* Loading overlay */
+  .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    border-radius: 10px;
+  }
+  
+  .spinner-border {
+    width: 3rem;
+    height: 3rem;
+  }
+  
+  /* Vehicle info popup */
+  .vehicle-popup {
+    min-width: 250px;
+  }
+  
+  .vehicle-popup-header {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 5px;
+  }
+  
+  .vehicle-popup-info {
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  .vehicle-popup-label {
+    font-weight: 500;
+    color: #495057;
+  }
+  
+  .vehicle-popup-value {
+    font-weight: 400;
+    color: #212529;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    #trackingMap {
+      height: 350px;
+    }
+    
+    .stats-card {
+      margin-bottom: 15px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">Vehicle Tracking Dashboard</h1>
+      <p class="text-muted">Real-time location and status of all vehicles</p>
+    </div>
+    <div class="d-flex">
+      <button id="refreshData" class="btn btn-primary me-2">
+        <i class="fas fa-sync-alt me-1"></i> Refresh Data
+      </button>
+      <a href="{% url 'map_view' %}" class="btn btn-outline-primary">
+        <i class="fas fa-map-marked-alt me-1"></i> Full Map View
+      </a>
+    </div>
+  </div>
+
+  <!-- Last Update Indicator -->
+  <div class="mb-4 text-end">
+    <span class="last-update-indicator">
+      <i class="fas fa-clock me-1"></i> Last updated: 
+      <span id="lastUpdateTime">
+        {% if last_sync %}
+          {{ last_sync|naturaltime }}
+        {% else %}
+          Never
+        {% endif %}
+      </span>
+    </span>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="row mb-4">
+    <!-- Total Vehicles -->
+    <div class="col-lg-2 col-md-4 col-sm-6 mb-4">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Total Vehicles</h6>
+              <h2 class="mb-0 fw-bold" id="totalVehiclesCount">{{ total_vehicles }}</h2>
+            </div>
+            <div class="stats-icon bg-primary bg-opacity-10 text-primary">
+              <i class="fas fa-car"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="text-muted small">Vehicles with tracking devices</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Active Vehicles -->
+    <div class="col-lg-2 col-md-4 col-sm-6 mb-4">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Active Vehicles</h6>
+              <h2 class="mb-0 fw-bold text-success" id="activeVehiclesCount">{{ active_vehicles }}</h2>
+            </div>
+            <div class="stats-icon bg-success bg-opacity-10 text-success">
+              <i class="fas fa-car-side"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="text-muted small">Currently in motion</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Idle Vehicles -->
+    <div class="col-lg-2 col-md-4 col-sm-6 mb-4">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Idle Vehicles</h6>
+              <h2 class="mb-0 fw-bold text-info" id="idleVehiclesCount">{{ idle_vehicles }}</h2>
+            </div>
+            <div class="stats-icon bg-info bg-opacity-10 text-info">
+              <i class="fas fa-clock"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="text-muted small">Ignition on, not moving</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Parked Vehicles -->
+    <div class="col-lg-2 col-md-4 col-sm-6 mb-4">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Parked Vehicles</h6>
+              <h2 class="mb-0 fw-bold text-warning" id="inactiveVehiclesCount">{{ inactive_vehicles }}</h2>
+            </div>
+            <div class="stats-icon bg-warning bg-opacity-10 text-warning">
+              <i class="fas fa-parking"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="text-muted small">Ignition off, not moving</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Unknown Status Vehicles -->
+    <div class="col-lg-2 col-md-4 col-sm-6 mb-4">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Unknown Status</h6>
+              <h2 class="mb-0 fw-bold text-secondary" id="unknownVehiclesCount">{{ unknown_vehicles }}</h2>
+            </div>
+            <div class="stats-icon bg-secondary bg-opacity-10 text-secondary">
+              <i class="fas fa-question-circle"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="text-muted small">No recent data available</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Section -->
+  <div class="filter-section mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-3 mb-3 mb-md-0">
+        <label for="statusFilter" class="form-label">Filter by Status</label>
+        <select id="statusFilter" class="form-select">
+          <option value="all">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Parked</option>
+          <option value="unknown">Unknown</option>
+        </select>
+      </div>
+      <div class="col-md-3 mb-3 mb-md-0">
+        <label for="searchVehicle" class="form-label">Search Vehicle</label>
+        <input type="text" id="searchVehicle" class="form-control" placeholder="License plate or model...">
+      </div>
+      <div class="col-md-3 mb-3 mb-md-0">
+        <label for="sortBy" class="form-label">Sort By</label>
+        <select id="sortBy" class="form-select">
+          <option value="status">Status</option>
+          <option value="license">License Plate</option>
+          <option value="updated">Last Updated</option>
+          <option value="speed">Speed</option>
+        </select>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button id="applyFilters" class="btn btn-primary w-100">
+          <i class="fas fa-filter me-1"></i> Apply Filters
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="row">
+    <!-- Map Section -->
+    <div class="col-lg-8 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-map-marked-alt me-2"></i> Live Vehicle Tracking
+          </h6>
+        </div>
+        <div class="card-body position-relative">
+          <div id="mapLoadingOverlay" class="loading-overlay" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+          <div id="trackingMap"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Vehicles Table Section -->
+    <div class="col-lg-4 mb-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-car me-2"></i> Vehicle Status
+          </h6>
+          <span class="badge bg-primary" id="vehicleCount">{{ vehicles_data|length }}</span>
+        </div>
+        <div class="card-body position-relative p-0">
+          <div id="tableLoadingOverlay" class="loading-overlay" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+          <div class="table-responsive" style="max-height: 435px; overflow-y: auto;">
+            <table class="table table-hover vehicle-table mb-0">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Status</th>
+                  <th>Speed</th>
+                  <th>Last Update</th>
+                </tr>
+              </thead>
+              <tbody id="vehicleTableBody">
+                {% for vehicle_data in vehicles_data %}
+                <tr class="vehicle-row" data-vehicle-id="{{ vehicle_data.vehicle.id }}">
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <div class="me-2">
+                        <i class="fas fa-car text-primary"></i>
+                      </div>
+                      <div>
+                        <div class="fw-bold">{{ vehicle_data.vehicle.license_plate }}</div>
+                        <div class="small text-muted">{{ vehicle_data.vehicle.make }} {{ vehicle_data.vehicle.model }}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="status-badge status-{{ vehicle_data.status.status }}">
+                      {{ vehicle_data.status.display }}
+                    </span>
+                  </td>
+                  <td>
+                    {% if vehicle_data.location and vehicle_data.location.speed %}
+                      {{ vehicle_data.location.speed|floatformat:1 }} km/h
+                    {% else %}
+                      --
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if vehicle_data.location %}
+                      <span title="{{ vehicle_data.location.last_update|date:'Y-m-d H:i:s' }}">
+                        {{ vehicle_data.location.last_update|naturaltime }}
+                      </span>
+                    {% else %}
+                      <span class="text-muted">No data</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="4" class="text-center py-4">
+                    <div class="text-muted">
+                      <i class="fas fa-info-circle me-2"></i> No vehicles with tracking devices found
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-footer bg-white">
+          <a href="{% url 'device_list' %}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-cogs me-1"></i> Manage Devices
+          </a>
+          <button id="syncNow" class="btn btn-sm btn-outline-success ms-2">
+            <i class="fas fa-sync me-1"></i> Sync Now
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Vehicle Detail Modal -->
+  <div class="modal fade" id="vehicleDetailModal" tabindex="-1" aria-labelledby="vehicleDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="vehicleDetailModalLabel">Vehicle Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="card mb-3">
+                <div class="card-body">
+                  <h6 class="card-title">Vehicle Information</h6>
+                  <table class="table table-sm">
+                    <tr>
+                      <th>License Plate</th>
+                      <td id="modalLicensePlate"></td>
+                    </tr>
+                    <tr>
+                      <th>Make & Model</th>
+                      <td id="modalMakeModel"></td>
+                    </tr>
+                    <tr>
+                      <th>Status</th>
+                      <td id="modalStatus"></td>
+                    </tr>
+                    <tr>
+                      <th>Last Update</th>
+                      <td id="modalLastUpdate"></td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card mb-3">
+                <div class="card-body">
+                  <h6 class="card-title">Current Location</h6>
+                  <table class="table table-sm">
+                    <tr>
+                      <th>Speed</th>
+                      <td id="modalSpeed"></td>
+                    </tr>
+                    <tr>
+                      <th>Address</th>
+                      <td id="modalAddress"></td>
+                    </tr>
+                    <tr>
+                      <th>Coordinates</th>
+                      <td id="modalCoordinates"></td>
+                    </tr>
+                    <tr>
+                      <th>Ignition</th>
+                      <td id="modalIgnition"></td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="modalDetailMap" style="height: 300px; width: 100%; border-radius: 5px;"></div>
+        </div>
+        <div class="modal-footer">
+          <a id="modalViewDetails" href="#" class="btn btn-primary">
+            <i class="fas fa-info-circle me-1"></i> View Full Details
+          </a>
+          <a id="modalViewHistory" href="#" class="btn btn-outline-secondary">
+            <i class="fas fa-history me-1"></i> View History
+          </a>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS for maps -->
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<script>
+  // Map initialization
+  let map;
+  let markers = {};
+  let selectedVehicleId = null;
+  let refreshInterval;
+  
+  // Vehicle icons based on status
+  const vehicleIcons = {
+    active: L.divIcon({
+      html: '<i class="fas fa-car-side fa-2x vehicle-marker-active"></i>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      className: 'vehicle-icon'
+    }),
+    idle: L.divIcon({
+      html: '<i class="fas fa-clock fa-2x vehicle-marker-idle"></i>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      className: 'vehicle-icon'
+    }),
+    inactive: L.divIcon({
+      html: '<i class="fas fa-car fa-2x vehicle-marker-inactive"></i>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      className: 'vehicle-icon'
+    }),
+    unknown: L.divIcon({
+      html: '<i class="fas fa-car fa-2x vehicle-marker-unknown"></i>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      className: 'vehicle-icon'
+    }),
+    no_data: L.divIcon({
+      html: '<i class="fas fa-car fa-2x vehicle-marker-unknown"></i>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      className: 'vehicle-icon'
+    })
+  };
+  
+  // Initialize the map
+  function initMap() {
+    map = L.map('trackingMap').setView([20.5937, 78.9629], 5); // Default to India center
+    
+    // Add tile layer (OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    
+    // Add vehicles to map
+    addVehiclesToMap();
+    
+    // Set up auto-refresh (every 30 seconds)
+    refreshInterval = setInterval(refreshData, 30000);
+  }
+  
+  // Add vehicles to the map
+  function addVehiclesToMap() {
+    // Show loading overlay
+    document.getElementById('mapLoadingOverlay').style.display = 'flex';
+    
+    // Fetch vehicle locations
+    fetch('{% url "ajax_vehicle_locations" %}')
+      .then(response => response.json())
+      .then(data => {
+        // Clear existing markers
+        for (const id in markers) {
+          map.removeLayer(markers[id]);
+        }
+        markers = {};
+        
+        // Process features
+        if (data.features && data.features.length > 0) {
+          const bounds = L.latLngBounds();
+          
+          data.features.forEach(feature => {
+            const props = feature.properties;
+            const coords = feature.geometry.coordinates;
+            const status = props.status;
+            
+            // Create marker
+            const marker = L.marker([coords[1], coords[0]], {
+              icon: vehicleIcons[status],
+              title: props.license_plate
+            });
+            
+            // Create popup content
+            const popupContent = `
+              <div class="vehicle-popup">
+                <div class="vehicle-popup-header">${props.license_plate}</div>
+                <div class="vehicle-popup-info">
+                  <span class="vehicle-popup-label">Make & Model:</span>
+                  <span class="vehicle-popup-value">${props.make} ${props.model}</span>
+                </div>
+                <div class="vehicle-popup-info">
+                  <span class="vehicle-popup-label">Status:</span>
+                  <span class="vehicle-popup-value">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
+                </div>
+                <div class="vehicle-popup-info">
+                  <span class="vehicle-popup-label">Speed:</span>
+                  <span class="vehicle-popup-value">${props.speed.toFixed(1)} km/h</span>
+                </div>
+                <div class="vehicle-popup-info">
+                  <span class="vehicle-popup-label">Last Update:</span>
+                  <span class="vehicle-popup-value">${new Date(props.time).toLocaleString()}</span>
+                </div>
+                <div class="mt-2">
+                  <a href="{% url 'vehicle_tracking_detail' 0 %}".replace('0', props.id) class="btn btn-sm btn-primary w-100">
+                    <i class="fas fa-info-circle me-1"></i> View Details
+                  </a>
+                </div>
+              </div>
+            `;
+            
+            // Add popup to marker
+            marker.bindPopup(popupContent);
+            
+            // Add click event
+            marker.on('click', function() {
+              selectedVehicleId = props.id;
+              highlightVehicleInTable(props.id);
+            });
+            
+            // Add marker to map and store reference
+            marker.addTo(map);
+            markers[props.id] = marker;
+            
+            // Extend bounds to include this marker
+            bounds.extend([coords[1], coords[0]]);
+          });
+          
+          // Fit map to bounds if we have markers
+          if (Object.keys(markers).length > 0) {
+            map.fitBounds(bounds, { padding: [50, 50] });
+          }
+        }
+        
+        // Hide loading overlay
+        document.getElementById('mapLoadingOverlay').style.display = 'none';
+        
+        // Update last update time
+        document.getElementById('lastUpdateTime').textContent = new Date().toLocaleString();
+      })
+      .catch(error => {
+        console.error('Error fetching vehicle locations:', error);
+        document.getElementById('mapLoadingOverlay').style.display = 'none';
+      });
+  }
+  
+  // Highlight vehicle in the table
+  function highlightVehicleInTable(vehicleId) {
+    // Remove highlight from all rows
+    document.querySelectorAll('.vehicle-row').forEach(row => {
+      row.classList.remove('active');
+    });
+    
+    // Add highlight to selected row
+    const row = document.querySelector(`.vehicle-row[data-vehicle-id="${vehicleId}"]`);
+    if (row) {
+      row.classList.add('active');
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+  
+  // Refresh data
+  function refreshData() {
+    // Update vehicle locations on map
+    addVehiclesToMap();
+    
+    // Update vehicle table
+    updateVehicleTable();
+    
+    // Update stats
+    updateStats();
+  }
+  
+  // Update vehicle table
+  function updateVehicleTable() {
+    document.getElementById('tableLoadingOverlay').style.display = 'flex';
+    
+    // Get current filter values
+    const statusFilter = document.getElementById('statusFilter').value;
+    const searchTerm = document.getElementById('searchVehicle').value.toLowerCase();
+    
+    fetch('{% url "ajax_vehicle_locations" %}')
+      .then(response => response.json())
+      .then(data => {
+        const tableBody = document.getElementById('vehicleTableBody');
+        let html = '';
+        
+        if (data.features && data.features.length > 0) {
+          // Apply filters
+          let filteredVehicles = data.features;
+          
+          if (statusFilter !== 'all') {
+            filteredVehicles = filteredVehicles.filter(feature => 
+              feature.properties.status === statusFilter
+            );
+          }
+          
+          if (searchTerm) {
+            filteredVehicles = filteredVehicles.filter(feature => 
+              feature.properties.license_plate.toLowerCase().includes(searchTerm) ||
+              feature.properties.make.toLowerCase().includes(searchTerm) ||
+              feature.properties.model.toLowerCase().includes(searchTerm)
+            );
+          }
+          
+          // Sort vehicles
+          const sortBy = document.getElementById('sortBy').value;
+          filteredVehicles.sort((a, b) => {
+            switch (sortBy) {
+              case 'license':
+                return a.properties.license_plate.localeCompare(b.properties.license_plate);
+              case 'updated':
+                return new Date(b.properties.time) - new Date(a.properties.time);
+              case 'speed':
+                return b.properties.speed - a.properties.speed;
+              case 'status':
+              default:
+                // First active, then inactive, then unknown
+                const statusOrder = { 'active': 0, 'inactive': 1, 'unknown': 2 };
+                return statusOrder[a.properties.status] - statusOrder[b.properties.status];
+            }
+          });
+          
+          // Update vehicle count
+          document.getElementById('vehicleCount').textContent = filteredVehicles.length;
+          
+          // Generate table rows
+          filteredVehicles.forEach(feature => {
+            const props = feature.properties;
+            const isSelected = selectedVehicleId === props.id;
+            
+            html += `
+              <tr class="vehicle-row ${isSelected ? 'active' : ''}" data-vehicle-id="${props.id}" onclick="showVehicleDetails(${props.id})">
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="me-2">
+                      <i class="fas fa-car text-primary"></i>
+                    </div>
+                    <div>
+                      <div class="fw-bold">${props.license_plate}</div>
+                      <div class="small text-muted">${props.make} ${props.model}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="status-badge status-${props.status}">
+                    ${props.status.charAt(0).toUpperCase() + props.status.slice(1)}
+                  </span>
+                </td>
+                <td>${props.speed.toFixed(1)} km/h</td>
+                <td>
+                  <span title="${new Date(props.time).toLocaleString()}">
+                    ${timeAgo(new Date(props.time))}
+                  </span>
+                </td>
+              </tr>
+            `;
+          });
+        } else {
+          html = `
+            <tr>
+              <td colspan="4" class="text-center py-4">
+                <div class="text-muted">
+                  <i class="fas fa-info-circle me-2"></i> No vehicles with tracking devices found
+                </div>
+              </td>
+            </tr>
+          `;
+        }
+        
+        tableBody.innerHTML = html;
+        document.getElementById('tableLoadingOverlay').style.display = 'none';
+      })
+      .catch(error => {
+        console.error('Error updating vehicle table:', error);
+        document.getElementById('tableLoadingOverlay').style.display = 'none';
+      });
+  }
+  
+  // Update stats
+  function updateStats() {
+    fetch('{% url "ajax_vehicle_locations" %}')
+      .then(response => response.json())
+      .then(data => {
+        if (data.features) {
+          const totalVehicles = data.features.length;
+          let activeVehicles = 0;
+          let idleVehicles = 0;
+          let inactiveVehicles = 0;
+          let unknownVehicles = 0;
+          
+          data.features.forEach(feature => {
+            switch (feature.properties.status) {
+              case 'active':
+                activeVehicles++;
+                break;
+              case 'idle':
+                idleVehicles++;
+                break;
+              case 'inactive':
+                inactiveVehicles++;
+                break;
+              default:
+                unknownVehicles++;
+                break;
+            }
+          });
+          
+          document.getElementById('totalVehiclesCount').textContent = totalVehicles;
+          document.getElementById('activeVehiclesCount').textContent = activeVehicles;
+          document.getElementById('idleVehiclesCount').textContent = idleVehicles;
+          document.getElementById('inactiveVehiclesCount').textContent = inactiveVehicles;
+          document.getElementById('unknownVehiclesCount').textContent = unknownVehicles;
+        }
+      })
+      .catch(error => {
+        console.error('Error updating stats:', error);
+      });
+  }
+  
+  // Show vehicle details modal
+  function showVehicleDetails(vehicleId) {
+    // Set selected vehicle
+    selectedVehicleId = vehicleId;
+    
+    // Highlight in table
+    highlightVehicleInTable(vehicleId);
+    
+    // Center map on vehicle
+    if (markers[vehicleId]) {
+      map.setView(markers[vehicleId].getLatLng(), 15);
+      markers[vehicleId].openPopup();
+    }
+    
+    // Fetch vehicle details
+    fetch(`{% url "ajax_vehicle_detail" 0 %}`.replace('0', vehicleId))
+      .then(response => response.json())
+      .then(data => {
+        // Populate modal
+        document.getElementById('modalLicensePlate').textContent = data.vehicle.license_plate;
+        document.getElementById('modalMakeModel').textContent = `${data.vehicle.make} ${data.vehicle.model} (${data.vehicle.year})`;
+        
+        // Set status with badge
+        const statusBadge = document.createElement('span');
+        statusBadge.className = `status-badge status-${data.status}`;
+        statusBadge.textContent = data.status_display;
+        document.getElementById('modalStatus').innerHTML = '';
+        document.getElementById('modalStatus').appendChild(statusBadge);
+        
+        // Set location info if available
+        if (data.location) {
+          document.getElementById('modalSpeed').textContent = `${data.location.speed.toFixed(1)} km/h`;
+          document.getElementById('modalAddress').textContent = data.location.address || 'Unknown location';
+          document.getElementById('modalCoordinates').textContent = `${data.location.latitude.toFixed(6)}, ${data.location.longitude.toFixed(6)}`;
+          document.getElementById('modalIgnition').textContent = data.location.ignition ? 'On' : 'Off';
+          document.getElementById('modalLastUpdate').textContent = new Date(data.location.time).toLocaleString();
+          
+          // Initialize detail map
+          setTimeout(() => {
+            const detailMap = L.map('modalDetailMap').setView([data.location.latitude, data.location.longitude], 15);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(detailMap);
+            
+            L.marker([data.location.latitude, data.location.longitude], {
+              icon: vehicleIcons[data.status]
+            }).addTo(detailMap);
+          }, 300);
+        } else {
+          document.getElementById('modalSpeed').textContent = '--';
+          document.getElementById('modalAddress').textContent = 'No location data available';
+          document.getElementById('modalCoordinates').textContent = '--';
+          document.getElementById('modalIgnition').textContent = '--';
+          document.getElementById('modalLastUpdate').textContent = 'No data';
+          
+          // Show empty map
+          setTimeout(() => {
+            const detailMap = L.map('modalDetailMap').setView([20.5937, 78.9629], 5);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(detailMap);
+          }, 300);
+        }
+        
+        // Set links
+        document.getElementById('modalViewDetails').href = `{% url 'vehicle_tracking_detail' 0 %}`.replace('0', vehicleId);
+        document.getElementById('modalViewHistory').href = `{% url 'vehicle_tracking_history' 0 %}`.replace('0', vehicleId);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('vehicleDetailModal'));
+        modal.show();
+      })
+      .catch(error => {
+        console.error('Error fetching vehicle details:', error);
+      });
+  }
+  
+  // Time ago helper function
+  function timeAgo(date) {
+    const seconds = Math.floor((new Date() - date) / 1000);
+    
+    let interval = Math.floor(seconds / 31536000);
+    if (interval > 1) return interval + ' years ago';
+    if (interval === 1) return '1 year ago';
+    
+    interval = Math.floor(seconds / 2592000);
+    if (interval > 1) return interval + ' months ago';
+    if (interval === 1) return '1 month ago';
+    
+    interval = Math.floor(seconds / 86400);
+    if (interval > 1) return interval + ' days ago';
+    if (interval === 1) return '1 day ago';
+    
+    interval = Math.floor(seconds / 3600);
+    if (interval > 1) return interval + ' hours ago';
+    if (interval === 1) return '1 hour ago';
+    
+    interval = Math.floor(seconds / 60);
+    if (interval > 1) return interval + ' minutes ago';
+    if (interval === 1) return '1 minute ago';
+    
+    if (seconds < 10) return 'just now';
+    
+    return Math.floor(seconds) + ' seconds ago';
+  }
+  
+  // Event listeners
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize map
+    initMap();
+    
+    // Refresh button
+    document.getElementById('refreshData').addEventListener('click', function() {
+      refreshData();
+    });
+    
+    // Apply filters button
+    document.getElementById('applyFilters').addEventListener('click', function() {
+      updateVehicleTable();
+    });
+    
+    // Sync now button
+    document.getElementById('syncNow').addEventListener('click', function() {
+      fetch('{% url "sync_airotrack" %}', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+      })
+      .then(response => {
+        if (response.ok) {
+          // Show success message
+          alert('Synchronization started. Data will refresh shortly.');
+          
+          // Refresh after 3 seconds to allow sync to complete
+          setTimeout(refreshData, 3000);
+        } else {
+          alert('Synchronization failed. Please try again.');
+        }
+      })
+      .catch(error => {
+        console.error('Error syncing data:', error);
+        alert('Synchronization failed. Please try again.');
+      });
+    });
+    
+    // Vehicle row click
+    document.querySelectorAll('.vehicle-row').forEach(row => {
+      row.addEventListener('click', function() {
+        const vehicleId = this.getAttribute('data-vehicle-id');
+        showVehicleDetails(vehicleId);
+      });
+    });
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', function() {
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+    });
+  });
+</script>
+{% endblock %}
