@@ -1,0 +1,534 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}AiroTrack Devices | {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Status indicators */
+  .status-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  
+  .status-online {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+  }
+  
+  .status-offline {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.2);
+  }
+  
+  .status-inactive {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    border: 1px solid rgba(108, 117, 125, 0.2);
+  }
+  
+  .status-unknown {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    border: 1px solid rgba(108, 117, 125, 0.2);
+  }
+  
+  /* Stats card */
+  .stats-card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+  }
+  
+  .stats-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  }
+  
+  .stats-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+  }
+  
+  /* Filter section */
+  .filter-section {
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+  
+  /* Table styles */
+  .device-table th {
+    position: sticky;
+    top: 0;
+    background-color: #fff;
+    z-index: 1;
+  }
+  
+  .device-row {
+    transition: background-color 0.2s ease;
+  }
+  
+  .device-row:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+  }
+  
+  /* Action buttons */
+  .action-buttons .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+  }
+  
+  /* Vehicle badge */
+  .vehicle-badge {
+    background-color: rgba(0, 123, 255, 0.1);
+    color: #0d6efd;
+    border: 1px solid rgba(0, 123, 255, 0.2);
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: inline-block;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 50px 20px;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .empty-state-icon {
+    font-size: 3rem;
+    color: #6c757d;
+    margin-bottom: 20px;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .stats-card {
+      margin-bottom: 15px;
+    }
+    
+    .table-responsive {
+      border-radius: 10px;
+      overflow: hidden;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">AiroTrack Devices</h1>
+      <p class="text-muted">Manage tracking devices and vehicle assignments</p>
+    </div>
+    <div class="d-flex">
+      <a href="{% url 'device_add' %}" class="btn btn-primary">
+        <i class="fas fa-plus-circle me-1"></i> Add Device
+      </a>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="row mb-4">
+    <!-- Total Devices -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Total Devices</h6>
+              <h2 class="mb-0 fw-bold">{{ status_counts.total }}</h2>
+            </div>
+            <div class="stats-icon bg-primary bg-opacity-10 text-primary">
+              <i class="fas fa-microchip"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="text-muted small">Registered tracking devices</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Online Devices -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Online</h6>
+              <h2 class="mb-0 fw-bold text-success">{{ status_counts.online }}</h2>
+            </div>
+            <div class="stats-icon bg-success bg-opacity-10 text-success">
+              <i class="fas fa-wifi"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="text-muted small">Currently transmitting data</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Offline Devices -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Offline</h6>
+              <h2 class="mb-0 fw-bold text-warning">{{ status_counts.offline }}</h2>
+            </div>
+            <div class="stats-icon bg-warning bg-opacity-10 text-warning">
+              <i class="fas fa-power-off"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="text-muted small">Not currently connected</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Unassigned Devices -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Unassigned</h6>
+              <h2 class="mb-0 fw-bold text-secondary">{{ status_counts.unassigned }}</h2>
+            </div>
+            <div class="stats-icon bg-secondary bg-opacity-10 text-secondary">
+              <i class="fas fa-unlink"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="text-muted small">Not assigned to any vehicle</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Section -->
+  <div class="filter-section mb-4">
+    <form method="get" action="{% url 'device_list' %}">
+      <div class="row align-items-center">
+        <div class="col-md-3 mb-3 mb-md-0">
+          <label for="statusFilter" class="form-label">Filter by Status</label>
+          <select id="statusFilter" name="status" class="form-select">
+            <option value="" {% if not status_filter %}selected{% endif %}>All Statuses</option>
+            <option value="online" {% if status_filter == 'online' %}selected{% endif %}>Online</option>
+            <option value="offline" {% if status_filter == 'offline' %}selected{% endif %}>Offline</option>
+            <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+            <option value="unknown" {% if status_filter == 'unknown' %}selected{% endif %}>Unknown</option>
+          </select>
+        </div>
+        <div class="col-md-3 mb-3 mb-md-0">
+          <label for="assignedFilter" class="form-label">Vehicle Assignment</label>
+          <select id="assignedFilter" name="assigned" class="form-select">
+            <option value="" {% if not assigned_filter %}selected{% endif %}>All Devices</option>
+            <option value="yes" {% if assigned_filter == 'yes' %}selected{% endif %}>Assigned</option>
+            <option value="no" {% if assigned_filter == 'no' %}selected{% endif %}>Unassigned</option>
+          </select>
+        </div>
+        <div class="col-md-3 mb-3 mb-md-0">
+          <label for="searchDevice" class="form-label">Search Device</label>
+          <input type="text" id="searchDevice" name="search" class="form-control" placeholder="Device ID or name..." value="{{ request.GET.search|default:'' }}">
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary me-2 w-100">
+            <i class="fas fa-filter me-1"></i> Apply Filters
+          </button>
+          <a href="{% url 'device_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-times"></i>
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Main Content -->
+  {% if devices %}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="fas fa-microchip me-2"></i> Device List
+        </h6>
+        <span class="badge bg-primary">{{ devices.paginator.count }} Devices</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover device-table mb-0">
+            <thead>
+              <tr>
+                <th>Device ID</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Vehicle</th>
+                <th>Last Update</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for device in devices %}
+                <tr class="device-row">
+                  <td>
+                    <div class="fw-bold">{{ device.device_id }}</div>
+                  </td>
+                  <td>
+                    {% if device.name %}
+                      {{ device.name }}
+                    {% else %}
+                      <span class="text-muted">No name</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="status-badge status-{{ device.status }}">
+                      {{ device.get_status_display }}
+                    </span>
+                  </td>
+                  <td>
+                    {% if device.vehicle %}
+                      <span class="vehicle-badge" title="{{ device.vehicle.make }} {{ device.vehicle.model }}">
+                        <i class="fas fa-car me-1"></i> {{ device.vehicle.license_plate }}
+                      </span>
+                    {% else %}
+                      <span class="text-muted">
+                        <i class="fas fa-unlink me-1"></i> Not assigned
+                      </span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if device.last_update %}
+                      <span title="{{ device.last_update|date:'Y-m-d H:i:s' }}">
+                        {{ device.last_update|naturaltime }}
+                      </span>
+                    {% else %}
+                      <span class="text-muted">Never</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end action-buttons">
+                    <a href="{% url 'device_detail' device.id %}" class="btn btn-sm btn-outline-primary">
+                      <i class="fas fa-info-circle"></i>
+                    </a>
+                    <a href="{% url 'device_edit' device.id %}" class="btn btn-sm btn-outline-secondary">
+                      <i class="fas fa-edit"></i>
+                    </a>
+                    {% if not device.vehicle %}
+                      <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#assignVehicleModal" data-device-id="{{ device.id }}" data-device-name="{{ device.name|default:device.device_id }}">
+                        <i class="fas fa-link"></i>
+                      </button>
+                    {% else %}
+                      <form method="post" action="{% url 'device_edit' device.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="unassign" value="1">
+                        <button type="submit" class="btn btn-sm btn-outline-warning" onclick="return confirm('Are you sure you want to unassign this device from the vehicle?')">
+                          <i class="fas fa-unlink"></i>
+                        </button>
+                      </form>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% if devices.paginator.num_pages > 1 %}
+        <div class="card-footer bg-white">
+          <nav aria-label="Device pagination">
+            <ul class="pagination justify-content-center mb-0">
+              {% if devices.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if assigned_filter %}&assigned={{ assigned_filter }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}" aria-label="First">
+                    <span aria-hidden="true">&laquo;&laquo;</span>
+                  </a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ devices.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if assigned_filter %}&assigned={{ assigned_filter }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled">
+                  <span class="page-link">&laquo;&laquo;</span>
+                </li>
+                <li class="page-item disabled">
+                  <span class="page-link">&laquo;</span>
+                </li>
+              {% endif %}
+              
+              {% for i in devices.paginator.page_range %}
+                {% if devices.number == i %}
+                  <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                {% elif i > devices.number|add:'-3' and i < devices.number|add:'3' %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ i }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if assigned_filter %}&assigned={{ assigned_filter }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">{{ i }}</a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+              
+              {% if devices.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ devices.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if assigned_filter %}&assigned={{ assigned_filter }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                  </a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ devices.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if assigned_filter %}&assigned={{ assigned_filter }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}" aria-label="Last">
+                    <span aria-hidden="true">&raquo;&raquo;</span>
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled">
+                  <span class="page-link">&raquo;</span>
+                </li>
+                <li class="page-item disabled">
+                  <span class="page-link">&raquo;&raquo;</span>
+                </li>
+              {% endif %}
+            </ul>
+          </nav>
+        </div>
+      {% endif %}
+    </div>
+  {% else %}
+    <!-- Empty State -->
+    <div class="empty-state">
+      <div class="empty-state-icon">
+        <i class="fas fa-microchip"></i>
+      </div>
+      <h4>No Devices Found</h4>
+      <p class="text-muted">
+        {% if status_filter or assigned_filter or request.GET.search %}
+          No devices match your filter criteria. Try adjusting your filters.
+        {% else %}
+          No tracking devices have been added yet. Add your first device to get started.
+        {% endif %}
+      </p>
+      <div class="mt-4">
+        <a href="{% url 'device_add' %}" class="btn btn-primary">
+          <i class="fas fa-plus-circle me-1"></i> Add First Device
+        </a>
+        {% if status_filter or assigned_filter or request.GET.search %}
+          <a href="{% url 'device_list' %}" class="btn btn-outline-secondary ms-2">
+            <i class="fas fa-times me-1"></i> Clear Filters
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+  
+  <!-- Sync with AiroTrack -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3">
+      <h6 class="m-0 font-weight-bold text-primary">
+        <i class="fas fa-sync-alt me-2"></i> Synchronization
+      </h6>
+    </div>
+    <div class="card-body">
+      <p>
+        Manually synchronize with the AiroTrack API to discover new devices and update device status.
+      </p>
+      <form method="post" action="{% url 'sync_airotrack' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-success">
+          <i class="fas fa-sync-alt me-1"></i> Sync with AiroTrack
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Assign Vehicle Modal -->
+<div class="modal fade" id="assignVehicleModal" tabindex="-1" aria-labelledby="assignVehicleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="assignVehicleModalLabel">Assign Vehicle to Device</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="assignVehicleForm" method="post" action="">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p>Select a vehicle to assign to <strong id="deviceName"></strong>:</p>
+          <div class="mb-3">
+            <label for="vehicleSelect" class="form-label">Vehicle</label>
+            <select id="vehicleSelect" name="vehicle" class="form-select" required>
+              <option value="">-- Select Vehicle --</option>
+              {% for vehicle in unassigned_vehicles %}
+                <option value="{{ vehicle.id }}">{{ vehicle.license_plate }} ({{ vehicle.make }} {{ vehicle.model }})</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Assign Vehicle</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Handle assign vehicle modal
+    const assignVehicleModal = document.getElementById('assignVehicleModal');
+    if (assignVehicleModal) {
+      assignVehicleModal.addEventListener('show.bs.modal', function(event) {
+        const button = event.relatedTarget;
+        const deviceId = button.getAttribute('data-device-id');
+        const deviceName = button.getAttribute('data-device-name');
+        
+        // Update the modal
+        document.getElementById('deviceName').textContent = deviceName;
+        document.getElementById('assignVehicleForm').action = "{% url 'device_detail' 0 %}".replace('0', deviceId);
+      });
+    }
+    
+    // Auto-submit filters when status or assigned filters change
+    const statusFilter = document.getElementById('statusFilter');
+    const assignedFilter = document.getElementById('assignedFilter');
+    
+    if (statusFilter) {
+      statusFilter.addEventListener('change', function() {
+        this.form.submit();
+      });
+    }
+    
+    if (assignedFilter) {
+      assignedFilter.addEventListener('change', function() {
+        this.form.submit();
+      });
+    }
+  });
+</script>
+{% endblock %}

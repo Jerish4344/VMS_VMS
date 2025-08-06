@@ -1,0 +1,1400 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Device {{ device.name|default:device.device_id }} | {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS for maps -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+<!-- Chart.js for history graphs -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.css">
+<style>
+  /* Status indicators */
+  .status-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  
+  .status-online {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+  }
+  
+  .status-offline {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.2);
+  }
+  
+  .status-inactive {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    border: 1px solid rgba(108, 117, 125, 0.2);
+  }
+  
+  .status-unknown {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    border: 1px solid rgba(108, 117, 125, 0.2);
+  }
+  
+  /* Device info card */
+  .device-card {
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+  }
+  
+  .device-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  }
+  
+  .device-header {
+    padding: 20px;
+    background: linear-gradient(135deg, #4e73df, #224abe);
+    color: white;
+  }
+  
+  .device-id {
+    font-family: monospace;
+    background-color: rgba(255, 255, 255, 0.2);
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+  }
+  
+  .device-body {
+    padding: 20px;
+  }
+  
+  .device-info-item {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+  }
+  
+  .device-info-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 15px;
+    font-size: 1.2rem;
+  }
+  
+  .device-info-icon.status {
+    background-color: rgba(78, 115, 223, 0.1);
+    color: #4e73df;
+  }
+  
+  .device-info-icon.vehicle {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .device-info-icon.update {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+  }
+  
+  .device-info-icon.config {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+  }
+  
+  .device-info-content {
+    flex: 1;
+  }
+  
+  .device-info-label {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-bottom: 3px;
+  }
+  
+  .device-info-value {
+    font-weight: 600;
+    color: #2c3e50;
+  }
+  
+  /* Vehicle badge */
+  .vehicle-badge {
+    background-color: rgba(0, 123, 255, 0.1);
+    color: #0d6efd;
+    border: 1px solid rgba(0, 123, 255, 0.2);
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: inline-block;
+  }
+  
+  /* Map container */
+  .device-map-container {
+    height: 300px;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* History table */
+  .history-table th {
+    position: sticky;
+    top: 0;
+    background-color: #fff;
+    z-index: 1;
+  }
+  
+  .history-table td {
+    vertical-align: middle;
+  }
+  
+  .history-row {
+    transition: background-color 0.2s ease;
+  }
+  
+  .history-row:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+  }
+  
+  /* Action buttons */
+  .action-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  
+  .action-button:hover {
+    transform: translateY(-3px);
+  }
+  
+  .action-button.edit {
+    background-color: rgba(78, 115, 223, 0.1);
+    color: #4e73df;
+  }
+  
+  .action-button.edit:hover {
+    background-color: #4e73df;
+    color: white;
+  }
+  
+  .action-button.unassign {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+  }
+  
+  .action-button.unassign:hover {
+    background-color: #ffc107;
+    color: white;
+  }
+  
+  .action-button.assign {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .action-button.assign:hover {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .action-button.sync {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+  }
+  
+  .action-button.sync:hover {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .action-button.delete {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+  }
+  
+  .action-button.delete:hover {
+    background-color: #dc3545;
+    color: white;
+  }
+  
+  /* Settings section */
+  .settings-card {
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+  }
+  
+  .settings-header {
+    padding: 15px 20px;
+    background: linear-gradient(135deg, #6c757d, #495057);
+    color: white;
+  }
+  
+  .settings-body {
+    padding: 20px;
+  }
+  
+  .settings-item {
+    margin-bottom: 15px;
+  }
+  
+  .settings-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #495057;
+  }
+  
+  .settings-value {
+    font-size: 0.9rem;
+    color: #6c757d;
+  }
+  
+  .settings-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  /* Timeline */
+  .timeline-container {
+    position: relative;
+    padding: 20px 0;
+  }
+  
+  .timeline-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 20px;
+    width: 2px;
+    background-color: #e9ecef;
+  }
+  
+  .timeline-item {
+    position: relative;
+    padding-left: 50px;
+    margin-bottom: 20px;
+  }
+  
+  .timeline-dot {
+    position: absolute;
+    left: 11px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #4e73df;
+    border: 3px solid white;
+    box-shadow: 0 0 0 2px #e9ecef;
+  }
+  
+  .timeline-dot.online {
+    background-color: #28a745;
+  }
+  
+  .timeline-dot.offline {
+    background-color: #ffc107;
+  }
+  
+  .timeline-dot.inactive {
+    background-color: #6c757d;
+  }
+  
+  .timeline-content {
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+  }
+  
+  .timeline-time {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-bottom: 5px;
+  }
+  
+  .timeline-title {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 5px;
+  }
+  
+  .timeline-description {
+    font-size: 0.9rem;
+    color: #6c757d;
+  }
+  
+  /* Chart container */
+  .chart-container {
+    position: relative;
+    height: 300px;
+    margin-bottom: 20px;
+  }
+  
+  /* Loading indicator */
+  .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  
+  /* No data state */
+  .no-data {
+    text-align: center;
+    padding: 30px;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    color: #6c757d;
+  }
+  
+  .no-data-icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    color: #adb5bd;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .device-info-item {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    .device-info-icon {
+      margin-bottom: 10px;
+    }
+    
+    .action-buttons {
+      flex-wrap: wrap;
+    }
+    
+    .action-button {
+      margin-bottom: 10px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">
+        <i class="fas fa-microchip me-2"></i>
+        {{ device.name|default:"Tracking Device" }}
+      </h1>
+      <p class="text-muted">Device details and configuration</p>
+    </div>
+    <div class="d-flex">
+      <a href="{% url 'device_list' %}" class="btn btn-outline-primary">
+        <i class="fas fa-arrow-left me-1"></i> Back to Devices
+      </a>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Device Info Card -->
+    <div class="col-xl-4 col-lg-5 mb-4">
+      <div class="device-card">
+        <div class="device-header">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Device Information</h5>
+            <span class="device-id">ID: {{ device.device_id }}</span>
+          </div>
+          <div>
+            <span class="status-badge status-{{ device.status }}">
+              {{ device.get_status_display }}
+            </span>
+          </div>
+        </div>
+        <div class="device-body">
+          <!-- Status -->
+          <div class="device-info-item">
+            <div class="device-info-icon status">
+              <i class="fas fa-signal"></i>
+            </div>
+            <div class="device-info-content">
+              <div class="device-info-label">Status</div>
+              <div class="device-info-value">
+                {% if device.status == 'online' %}
+                  <span class="text-success">
+                    <i class="fas fa-circle me-1"></i> Online
+                  </span>
+                {% elif device.status == 'offline' %}
+                  <span class="text-warning">
+                    <i class="fas fa-circle me-1"></i> Offline
+                  </span>
+                {% elif device.status == 'inactive' %}
+                  <span class="text-secondary">
+                    <i class="fas fa-circle me-1"></i> Inactive
+                  </span>
+                {% else %}
+                  <span class="text-secondary">
+                    <i class="fas fa-circle me-1"></i> Unknown
+                  </span>
+                {% endif %}
+                <span class="text-muted ms-2" id="statusUpdateTime">
+                  {% if device.last_update %}
+                    Updated {{ device.last_update|naturaltime }}
+                  {% else %}
+                    Never updated
+                  {% endif %}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Vehicle Assignment -->
+          <div class="device-info-item">
+            <div class="device-info-icon vehicle">
+              <i class="fas fa-car"></i>
+            </div>
+            <div class="device-info-content">
+              <div class="device-info-label">Assigned Vehicle</div>
+              <div class="device-info-value">
+                {% if device.vehicle %}
+                  <a href="{% url 'vehicle_detail' device.vehicle.id %}" class="vehicle-badge">
+                    <i class="fas fa-car me-1"></i> {{ device.vehicle.license_plate }}
+                  </a>
+                  <div class="mt-1 text-muted small">
+                    {{ device.vehicle.make }} {{ device.vehicle.model }}
+                  </div>
+                {% else %}
+                  <span class="text-muted">
+                    <i class="fas fa-unlink me-1"></i> Not assigned to any vehicle
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Last Update -->
+          <div class="device-info-item">
+            <div class="device-info-icon update">
+              <i class="fas fa-clock"></i>
+            </div>
+            <div class="device-info-content">
+              <div class="device-info-label">Last Communication</div>
+              <div class="device-info-value">
+                {% if device.last_update %}
+                  <span id="lastUpdateTime">{{ device.last_update|date:"F j, Y, g:i a" }}</span>
+                  <div class="mt-1 text-muted small">
+                    {{ device.last_update|naturaltime }}
+                  </div>
+                {% else %}
+                  <span class="text-muted">No communication recorded</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Configuration -->
+          <div class="device-info-item">
+            <div class="device-info-icon config">
+              <i class="fas fa-cog"></i>
+            </div>
+            <div class="device-info-content">
+              <div class="device-info-label">Configuration</div>
+              <div class="device-info-value">
+                <span>AiroTrack GPS Tracker</span>
+                <div class="mt-1 text-muted small">
+                  Firmware: {{ device.firmware_version|default:"Unknown" }}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Actions -->
+          <div class="mt-4">
+            <h6 class="mb-3">Device Actions</h6>
+            <div class="d-flex action-buttons">
+              <a href="{% url 'device_edit' device.id %}" class="action-button edit" title="Edit Device">
+                <i class="fas fa-edit"></i>
+              </a>
+              
+              {% if device.vehicle %}
+                <form method="post" action="{% url 'device_edit' device.id %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="unassign" value="1">
+                  <button type="submit" class="action-button unassign" title="Unassign Vehicle" 
+                          onclick="return confirm('Are you sure you want to unassign this device from the vehicle?')">
+                    <i class="fas fa-unlink"></i>
+                  </button>
+                </form>
+              {% else %}
+                <button type="button" class="action-button assign" title="Assign Vehicle" 
+                        data-bs-toggle="modal" data-bs-target="#assignVehicleModal">
+                  <i class="fas fa-link"></i>
+                </button>
+              {% endif %}
+              
+              <form method="post" action="{% url 'sync_device' device.id %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="action-button sync" title="Sync Device">
+                  <i class="fas fa-sync-alt"></i>
+                </button>
+              </form>
+              
+              {% if request.user.user_type == 'admin' %}
+                <form method="post" action="{% url 'device_delete' device.id %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="action-button delete" title="Delete Device" 
+                          onclick="return confirm('Are you sure you want to delete this device? This action cannot be undone.')">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Current Location Map -->
+    <div class="col-xl-8 col-lg-7 mb-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-map-marker-alt me-2"></i> Current Location
+          </h6>
+        </div>
+        <div class="card-body">
+          {% if current_location %}
+            <div id="deviceLocationMap" class="device-map-container"></div>
+            <div class="mt-3">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="mb-2">
+                    <span class="text-muted">Coordinates:</span>
+                    <span class="ms-2 fw-bold">{{ current_location.latitude|floatformat:6 }}, {{ current_location.longitude|floatformat:6 }}</span>
+                  </div>
+                  <div class="mb-2">
+                    <span class="text-muted">Speed:</span>
+                    <span class="ms-2 fw-bold">{{ current_location.speed|floatformat:1 }} km/h</span>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="mb-2">
+                    <span class="text-muted">Last Update:</span>
+                    <span class="ms-2 fw-bold">{{ current_location.device_time|naturaltime }}</span>
+                  </div>
+                  <div class="mb-2">
+                    <span class="text-muted">Address:</span>
+                    <span class="ms-2">{{ current_location.address|default:"Not available" }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% else %}
+            <div class="no-data">
+              <div class="no-data-icon">
+                <i class="fas fa-map-marker-alt"></i>
+              </div>
+              <h5>No Location Data Available</h5>
+              <p>This device has not reported any location data yet.</p>
+              {% if device.vehicle %}
+                <button class="btn btn-primary mt-2" id="syncLocationBtn">
+                  <i class="fas fa-sync-alt me-1"></i> Sync Location Data
+                </button>
+              {% else %}
+                <p class="mt-2">
+                  <i class="fas fa-info-circle me-1"></i> Assign this device to a vehicle to track its location.
+                </p>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <!-- Location History Chart -->
+    <div class="col-xl-6 mb-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-chart-line me-2"></i> Speed History
+          </h6>
+          <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-primary active" data-period="day">24 Hours</button>
+            <button type="button" class="btn btn-outline-primary" data-period="week">Week</button>
+            <button type="button" class="btn btn-outline-primary" data-period="month">Month</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+            {% if history_data %}
+              <canvas id="speedHistoryChart"></canvas>
+            {% else %}
+              <div class="no-data">
+                <div class="no-data-icon">
+                  <i class="fas fa-chart-line"></i>
+                </div>
+                <h5>No History Data Available</h5>
+                <p>This device has not reported enough history data to generate a chart.</p>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Device Settings -->
+    <div class="col-xl-6 mb-4">
+      <div class="settings-card">
+        <div class="settings-header">
+          <h6 class="m-0 font-weight-bold">
+            <i class="fas fa-sliders-h me-2"></i> Device Settings & Configuration
+          </h6>
+        </div>
+        <div class="settings-body">
+          <form id="deviceSettingsForm" method="post" action="{% url 'device_settings' device.id %}">
+            {% csrf_token %}
+            
+            <!-- Device Name -->
+            <div class="settings-item">
+              <div class="settings-label">Device Name</div>
+              <div class="input-group">
+                <input type="text" class="form-control" name="name" value="{{ device.name|default:'' }}" placeholder="Enter device name">
+                <button class="btn btn-outline-primary" type="button" onclick="saveDeviceName()">Save</button>
+              </div>
+            </div>
+            
+            <!-- Update Interval -->
+            <div class="settings-item">
+              <div class="settings-label">Update Interval</div>
+              <select class="form-select" name="update_interval" onchange="saveDeviceSetting('update_interval', this.value)">
+                <option value="30" {% if device.update_interval == 30 %}selected{% endif %}>30 seconds</option>
+                <option value="60" {% if device.update_interval == 60 %}selected{% endif %}>1 minute</option>
+                <option value="300" {% if device.update_interval == 300 %}selected{% endif %}>5 minutes</option>
+                <option value="600" {% if device.update_interval == 600 %}selected{% endif %}>10 minutes</option>
+                <option value="1800" {% if device.update_interval == 1800 %}selected{% endif %}>30 minutes</option>
+                <option value="3600" {% if device.update_interval == 3600 %}selected{% endif %}>1 hour</option>
+              </select>
+              <div class="form-text">How often the device should report its location</div>
+            </div>
+            
+            <!-- Notification Settings -->
+            <div class="settings-item">
+              <div class="settings-label">Notifications</div>
+              
+              <div class="settings-toggle mb-2">
+                <div>Speed Alert</div>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" name="speed_alert" id="speedAlert" 
+                         {% if device.speed_alert %}checked{% endif %}
+                         onchange="saveDeviceSetting('speed_alert', this.checked)">
+                </div>
+              </div>
+              
+              <div class="input-group mb-3">
+                <span class="input-group-text">Speed Limit</span>
+                <input type="number" class="form-control" name="speed_limit" value="{{ device.speed_limit|default:80 }}" 
+                       min="0" max="200" step="5" onchange="saveDeviceSetting('speed_limit', this.value)">
+                <span class="input-group-text">km/h</span>
+              </div>
+              
+              <div class="settings-toggle mb-2">
+                <div>Geofence Alert</div>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" name="geofence_alert" id="geofenceAlert" 
+                         {% if device.geofence_alert %}checked{% endif %}
+                         onchange="saveDeviceSetting('geofence_alert', this.checked)">
+                </div>
+              </div>
+              
+              <div class="settings-toggle mb-2">
+                <div>Ignition Alert</div>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" name="ignition_alert" id="ignitionAlert" 
+                         {% if device.ignition_alert %}checked{% endif %}
+                         onchange="saveDeviceSetting('ignition_alert', this.checked)">
+                </div>
+              </div>
+            </div>
+            
+            <!-- Save All Settings Button -->
+            <div class="d-grid gap-2 mt-4">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-1"></i> Save All Settings
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Location History Table -->
+  <div class="row">
+    <div class="col-12 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-history me-2"></i> Location History
+          </h6>
+          <div>
+            <button class="btn btn-sm btn-outline-primary" id="refreshHistoryBtn">
+              <i class="fas fa-sync-alt me-1"></i> Refresh
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" id="exportHistoryBtn">
+              <i class="fas fa-download me-1"></i> Export
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          {% if location_history %}
+            <div class="table-responsive">
+              <table class="table table-hover history-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Location</th>
+                    <th>Speed</th>
+                    <th>Address</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for location in location_history %}
+                    <tr class="history-row">
+                      <td>{{ location.device_time|date:"Y-m-d H:i:s" }}</td>
+                      <td>{{ location.latitude|floatformat:6 }}, {{ location.longitude|floatformat:6 }}</td>
+                      <td>{{ location.speed|floatformat:1 }} km/h</td>
+                      <td>{{ location.address|default:"Not available"|truncatechars:40 }}</td>
+                      <td>
+                        {% if location.ignition %}
+                          <span class="badge bg-success">Engine On</span>
+                        {% else %}
+                          <span class="badge bg-secondary">Engine Off</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <button class="btn btn-sm btn-outline-primary show-on-map" data-lat="{{ location.latitude }}" data-lng="{{ location.longitude }}" data-time="{{ location.device_time|date:'Y-m-d H:i:s' }}">
+                          <i class="fas fa-map-marker-alt"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            
+            {% if location_history.has_other_pages %}
+              <nav aria-label="History pagination" class="mt-4">
+                <ul class="pagination justify-content-center">
+                  {% if location_history.has_previous %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page=1" aria-label="First">
+                        <span aria-hidden="true">&laquo;&laquo;</span>
+                      </a>
+                    </li>
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ location_history.previous_page_number }}" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                      </a>
+                    </li>
+                  {% else %}
+                    <li class="page-item disabled">
+                      <span class="page-link">&laquo;&laquo;</span>
+                    </li>
+                    <li class="page-item disabled">
+                      <span class="page-link">&laquo;</span>
+                    </li>
+                  {% endif %}
+                  
+                  {% for i in location_history.paginator.page_range %}
+                    {% if location_history.number == i %}
+                      <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                    {% elif i > location_history.number|add:'-3' and i < location_history.number|add:'3' %}
+                      <li class="page-item">
+                        <a class="page-link" href="?page={{ i }}">{{ i }}</a>
+                      </li>
+                    {% endif %}
+                  {% endfor %}
+                  
+                  {% if location_history.has_next %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ location_history.next_page_number }}" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                      </a>
+                    </li>
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ location_history.paginator.num_pages }}" aria-label="Last">
+                        <span aria-hidden="true">&raquo;&raquo;</span>
+                      </a>
+                    </li>
+                  {% else %}
+                    <li class="page-item disabled">
+                      <span class="page-link">&raquo;</span>
+                    </li>
+                    <li class="page-item disabled">
+                      <span class="page-link">&raquo;&raquo;</span>
+                    </li>
+                  {% endif %}
+                </ul>
+              </nav>
+            {% endif %}
+          {% else %}
+            <div class="no-data">
+              <div class="no-data-icon">
+                <i class="fas fa-history"></i>
+              </div>
+              <h5>No Location History Available</h5>
+              <p>This device has not reported any location history yet.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Status Timeline -->
+  <div class="row">
+    <div class="col-12 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-stream me-2"></i> Status Timeline
+          </h6>
+        </div>
+        <div class="card-body">
+          {% if status_timeline %}
+            <div class="timeline-container">
+              <div class="timeline-line"></div>
+              
+              {% for event in status_timeline %}
+                <div class="timeline-item">
+                  <div class="timeline-dot {{ event.status }}"></div>
+                  <div class="timeline-content">
+                    <div class="timeline-time">{{ event.time|date:"F j, Y, g:i a" }}</div>
+                    <div class="timeline-title">
+                      {% if event.status == 'online' %}
+                        <span class="text-success">Device Came Online</span>
+                      {% elif event.status == 'offline' %}
+                        <span class="text-warning">Device Went Offline</span>
+                      {% elif event.status == 'inactive' %}
+                        <span class="text-secondary">Device Became Inactive</span>
+                      {% endif %}
+                    </div>
+                    <div class="timeline-description">
+                      {{ event.description }}
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="no-data">
+              <div class="no-data-icon">
+                <i class="fas fa-stream"></i>
+              </div>
+              <h5>No Status Timeline Available</h5>
+              <p>This device has not reported any status changes yet.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Assign Vehicle Modal -->
+<div class="modal fade" id="assignVehicleModal" tabindex="-1" aria-labelledby="assignVehicleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="assignVehicleModalLabel">Assign Vehicle to Device</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'device_edit' device.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p>Select a vehicle to assign to <strong>{{ device.name|default:device.device_id }}</strong>:</p>
+          <div class="mb-3">
+            <label for="vehicleSelect" class="form-label">Vehicle</label>
+            <select id="vehicleSelect" name="vehicle" class="form-select" required>
+              <option value="">-- Select Vehicle --</option>
+              {% for vehicle in unassigned_vehicles %}
+                <option value="{{ vehicle.id }}">{{ vehicle.license_plate }} ({{ vehicle.make }} {{ vehicle.model }})</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Assign Vehicle</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- CSRF Token for AJAX requests -->
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS for maps -->
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<!-- Chart.js for history graphs -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script>
+  // Global variables
+  let map;
+  let marker;
+  let chart;
+  let refreshInterval;
+  
+  // Initialize the map if we have location data
+  function initMap() {
+    {% if current_location %}
+      map = L.map('deviceLocationMap').setView([{{ current_location.latitude }}, {{ current_location.longitude }}], 15);
+      
+      // Add tile layer (OpenStreetMap)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+      
+      // Add marker for current location
+      const deviceIcon = L.divIcon({
+        html: '<i class="fas fa-car fa-2x" style="color: #4e73df;"></i>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        className: 'device-icon'
+      });
+      
+      marker = L.marker([{{ current_location.latitude }}, {{ current_location.longitude }}], {
+        icon: deviceIcon,
+        title: "{{ device.name|default:device.device_id }}"
+      }).addTo(map);
+      
+      // Add popup with device info
+      marker.bindPopup(`
+        <div class="device-popup">
+          <h6>{{ device.name|default:device.device_id }}</h6>
+          <div>Speed: {{ current_location.speed|floatformat:1 }} km/h</div>
+          <div>Updated: {{ current_location.device_time|naturaltime }}</div>
+          {% if current_location.address %}
+          <div>Location: {{ current_location.address }}</div>
+          {% endif %}
+        </div>
+      `);
+    {% endif %}
+  }
+  
+  // Initialize the speed history chart
+  function initChart() {
+    {% if history_data %}
+      const ctx = document.getElementById('speedHistoryChart').getContext('2d');
+      
+      // Parse data from Django template
+      const labels = [
+        {% for point in history_data %}
+          "{{ point.time|date:'H:i' }}",
+        {% endfor %}
+      ];
+      
+      const speeds = [
+        {% for point in history_data %}
+          {{ point.speed|floatformat:1 }},
+        {% endfor %}
+      ];
+      
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Speed (km/h)',
+            data: speeds,
+            fill: false,
+            borderColor: '#4e73df',
+            tension: 0.1,
+            pointBackgroundColor: '#4e73df',
+            pointBorderColor: '#fff',
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Speed (km/h)'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Time'
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top'
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              callbacks: {
+                label: function(context) {
+                  return `Speed: ${context.raw} km/h`;
+                }
+              }
+            }
+          }
+        }
+      });
+    {% endif %}
+  }
+  
+  // Update chart data based on selected period
+  function updateChart(period) {
+    document.getElementById('loadingOverlay').style.display = 'flex';
+    
+    fetch(`{% url 'device_history_data' device.id %}?period=${period}`)
+      .then(response => response.json())
+      .then(data => {
+        if (chart) {
+          chart.data.labels = data.labels;
+          chart.data.datasets[0].data = data.speeds;
+          chart.update();
+        } else if (data.labels.length > 0) {
+          // If chart doesn't exist but we have data, create it
+          const ctx = document.getElementById('speedHistoryChart').getContext('2d');
+          
+          chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: data.labels,
+              datasets: [{
+                label: 'Speed (km/h)',
+                data: data.speeds,
+                fill: false,
+                borderColor: '#4e73df',
+                tension: 0.1,
+                pointBackgroundColor: '#4e73df',
+                pointBorderColor: '#fff',
+                pointRadius: 4,
+                pointHoverRadius: 6
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  title: {
+                    display: true,
+                    text: 'Speed (km/h)'
+                  }
+                },
+                x: {
+                  title: {
+                    display: true,
+                    text: 'Time'
+                  }
+                }
+              },
+              plugins: {
+                legend: {
+                  display: true,
+                  position: 'top'
+                },
+                tooltip: {
+                  mode: 'index',
+                  intersect: false,
+                  callbacks: {
+                    label: function(context) {
+                      return `Speed: ${context.raw} km/h`;
+                    }
+                  }
+                }
+              }
+            }
+          });
+        }
+        
+        document.getElementById('loadingOverlay').style.display = 'none';
+      })
+      .catch(error => {
+        console.error('Error fetching chart data:', error);
+        document.getElementById('loadingOverlay').style.display = 'none';
+      });
+  }
+  
+  // Refresh device status
+  function refreshDeviceStatus() {
+    fetch(`{% url 'device_status' device.id %}`)
+      .then(response => response.json())
+      .then(data => {
+        // Update status badge
+        const statusBadges = document.querySelectorAll('.status-badge');
+        statusBadges.forEach(badge => {
+          badge.className = `status-badge status-${data.status}`;
+          badge.textContent = data.status_display;
+        });
+        
+        // Update status text
+        const statusValue = document.querySelector('.device-info-value');
+        if (statusValue) {
+          let statusHtml = '';
+          
+          if (data.status === 'online') {
+            statusHtml = `<span class="text-success"><i class="fas fa-circle me-1"></i> Online</span>`;
+          } else if (data.status === 'offline') {
+            statusHtml = `<span class="text-warning"><i class="fas fa-circle me-1"></i> Offline</span>`;
+          } else if (data.status === 'inactive') {
+            statusHtml = `<span class="text-secondary"><i class="fas fa-circle me-1"></i> Inactive</span>`;
+          } else {
+            statusHtml = `<span class="text-secondary"><i class="fas fa-circle me-1"></i> Unknown</span>`;
+          }
+          
+          statusHtml += `<span class="text-muted ms-2" id="statusUpdateTime">Updated ${data.last_update_relative}</span>`;
+          statusValue.innerHTML = statusHtml;
+        }
+        
+        // Update last update time
+        const lastUpdateTime = document.getElementById('lastUpdateTime');
+        if (lastUpdateTime) {
+          lastUpdateTime.textContent = data.last_update;
+        }
+        
+        // Update map marker if we have location data
+        if (data.current_location && map && marker) {
+          const newLatLng = [data.current_location.latitude, data.current_location.longitude];
+          marker.setLatLng(newLatLng);
+          
+          // Update popup content
+          marker.bindPopup(`
+            <div class="device-popup">
+              <h6>${data.name || data.device_id}</h6>
+              <div>Speed: ${data.current_location.speed.toFixed(1)} km/h</div>
+              <div>Updated: ${data.current_location.time_relative}</div>
+              ${data.current_location.address ? `<div>Location: ${data.current_location.address}</div>` : ''}
+            </div>
+          `);
+          
+          // If following is enabled, center map on new position
+          if (document.getElementById('followDevice') && document.getElementById('followDevice').checked) {
+            map.setView(newLatLng, map.getZoom());
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Error refreshing device status:', error);
+      });
+  }
+  
+  // Save device setting via AJAX
+  function saveDeviceSetting(setting, value) {
+    const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+    
+    fetch(`{% url 'device_settings' device.id %}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({
+        setting: setting,
+        value: value
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Show success toast or notification
+        const toast = document.createElement('div');
+        toast.className = 'alert alert-success alert-dismissible fade show position-fixed bottom-0 end-0 m-3';
+        toast.innerHTML = `
+          <i class="fas fa-check-circle me-2"></i>
+          Setting updated successfully
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        document.body.appendChild(toast);
+        
+        // Auto-dismiss after 3 seconds
+        setTimeout(() => {
+          toast.remove();
+        }, 3000);
+      } else {
+        alert('Failed to update setting: ' + data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Error saving setting:', error);
+      alert('Failed to update setting. Please try again.');
+    });
+  }
+  
+  // Save device name
+  function saveDeviceName() {
+    const nameInput = document.querySelector('input[name="name"]');
+    saveDeviceSetting('name', nameInput.value);
+  }
+  
+  // Show location on map
+  function showLocationOnMap(lat, lng, time) {
+    if (map) {
+      map.setView([lat, lng], 15);
+      
+      // Create a temporary marker
+      const tempMarker = L.marker([lat, lng], {
+        icon: L.divIcon({
+          html: '<i class="fas fa-map-pin fa-2x" style="color: #dc3545;"></i>',
+          iconSize: [32, 32],
+          iconAnchor: [16, 32],
+          className: 'temp-marker'
+        })
+      }).addTo(map);
+      
+      // Add popup with time info
+      tempMarker.bindPopup(`
+        <div>
+          <strong>Historical Location</strong><br>
+          Time: ${time}<br>
+          Coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}
+        </div>
+      `).openPopup();
+      
+      // Remove after 10 seconds
+      setTimeout(() => {
+        map.removeLayer(tempMarker);
+      }, 10000);
+    }
+  }
+  
+  // Export history data to CSV
+  function exportHistoryData() {
+    window.location.href = `{% url 'device_export' device.id %}`;
+  }
+  
+  // Event listeners
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize map
+    initMap();
+    
+    // Initialize chart
+    initChart();
+    
+    // Set up auto-refresh (every 30 seconds)
+    refreshInterval = setInterval(refreshDeviceStatus, 30000);
+    
+    // Chart period buttons
+    const periodButtons = document.querySelectorAll('[data-period]');
+    periodButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        // Update active state
+        periodButtons.forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Update chart
+        updateChart(this.getAttribute('data-period'));
+      });
+    });
+    
+    // Refresh history button
+    const refreshHistoryBtn = document.getElementById('refreshHistoryBtn');
+    if (refreshHistoryBtn) {
+      refreshHistoryBtn.addEventListener('click', function() {
+        window.location.reload();
+      });
+    }
+    
+    // Export history button
+    const exportHistoryBtn = document.getElementById('exportHistoryBtn');
+    if (exportHistoryBtn) {
+      exportHistoryBtn.addEventListener('click', exportHistoryData);
+    }
+    
+    // Show location on map buttons
+    const showOnMapButtons = document.querySelectorAll('.show-on-map');
+    showOnMapButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        const lat = parseFloat(this.getAttribute('data-lat'));
+        const lng = parseFloat(this.getAttribute('data-lng'));
+        const time = this.getAttribute('data-time');
+        showLocationOnMap(lat, lng, time);
+      });
+    });
+    
+    // Sync location button
+    const syncLocationBtn = document.getElementById('syncLocationBtn');
+    if (syncLocationBtn) {
+      syncLocationBtn.addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Syncing...';
+        
+        fetch(`{% url 'sync_device' device.id %}`, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': document.querySelector('input[name="csrfmiddlewaretoken"]').value
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            window.location.reload();
+          } else {
+            alert('Failed to sync: ' + data.error);
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Sync Location Data';
+          }
+        })
+        .catch(error => {
+          console.error('Error syncing:', error);
+          this.disabled = false;
+          this.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Sync Location Data';
+        });
+      });
+    }
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', function() {
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+    });
+  });
+</script>
+{% endblock %}

@@ -323,6 +323,50 @@
           </ul>
         </li>
         
+        <!-- Vehicle Tracking Section -->
+        <li>
+          <a href="#trackingSubmenu" data-bs-toggle="collapse" aria-expanded="false"
+             class="dropdown-toggle menu-item-enhanced">
+            <i class="fas fa-satellite-dish"></i> Tracking
+          </a>
+          <ul class="collapse list-unstyled {% if 'tracking' in request.resolver_match.url_name or 'map' in request.resolver_match.url_name %}show{% endif %}"
+              id="trackingSubmenu">
+            <!-- Main Tracking Dashboard -->
+            <li>
+              <a href="{% url 'tracking_dashboard' %}" class="menu-item-enhanced">
+                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+              </a>
+            </li>
+            <!-- Live Map View -->
+            <li>
+              <a href="{% url 'map_view' %}" class="menu-item-enhanced">
+                <i class="fas fa-map-marked-alt me-2"></i>Live Map
+              </a>
+            </li>
+            <!-- Device Management (Admin / Manager / Vehicle Manager) -->
+            {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+            <li>
+              <a href="{% url 'device_list' %}" class="menu-item-enhanced">
+                <i class="fas fa-microchip me-2"></i>Devices
+              </a>
+            </li>
+            {% endif %}
+            <!-- Sync with AiroTrack (Admin only) -->
+            {% if request.user.user_type == 'admin' %}
+            <li>
+              <a href="{% url 'sync_airotrack' %}" class="menu-item-enhanced"
+                 onclick="event.preventDefault(); document.getElementById('syncForm').submit();">
+                <i class="fas fa-sync-alt me-2"></i>Sync Now
+              </a>
+              <!-- Hidden form for POST sync -->
+              <form id="syncForm" method="post" action="{% url 'sync_airotrack' %}" style="display:none;">
+                {% csrf_token %}
+              </form>
+            </li>
+            {% endif %}
+          </ul>
+        </li>
+
         <li>
           <a href="#tripSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-route"></i> Trips

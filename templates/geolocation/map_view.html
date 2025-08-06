@@ -1,0 +1,928 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Live Vehicle Tracking Map | {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS for maps -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+<style>
+  /* Full-screen map container */
+  #fullMapContainer {
+    position: relative;
+    height: calc(100vh - 200px);
+    min-height: 600px;
+    width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Map takes full size of container */
+  #vehicleTrackingMap {
+    height: 100%;
+    width: 100%;
+    z-index: 1;
+  }
+  
+  /* Controls panel */
+  .map-controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background-color: white;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    max-width: 300px;
+  }
+  
+  .map-controls-header {
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .map-controls-toggle {
+    cursor: pointer;
+    color: #6c757d;
+  }
+  
+  .map-controls-body {
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  
+  .map-controls-body.collapsed {
+    max-height: 0;
+  }
+  
+  /* Vehicle list panel */
+  .vehicle-list-panel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    background-color: white;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    max-width: 350px;
+    max-height: calc(100% - 40px);
+    overflow-y: auto;
+  }
+  
+  .vehicle-list-header {
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .vehicle-list-toggle {
+    cursor: pointer;
+    color: #6c757d;
+  }
+  
+  .vehicle-list-body {
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  
+  .vehicle-list-body.collapsed {
+    max-height: 0;
+  }
+  
+  .vehicle-list-item {
+    padding: 8px 10px;
+    border-radius: 8px;
+    margin-bottom: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+  }
+  
+  .vehicle-list-item:hover {
+    background-color: #f8f9fa;
+  }
+  
+  .vehicle-list-item.active {
+    background-color: #e9ecef;
+  }
+  
+  .vehicle-icon-wrapper {
+    width: 30px;
+    height: 30px;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .vehicle-list-details {
+    flex: 1;
+  }
+  
+  .vehicle-list-plate {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  
+  .vehicle-list-model {
+    font-size: 0.8rem;
+    color: #6c757d;
+  }
+  
+  /* Status indicators */
+  .status-badge {
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+  
+  .status-active {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+  }
+  
+  .status-idle {
+    background-color: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+    border: 1px solid rgba(23, 162, 184, 0.2);
+  }
+  
+  .status-inactive {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.2);
+  }
+  
+  .status-unknown {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    border: 1px solid rgba(108, 117, 125, 0.2);
+  }
+  
+  /* Vehicle markers */
+  .vehicle-marker-active {
+    color: #28a745;
+  }
+  
+  .vehicle-marker-idle {
+    color: #17a2b8;
+  }
+  
+  .vehicle-marker-inactive {
+    color: #ffc107;
+  }
+  
+  .vehicle-marker-unknown {
+    color: #6c757d;
+  }
+  
+  /* Vehicle popup */
+  .vehicle-popup {
+    min-width: 250px;
+  }
+  
+  .vehicle-popup-header {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 5px;
+  }
+  
+  .vehicle-popup-info {
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  .vehicle-popup-label {
+    font-weight: 500;
+    color: #495057;
+  }
+  
+  .vehicle-popup-value {
+    font-weight: 400;
+    color: #212529;
+  }
+  
+  /* Loading indicator */
+  .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  
+  /* Stats bar */
+  .stats-bar {
+    background-color: white;
+    padding: 10px 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .stats-item {
+    text-align: center;
+    padding: 0 15px;
+  }
+  
+  .stats-label {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-bottom: 5px;
+  }
+  
+  .stats-value {
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+  
+  .stats-value.active {
+    color: #28a745;
+  }
+  
+  .stats-value.inactive {
+    color: #ffc107;
+  }
+  
+  .stats-value.unknown {
+    color: #6c757d;
+  }
+  
+  /* Last update indicator */
+  .last-update-indicator {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-left: auto;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .map-controls, .vehicle-list-panel {
+      max-width: calc(100% - 40px);
+    }
+    
+    .vehicle-list-panel {
+      max-height: 300px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">Live Vehicle Tracking Map</h1>
+      <p class="text-muted">Real-time location and status of all vehicles</p>
+    </div>
+    <div class="d-flex">
+      <button id="refreshMap" class="btn btn-primary me-2">
+        <i class="fas fa-sync-alt me-1"></i> Refresh
+      </button>
+      <a href="{% url 'tracking_dashboard' %}" class="btn btn-outline-primary">
+        <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar mb-4">
+    <div class="stats-item">
+      <div class="stats-label">Total Vehicles</div>
+      <div class="stats-value" id="totalVehiclesCount">0</div>
+    </div>
+    <div class="stats-item">
+      <div class="stats-label">Active</div>
+      <div class="stats-value active" id="activeVehiclesCount">0</div>
+    </div>
+    <div class="stats-item">
+      <div class="stats-label">Parked</div>
+      <div class="stats-value inactive" id="inactiveVehiclesCount">0</div>
+    </div>
+    <div class="stats-item">
+      <div class="stats-label">Unknown</div>
+      <div class="stats-value unknown" id="unknownVehiclesCount">0</div>
+    </div>
+    <div class="last-update-indicator">
+      <i class="fas fa-clock me-1"></i> Last updated: 
+      <span id="lastUpdateTime">Now</span>
+    </div>
+  </div>
+
+  <!-- Map Container -->
+  <div id="fullMapContainer">
+    <!-- Loading Overlay -->
+    <div id="mapLoadingOverlay" class="loading-overlay" style="display: none;">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+    
+    <!-- The Map -->
+    <div id="vehicleTrackingMap"></div>
+    
+    <!-- Vehicle List Panel -->
+    <div class="vehicle-list-panel">
+      <div class="vehicle-list-header">
+        <span><i class="fas fa-car me-2"></i> Vehicles <span class="badge bg-primary" id="vehicleListCount">0</span></span>
+        <span class="vehicle-list-toggle" onclick="toggleVehicleList()">
+          <i class="fas fa-chevron-up" id="vehicleListToggleIcon"></i>
+        </span>
+      </div>
+      <div class="vehicle-list-body" id="vehicleListBody">
+        <div class="input-group mb-3">
+          <input type="text" class="form-control form-control-sm" placeholder="Search vehicles..." id="vehicleSearch">
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="clearSearch">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div id="vehicleList">
+          <!-- Vehicle list items will be populated here -->
+          <div class="text-center text-muted py-3">
+            <i class="fas fa-spinner fa-spin me-2"></i> Loading vehicles...
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Map Controls -->
+    <div class="map-controls">
+      <div class="map-controls-header">
+        <span><i class="fas fa-sliders-h me-2"></i> Map Controls</span>
+        <span class="map-controls-toggle" onclick="toggleMapControls()">
+          <i class="fas fa-chevron-up" id="mapControlsToggleIcon"></i>
+        </span>
+      </div>
+      <div class="map-controls-body" id="mapControlsBody">
+        <div class="mb-3">
+          <label class="form-label">Show Vehicles</label>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="showActiveVehicles" checked>
+            <label class="form-check-label" for="showActiveVehicles">
+              <span class="status-badge status-active">Active</span>
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="showIdleVehicles" checked>
+            <label class="form-check-label" for="showIdleVehicles">
+              <span class="status-badge status-idle">Idle</span>
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="showInactiveVehicles" checked>
+            <label class="form-check-label" for="showInactiveVehicles">
+              <span class="status-badge status-inactive">Parked</span>
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="showUnknownVehicles" checked>
+            <label class="form-check-label" for="showUnknownVehicles">
+              <span class="status-badge status-unknown">Unknown</span>
+            </label>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Map Options</label>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="followVehicles">
+            <label class="form-check-label" for="followVehicles">
+              Auto-center on selected vehicle
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="showLabels">
+            <label class="form-check-label" for="showLabels">
+              Show vehicle labels
+            </label>
+          </div>
+        </div>
+        <div class="d-grid gap-2">
+          <button class="btn btn-sm btn-primary" id="centerMapBtn">
+            <i class="fas fa-compress-arrows-alt me-1"></i> Center Map
+          </button>
+          {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+          <button class="btn btn-sm btn-success" id="syncDataBtn">
+            <i class="fas fa-sync me-1"></i> Sync with AiroTrack
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CSRF Token for AJAX requests -->
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS for maps -->
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<script>
+  // Global variables
+  let map;
+  let markers = {};
+  let selectedVehicleId = null;
+  let refreshInterval;
+  let vehicleData = [];
+  let mapControlsCollapsed = false;
+  let vehicleListCollapsed = false;
+  
+  // Vehicle icons based on status
+  const vehicleIcons = {
+    active: L.divIcon({
+      html: '<i class="fas fa-car-side fa-2x vehicle-marker-active"></i>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      className: 'vehicle-icon'
+    }),
+    idle: L.divIcon({
+      html: '<i class="fas fa-clock fa-2x vehicle-marker-idle"></i>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      className: 'vehicle-icon'
+    }),
+    inactive: L.divIcon({
+      html: '<i class="fas fa-car fa-2x vehicle-marker-inactive"></i>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      className: 'vehicle-icon'
+    }),
+    unknown: L.divIcon({
+      html: '<i class="fas fa-car fa-2x vehicle-marker-unknown"></i>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      className: 'vehicle-icon'
+    })
+  };
+  
+  // Initialize the map
+  function initMap() {
+    map = L.map('vehicleTrackingMap').setView([20.5937, 78.9629], 5); // Default to India center
+    
+    // Add tile layer (OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    
+    // Add vehicles to map
+    loadVehicles();
+    
+    // Set up auto-refresh (every 30 seconds)
+    refreshInterval = setInterval(refreshData, 30000);
+  }
+  
+  // Load vehicles from API
+  function loadVehicles() {
+    // Show loading overlay
+    document.getElementById('mapLoadingOverlay').style.display = 'flex';
+    
+    // Fetch vehicle locations
+    fetch('{% url "ajax_vehicle_locations" %}')
+      .then(response => response.json())
+      .then(data => {
+        // Store vehicle data
+        vehicleData = data.features || [];
+        
+        // Update stats
+        updateStats();
+        
+        // Update vehicle list
+        updateVehicleList();
+        
+        // Update map markers
+        updateMapMarkers();
+        
+        // Hide loading overlay
+        document.getElementById('mapLoadingOverlay').style.display = 'none';
+        
+        // Update last update time
+        document.getElementById('lastUpdateTime').textContent = timeAgo(new Date());
+      })
+      .catch(error => {
+        console.error('Error loading vehicles:', error);
+        document.getElementById('mapLoadingOverlay').style.display = 'none';
+      });
+  }
+  
+  // Update map markers
+  function updateMapMarkers() {
+    // Clear existing markers
+    for (const id in markers) {
+      map.removeLayer(markers[id]);
+    }
+    markers = {};
+    
+    if (vehicleData.length > 0) {
+      const bounds = L.latLngBounds();
+      
+      vehicleData.forEach(feature => {
+        const props = feature.properties;
+        const coords = feature.geometry.coordinates;
+        const status = props.status;
+        
+        // Check if this status should be shown
+        if ((status === 'active' && !document.getElementById('showActiveVehicles').checked) ||
+            (status === 'idle' && !document.getElementById('showIdleVehicles').checked) ||
+            (status === 'inactive' && !document.getElementById('showInactiveVehicles').checked) ||
+            (status === 'unknown' && !document.getElementById('showUnknownVehicles').checked)) {
+          return;
+        }
+        
+        // Create marker
+        const marker = L.marker([coords[1], coords[0]], {
+          icon: vehicleIcons[status],
+          title: props.license_plate
+        });
+        
+        // Create popup content
+        const popupContent = `
+          <div class="vehicle-popup">
+            <div class="vehicle-popup-header">${props.license_plate}</div>
+            <div class="vehicle-popup-info">
+              <span class="vehicle-popup-label">Make & Model:</span>
+              <span class="vehicle-popup-value">${props.make} ${props.model}</span>
+            </div>
+            <div class="vehicle-popup-info">
+              <span class="vehicle-popup-label">Status:</span>
+              <span class="vehicle-popup-value">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
+            </div>
+            <div class="vehicle-popup-info">
+              <span class="vehicle-popup-label">Speed:</span>
+              <span class="vehicle-popup-value">${props.speed.toFixed(1)} km/h</span>
+            </div>
+            <div class="vehicle-popup-info">
+              <span class="vehicle-popup-label">Last Update:</span>
+              <span class="vehicle-popup-value">${new Date(props.time).toLocaleString()}</span>
+            </div>
+            <div class="mt-2">
+              <a href="{% url 'vehicle_tracking_detail' 0 %}".replace('0', props.id) class="btn btn-sm btn-primary w-100">
+                <i class="fas fa-info-circle me-1"></i> View Details
+              </a>
+            </div>
+          </div>
+        `;
+        
+        // Add popup to marker
+        marker.bindPopup(popupContent);
+        
+        // Add click event
+        marker.on('click', function() {
+          selectVehicle(props.id);
+        });
+        
+        // Add label if enabled
+        if (document.getElementById('showLabels').checked) {
+          marker.bindTooltip(props.license_plate, {
+            permanent: true,
+            direction: 'top',
+            offset: [0, -20],
+            className: 'vehicle-label'
+          });
+        }
+        
+        // Add marker to map and store reference
+        marker.addTo(map);
+        markers[props.id] = marker;
+        
+        // Extend bounds to include this marker
+        bounds.extend([coords[1], coords[0]]);
+      });
+      
+      // Fit map to bounds if we have markers and not following a specific vehicle
+      if (Object.keys(markers).length > 0 && !selectedVehicleId) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+      
+      // If following a vehicle and it's selected, center on it
+      if (selectedVehicleId && document.getElementById('followVehicles').checked && markers[selectedVehicleId]) {
+        map.setView(markers[selectedVehicleId].getLatLng(), 15);
+      }
+    }
+  }
+  
+  // Update vehicle list
+  function updateVehicleList() {
+    const vehicleList = document.getElementById('vehicleList');
+    const searchTerm = document.getElementById('vehicleSearch').value.toLowerCase();
+    
+    // Filter vehicles based on search term and status filters
+    let filteredVehicles = vehicleData.filter(feature => {
+      const props = feature.properties;
+      const status = props.status;
+      
+      // Check status filters
+      if ((status === 'active' && !document.getElementById('showActiveVehicles').checked) ||
+          (status === 'idle' && !document.getElementById('showIdleVehicles').checked) ||
+          (status === 'inactive' && !document.getElementById('showInactiveVehicles').checked) ||
+          (status === 'unknown' && !document.getElementById('showUnknownVehicles').checked)) {
+        return false;
+      }
+      
+      // Check search term
+      if (searchTerm) {
+        return props.license_plate.toLowerCase().includes(searchTerm) ||
+               props.make.toLowerCase().includes(searchTerm) ||
+               props.model.toLowerCase().includes(searchTerm);
+      }
+      
+      return true;
+    });
+    
+    // Sort vehicles by status (active first, then inactive, then unknown)
+    filteredVehicles.sort((a, b) => {
+      const statusOrder = { 'active': 0, 'inactive': 1, 'unknown': 2 };
+      return statusOrder[a.properties.status] - statusOrder[b.properties.status];
+    });
+    
+    // Update count
+    document.getElementById('vehicleListCount').textContent = filteredVehicles.length;
+    
+    // Generate list HTML
+    let html = '';
+    
+    if (filteredVehicles.length > 0) {
+      filteredVehicles.forEach(feature => {
+        const props = feature.properties;
+        const isSelected = selectedVehicleId === props.id;
+        
+        html += `
+          <div class="vehicle-list-item ${isSelected ? 'active' : ''}" onclick="selectVehicle(${props.id})">
+            <div class="vehicle-icon-wrapper">
+              <i class="fas fa-car${props.status === 'active' ? '-side' : ''} vehicle-marker-${props.status}"></i>
+            </div>
+            <div class="vehicle-list-details">
+              <div class="vehicle-list-plate">${props.license_plate}</div>
+              <div class="vehicle-list-model">${props.make} ${props.model}</div>
+            </div>
+            <div>
+              <span class="status-badge status-${props.status}">
+                ${props.speed.toFixed(1)} km/h
+              </span>
+            </div>
+          </div>
+        `;
+      });
+    } else {
+      html = `
+        <div class="text-center text-muted py-3">
+          <i class="fas fa-search me-2"></i> No vehicles found
+        </div>
+      `;
+    }
+    
+    vehicleList.innerHTML = html;
+  }
+  
+  // Update stats
+  function updateStats() {
+    let totalVehicles = vehicleData.length;
+    let activeVehicles = 0;
+    let inactiveVehicles = 0;
+    let unknownVehicles = 0;
+    
+    vehicleData.forEach(feature => {
+      switch (feature.properties.status) {
+        case 'active':
+          activeVehicles++;
+          break;
+        case 'inactive':
+          inactiveVehicles++;
+          break;
+        default:
+          unknownVehicles++;
+          break;
+      }
+    });
+    
+    document.getElementById('totalVehiclesCount').textContent = totalVehicles;
+    document.getElementById('activeVehiclesCount').textContent = activeVehicles;
+    document.getElementById('inactiveVehiclesCount').textContent = inactiveVehicles;
+    document.getElementById('unknownVehiclesCount').textContent = unknownVehicles;
+  }
+  
+  // Select a vehicle
+  function selectVehicle(vehicleId) {
+    // Update selected vehicle
+    selectedVehicleId = vehicleId;
+    
+    // Update vehicle list highlighting
+    document.querySelectorAll('.vehicle-list-item').forEach(item => {
+      item.classList.remove('active');
+    });
+    
+    const selectedItem = document.querySelector(`.vehicle-list-item[onclick="selectVehicle(${vehicleId})"]`);
+    if (selectedItem) {
+      selectedItem.classList.add('active');
+      selectedItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    
+    // Center map on vehicle if following is enabled
+    if (document.getElementById('followVehicles').checked && markers[vehicleId]) {
+      map.setView(markers[vehicleId].getLatLng(), 15);
+      markers[vehicleId].openPopup();
+    }
+  }
+  
+  // Refresh data
+  function refreshData() {
+    loadVehicles();
+  }
+  
+  // Toggle map controls
+  function toggleMapControls() {
+    const mapControlsBody = document.getElementById('mapControlsBody');
+    const mapControlsToggleIcon = document.getElementById('mapControlsToggleIcon');
+    
+    mapControlsCollapsed = !mapControlsCollapsed;
+    
+    if (mapControlsCollapsed) {
+      mapControlsBody.style.maxHeight = '0';
+      mapControlsToggleIcon.className = 'fas fa-chevron-down';
+    } else {
+      mapControlsBody.style.maxHeight = '500px';
+      mapControlsToggleIcon.className = 'fas fa-chevron-up';
+    }
+  }
+  
+  // Toggle vehicle list
+  function toggleVehicleList() {
+    const vehicleListBody = document.getElementById('vehicleListBody');
+    const vehicleListToggleIcon = document.getElementById('vehicleListToggleIcon');
+    
+    vehicleListCollapsed = !vehicleListCollapsed;
+    
+    if (vehicleListCollapsed) {
+      vehicleListBody.style.maxHeight = '0';
+      vehicleListToggleIcon.className = 'fas fa-chevron-down';
+    } else {
+      vehicleListBody.style.maxHeight = '500px';
+      vehicleListToggleIcon.className = 'fas fa-chevron-up';
+    }
+  }
+  
+  // Time ago helper function
+  function timeAgo(date) {
+    const seconds = Math.floor((new Date() - date) / 1000);
+    
+    let interval = Math.floor(seconds / 31536000);
+    if (interval > 1) return interval + ' years ago';
+    if (interval === 1) return '1 year ago';
+    
+    interval = Math.floor(seconds / 2592000);
+    if (interval > 1) return interval + ' months ago';
+    if (interval === 1) return '1 month ago';
+    
+    interval = Math.floor(seconds / 86400);
+    if (interval > 1) return interval + ' days ago';
+    if (interval === 1) return '1 day ago';
+    
+    interval = Math.floor(seconds / 3600);
+    if (interval > 1) return interval + ' hours ago';
+    if (interval === 1) return '1 hour ago';
+    
+    interval = Math.floor(seconds / 60);
+    if (interval > 1) return interval + ' minutes ago';
+    if (interval === 1) return '1 minute ago';
+    
+    if (seconds < 10) return 'just now';
+    
+    return Math.floor(seconds) + ' seconds ago';
+  }
+  
+  // Event listeners
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize map
+    initMap();
+    
+    // Refresh button
+    document.getElementById('refreshMap').addEventListener('click', function() {
+      refreshData();
+    });
+    
+    // Center map button
+    document.getElementById('centerMapBtn').addEventListener('click', function() {
+      const bounds = L.latLngBounds();
+      
+      // Collect visible markers
+      for (const id in markers) {
+        bounds.extend(markers[id].getLatLng());
+      }
+      
+      if (!bounds.isValid()) {
+        // Default to India if no markers
+        map.setView([20.5937, 78.9629], 5);
+      } else {
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    });
+    
+    // Sync data button
+    const syncDataBtn = document.getElementById('syncDataBtn');
+    if (syncDataBtn) {
+      syncDataBtn.addEventListener('click', function() {
+        // Show loading overlay
+        document.getElementById('mapLoadingOverlay').style.display = 'flex';
+        
+        // Get CSRF token
+        const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+        
+        // Call sync API
+        fetch('{% url "sync_airotrack" %}', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': csrfToken
+          }
+        })
+        .then(response => {
+          // Hide loading overlay
+          document.getElementById('mapLoadingOverlay').style.display = 'none';
+          
+          if (response.ok) {
+            // Show success message
+            alert('Synchronization started. Data will refresh shortly.');
+            
+            // Refresh after 3 seconds to allow sync to complete
+            setTimeout(refreshData, 3000);
+          } else {
+            alert('Synchronization failed. Please try again.');
+          }
+        })
+        .catch(error => {
+          console.error('Error syncing data:', error);
+          document.getElementById('mapLoadingOverlay').style.display = 'none';
+          alert('Synchronization failed. Please try again.');
+        });
+      });
+    }
+    
+    // Search input
+    document.getElementById('vehicleSearch').addEventListener('input', function() {
+      updateVehicleList();
+    });
+    
+    // Clear search button
+    document.getElementById('clearSearch').addEventListener('click', function() {
+      document.getElementById('vehicleSearch').value = '';
+      updateVehicleList();
+    });
+    
+    // Status filter checkboxes
+    document.getElementById('showActiveVehicles').addEventListener('change', function() {
+      updateVehicleList();
+      updateMapMarkers();
+    });
+    
+    document.getElementById('showIdleVehicles').addEventListener('change', function() {
+      updateVehicleList();
+      updateMapMarkers();
+    });
+    
+    document.getElementById('showInactiveVehicles').addEventListener('change', function() {
+      updateVehicleList();
+      updateMapMarkers();
+    });
+    
+    document.getElementById('showUnknownVehicles').addEventListener('change', function() {
+      updateVehicleList();
+      updateMapMarkers();
+    });
+    
+    // Show labels checkbox
+    document.getElementById('showLabels').addEventListener('change', function() {
+      updateMapMarkers();
+    });
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', function() {
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+    });
+  });
+</script>
+{% endblock %}

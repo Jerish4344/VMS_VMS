@@ -1,0 +1,469 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style type="text/css">
+    /* Custom styling for geolocation admin */
+    
+    /* Status indicators */
+    .status-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+    
+    .status-online {
+      background-color: #28a745;
+      animation: pulse 2s infinite;
+    }
+    
+    .status-online:hover {
+      animation: none;
+      box-shadow: 0 0 5px #28a745;
+    }
+    
+    .status-offline {
+      background-color: #ffc107;
+    }
+    
+    .status-idle {
+      background-color: #17a2b8;
+    }
+    
+    .status-inactive {
+      background-color: #6c757d;
+    }
+    
+    .status-unknown {
+      background-color: #6c757d;
+      opacity: 0.5;
+    }    /* Dashboard widget */
+    .tracking-dashboard {
+      background: #fff;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    
+    .tracking-dashboard-header {
+      background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+      color: white;
+      padding: 15px 20px;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .tracking-dashboard-header h2 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+    
+    .tracking-dashboard-body {
+      padding: 15px;
+      display: flex;
+      flex-wrap: wrap;
+    }
+    
+    .tracking-stat {
+      flex: 1 0 150px;
+      margin: 10px;
+      padding: 15px;
+      border-radius: 5px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      transition: transform 0.2s ease;
+    }
+    
+    .tracking-stat:hover {
+      transform: translateY(-3px);
+    }
+    
+    .tracking-stat-value {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    
+    .tracking-stat-label {
+      color: #6c757d;
+      font-size: 0.9rem;
+    }
+    
+    .stat-devices {
+      background-color: #f8f9fc;
+      border-left: 4px solid #4e73df;
+    }
+    
+    .stat-active {
+      background-color: #f8f9fc;
+      border-left: 4px solid #28a745;
+    }
+    
+    .stat-inactive {
+      background-color: #f8f9fc;
+      border-left: 4px solid #ffc107;
+    }
+    
+    .stat-unknown {
+      background-color: #f8f9fc;
+      border-left: 4px solid #6c757d;
+    }
+    
+    .stat-locations {
+      background-color: #f8f9fc;
+      border-left: 4px solid #36b9cc;
+    }
+    
+    /* Quick actions */
+    .quick-actions {
+      padding: 10px 15px;
+      background-color: #f8f9fc;
+      border-top: 1px solid #e3e6f0;
+      display: flex;
+      flex-wrap: wrap;
+    }
+    
+    .quick-action-button {
+      margin: 5px;
+      padding: 8px 15px;
+      border-radius: 4px;
+      background-color: #fff;
+      color: #4e73df;
+      border: 1px solid #4e73df;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+    }
+    
+    .quick-action-button:hover {
+      background-color: #4e73df;
+      color: white;
+    }
+    
+    .quick-action-button i {
+      margin-right: 5px;
+    }
+    
+    /* Last sync indicator */
+    .last-sync {
+      font-size: 0.85rem;
+      color: #6c757d;
+    }
+    
+    /* Auto-refresh indicator */
+    .auto-refresh-indicator {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.8rem;
+      color: #6c757d;
+      margin-left: 15px;
+    }
+    
+    .auto-refresh-indicator.active {
+      color: #28a745;
+    }
+    
+    .auto-refresh-indicator i {
+      margin-right: 5px;
+    }
+    
+    /* Toggle switch for auto-refresh */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 20px;
+      margin-left: 8px;
+    }
+    
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+    
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .slider {
+      background-color: #28a745;
+    }
+    
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    
+    /* Map preview */
+    .map-preview {
+      height: 200px;
+      background-color: #f8f9fc;
+      border-radius: 5px;
+      margin-top: 15px;
+    }
+  </style>
+{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+  <script type="text/javascript">
+    // Auto-refresh functionality
+    document.addEventListener('DOMContentLoaded', function() {
+      let refreshInterval;
+      const toggleRefresh = document.getElementById('toggle-refresh');
+      const refreshIndicator = document.getElementById('refresh-indicator');
+      const countdownEl = document.getElementById('refresh-countdown');
+      
+      // Initialize from localStorage
+      const autoRefreshEnabled = localStorage.getItem('geolocation_admin_autorefresh') === 'true';
+      toggleRefresh.checked = autoRefreshEnabled;
+      
+      if (autoRefreshEnabled) {
+        startAutoRefresh();
+        refreshIndicator.classList.add('active');
+      }
+      
+      // Toggle auto-refresh
+      toggleRefresh.addEventListener('change', function() {
+        if (this.checked) {
+          localStorage.setItem('geolocation_admin_autorefresh', 'true');
+          startAutoRefresh();
+          refreshIndicator.classList.add('active');
+        } else {
+          localStorage.setItem('geolocation_admin_autorefresh', 'false');
+          stopAutoRefresh();
+          refreshIndicator.classList.remove('active');
+          countdownEl.textContent = '';
+        }
+      });
+      
+      function startAutoRefresh() {
+        // Clear any existing interval
+        if (refreshInterval) {
+          clearInterval(refreshInterval);
+        }
+        
+        // Set refresh interval (60 seconds)
+        let countdown = 60;
+        updateCountdown(countdown);
+        
+        refreshInterval = setInterval(function() {
+          countdown--;
+          updateCountdown(countdown);
+          
+          if (countdown <= 0) {
+            // Reload the page
+            window.location.reload();
+          }
+        }, 1000);
+      }
+      
+      function stopAutoRefresh() {
+        if (refreshInterval) {
+          clearInterval(refreshInterval);
+          refreshInterval = null;
+        }
+      }
+      
+      function updateCountdown(seconds) {
+        countdownEl.textContent = seconds + 's';
+      }
+    });
+    
+    // Quick sync action
+    function quickSync(url) {
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => {
+        if (response.ok) {
+          // Reload after successful sync
+          window.location.reload();
+        } else {
+          alert('Sync failed. Please try again.');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Sync failed. Please try again.');
+      });
+    }
+  </script>
+{% endblock %}
+
+{% block content %}
+  <div class="tracking-dashboard">
+    <div class="tracking-dashboard-header">
+      <h2>
+        {% if 'airotrackdevice' in request.path %}
+          GPS Tracking Devices Dashboard
+        {% elif 'vehiclelocation' in request.path %}
+          Current Vehicle Locations
+        {% elif 'locationhistory' in request.path %}
+          Location History
+        {% else %}
+          GPS Tracking Dashboard
+        {% endif %}
+      </h2>
+      
+      <div class="auto-refresh-indicator" id="refresh-indicator">
+        <i class="fas fa-sync-alt"></i> Auto-refresh
+        <span id="refresh-countdown"></span>
+        <label class="switch">
+          <input type="checkbox" id="toggle-refresh">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+    
+    <div class="tracking-dashboard-body">
+      {% if 'airotrackdevice' in request.path %}
+        <!-- Device statistics -->
+        <div class="tracking-stat stat-devices">
+          {# Use the built-in result_count provided by the admin ChangeList #}
+          <div class="tracking-stat-value">{{ cl.result_count }}</div>
+          <div class="tracking-stat-label">Total Devices</div>
+        </div>
+        
+        <div class="tracking-stat stat-active">
+          <div class="tracking-stat-value">--</div>
+          <div class="tracking-stat-label">Online</div>
+        </div>
+        
+        <div class="tracking-stat stat-inactive">
+          <div class="tracking-stat-value">--</div>
+          <div class="tracking-stat-label">Offline</div>
+        </div>
+        
+        <div class="tracking-stat stat-unknown">
+          <div class="tracking-stat-value">--</div>
+          <div class="tracking-stat-label">Unassigned</div>
+        </div>
+      {% elif 'vehiclelocation' in request.path %}
+        <!-- Vehicle location statistics -->
+        <div class="tracking-stat stat-devices">
+          <div class="tracking-stat-value">{{ cl.result_count }}</div>
+          <div class="tracking-stat-label">Tracked Vehicles</div>
+        </div>
+        
+        <div class="tracking-stat stat-active">
+          <div class="tracking-stat-value">--</div>
+          <div class="tracking-stat-label">Moving</div>
+        </div>
+        
+        <div class="tracking-stat stat-inactive">
+          <div class="tracking-stat-value">--</div>
+          <div class="tracking-stat-label">Parked</div>
+        </div>
+        
+        <div class="tracking-stat stat-locations">
+          <div class="tracking-stat-value">--</div>
+          <div class="tracking-stat-label">Ignition On</div>
+        </div>
+      {% elif 'locationhistory' in request.path %}
+        <!-- Location history statistics -->
+        <div class="tracking-stat stat-locations">
+          <div class="tracking-stat-value">{{ cl.result_count }}</div>
+          <div class="tracking-stat-label">Total Records</div>
+        </div>
+        
+        <div class="tracking-stat stat-devices">
+          <div class="tracking-stat-value">--</div>
+          <div class="tracking-stat-label">Days of Data</div>
+        </div>
+        
+        <div class="tracking-stat stat-active">
+          <div class="tracking-stat-value">--</div>
+          <div class="tracking-stat-label">Vehicles</div>
+        </div>
+        
+        <div class="tracking-stat stat-inactive">
+          <div class="tracking-stat-value">--</div>
+          <div class="tracking-stat-label">Today's Records</div>
+        </div>
+      {% endif %}
+    </div>
+    
+    <div class="quick-actions">
+      {% csrf_token %}
+      
+      {% if 'airotrackdevice' in request.path %}
+        <a href="{% url 'admin:geolocation_airotrackdevice_changelist' %}?status=online" class="quick-action-button">
+          <i class="fas fa-circle"></i> Online Devices
+        </a>
+        <a href="{% url 'admin:geolocation_airotrackdevice_changelist' %}?status=offline" class="quick-action-button">
+          <i class="far fa-circle"></i> Offline Devices
+        </a>
+        <a href="{% url 'admin:geolocation_airotrackdevice_changelist' %}?vehicle__isnull=True" class="quick-action-button">
+          <i class="fas fa-unlink"></i> Unassigned Devices
+        </a>
+        <button onclick="quickSync('{% url 'sync_airotrack' %}')" class="quick-action-button">
+          <i class="fas fa-sync-alt"></i> Sync All Devices
+        </button>
+      {% elif 'vehiclelocation' in request.path %}
+        <a href="{% url 'admin:geolocation_vehiclelocation_changelist' %}?speed__gt=5" class="quick-action-button">
+          <i class="fas fa-car"></i> Moving Vehicles
+        </a>
+        <a href="{% url 'admin:geolocation_vehiclelocation_changelist' %}?speed__lte=5" class="quick-action-button">
+          <i class="fas fa-parking"></i> Parked Vehicles
+        </a>
+        <a href="{% url 'admin:geolocation_vehiclelocation_changelist' %}?ignition=1" class="quick-action-button">
+          <i class="fas fa-key"></i> Ignition On
+        </a>
+        <button onclick="quickSync('{% url 'sync_airotrack' %}')" class="quick-action-button">
+          <i class="fas fa-sync-alt"></i> Refresh Locations
+        </button>
+      {% elif 'locationhistory' in request.path %}
+        <a href="{% url 'admin:geolocation_locationhistory_changelist' %}?device_time__gte={{ today|date:'Y-m-d' }}" class="quick-action-button">
+          <i class="fas fa-calendar-day"></i> Today's Records
+        </a>
+        <a href="{% url 'admin:geolocation_locationhistory_changelist' %}?speed__gt=5" class="quick-action-button">
+          <i class="fas fa-tachometer-alt"></i> Moving Records
+        </a>
+        <a href="{% url 'admin:geolocation_locationhistory_changelist' %}?ignition=1" class="quick-action-button">
+          <i class="fas fa-key"></i> Ignition On Records
+        </a>
+      {% endif %}
+      
+      <a href="{% url 'tracking_dashboard' %}" class="quick-action-button" target="_blank">
+        <i class="fas fa-external-link-alt"></i> Live Dashboard
+      </a>
+    </div>
+  </div>
+  
+  {{ block.super }}
+{% endblock %}
