@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  {% if action == 'Create' %}Add New Generator{% else %}Edit Generator{% endif %} | Generator Management
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .form-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    border-radius: 10px 10px 0 0;
+    padding: 15px 20px;
+  }
+  
+  .form-body {
+    padding: 20px;
+  }
+  
+  .form-footer {
+    background-color: #f8f9fc;
+    border-top: 1px solid #e3e6f0;
+    border-radius: 0 0 10px 10px;
+    padding: 15px 20px;
+  }
+  
+  .required-field::after {
+    content: "*";
+    color: #e74a3b;
+    margin-left: 4px;
+  }
+  
+  .form-control:focus, .form-select:focus {
+    border-color: #bac8f3;
+    box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
+  }
+  
+  .help-text {
+    font-size: 0.85rem;
+    color: #858796;
+    margin-top: 4px;
+  }
+  
+  .btn-action {
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-weight: 500;
+  }
+  
+  .btn-cancel {
+    background-color: #f8f9fc;
+    border-color: #d1d3e2;
+    color: #6e707e;
+  }
+  
+  .btn-cancel:hover {
+    background-color: #eaecf4;
+    border-color: #d1d3e2;
+    color: #6e707e;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'generators:dashboard' %}">Generator Management</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'generators:generator_list' %}">Generators</a></li>
+      <li class="breadcrumb-item active" aria-current="page">
+        {% if action == 'Create' %}Add New Generator{% else %}Edit {{ object.make_and_model }}{% endif %}
+      </li>
+    </ol>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">
+        {% if action == 'Create' %}Add New Generator{% else %}Edit Generator{% endif %}
+      </h1>
+      <p class="mb-0 text-muted">
+        {% if action == 'Create' %}
+          Create a new generator for your store
+        {% else %}
+          Update generator information for {{ object.make_and_model }}
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="card shadow form-card mb-4">
+    <div class="form-header">
+      <h5 class="m-0 font-weight-bold text-primary">
+        <i class="fas fa-dharmachakra me-2"></i>
+        {% if action == 'Create' %}Generator Information{% else %}Edit Generator Details{% endif %}
+      </h5>
+    </div>
+    
+    <div class="form-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for error in form.non_field_errors %}
+              {{ error }}
+            {% endfor %}
+          </div>
+        {% endif %}
+        
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label for="{{ form.store.id_for_label }}" class="form-label required-field">Store</label>
+            {{ form.store }}
+            {% if form.store.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.store.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.store.help_text %}
+              <div class="help-text">{{ form.store.help_text }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="col-md-6">
+            <label for="{{ form.make_and_model.id_for_label }}" class="form-label required-field">Make & Model</label>
+            {{ form.make_and_model }}
+            {% if form.make_and_model.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.make_and_model.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.make_and_model.help_text %}
+              <div class="help-text">{{ form.make_and_model.help_text }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <label for="{{ form.capacity_kva.id_for_label }}" class="form-label required-field">Capacity (kVA)</label>
+            {{ form.capacity_kva }}
+            {% if form.capacity_kva.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.capacity_kva.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.capacity_kva.help_text %}
+              <div class="help-text">{{ form.capacity_kva.help_text }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="col-md-4">
+            <label for="{{ form.fuel_type.id_for_label }}" class="form-label required-field">Fuel Type</label>
+            {{ form.fuel_type }}
+            {% if form.fuel_type.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.fuel_type.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.fuel_type.help_text %}
+              <div class="help-text">{{ form.fuel_type.help_text }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="col-md-4">
+            <label for="{{ form.serial_number.id_for_label }}" class="form-label">Serial Number</label>
+            {{ form.serial_number }}
+            {% if form.serial_number.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.serial_number.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.serial_number.help_text %}
+              <div class="help-text">{{ form.serial_number.help_text }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="form-footer d-flex justify-content-between">
+          <a href="{% url 'generators:generator_list' %}" class="btn btn-cancel btn-action">
+            <i class="fas fa-times me-2"></i>Cancel
+          </a>
+          <button type="submit" class="btn btn-primary btn-action">
+            {% if action == 'Create' %}
+              <i class="fas fa-plus-circle me-2"></i>Create Generator
+            {% else %}
+              <i class="fas fa-save me-2"></i>Update Generator
+            {% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add Bootstrap classes to form elements
+    const formControls = document.querySelectorAll('input, select, textarea');
+    formControls.forEach(element => {
+      if (!element.classList.contains('form-check-input')) {
+        if (element.tagName.toLowerCase() === 'select') {
+          element.classList.add('form-select');
+        } else {
+          element.classList.add('form-control');
+        }
+      }
+    });
+    
+    // Focus on first field
+    const firstInput = document.querySelector('form select:first-of-type, form input:not([type=hidden]):first-of-type');
+    if (firstInput) {
+      firstInput.focus();
+    }
+    
+    // Pre-select store if provided in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const storeId = urlParams.get('store');
+    if (storeId) {
+      const storeSelect = document.getElementById('id_store');
+      if (storeSelect) {
+        storeSelect.value = storeId;
+      }
+    }
+  });
+</script>
+{% endblock %}

@@ -57,25 +57,53 @@ class ApprovalAuthenticationForm(AuthenticationForm):
 
 
 class EmployeeApprovalForm(forms.Form):
-    """Form for approving/rejecting employee vehicle access"""
+    """Form for approving/rejecting employee access with role selection"""
+    
+    # Access type selection
+    access_type = forms.ChoiceField(
+        choices=[
+            ('driver', 'Vehicle System Access (Driver)'),
+            ('generator_user', 'Generator System Access Only'),
+            ('both', 'Full Access (Vehicles + Generators)'),
+        ],
+        widget=forms.RadioSelect(attrs={'class': 'access-type-radio'}),
+        initial='driver',
+        label='Grant Access Type',
+        help_text='Choose what type of system access to grant to this employee'
+    )
+    
+    # Action selection
+    action = forms.ChoiceField(
+        choices=[
+            ('approve', 'Approve Access'),
+            ('reject', 'Reject Access')
+        ],
+        widget=forms.RadioSelect(attrs={'class': 'action-radio'}),
+        initial='approve',
+        label='Approval Decision'
+    )
+    
+    # Rejection reason
     rejection_reason = forms.CharField(
         widget=forms.Textarea(attrs={
             'class': 'form-control',
             'rows': 3,
-            'placeholder': 'Enter reason for rejection (optional for approval)'
+            'placeholder': 'Enter reason for rejection (required only for rejection)'
         }),
         required=False,
         label='Rejection Reason'
     )
     
-    action = forms.ChoiceField(
-        choices=[
-            ('approve', 'Approve Vehicle Access'),
-            ('reject', 'Reject Vehicle Access')
-        ],
-        widget=forms.RadioSelect,
-        initial='approve'
-    )
+    def clean(self):
+        cleaned_data = super().clean()
+        action = cleaned_data.get('action')
+        rejection_reason = cleaned_data.get('rejection_reason')
+        
+        # Require rejection reason only when rejecting
+        if action == 'reject' and not rejection_reason:
+            raise forms.ValidationError('Please provide a reason for rejection.')
+        
+        return cleaned_data
 
 
 # Keep legacy form names for backward compatibility

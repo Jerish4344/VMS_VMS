@@ -50,6 +50,29 @@
     color: white;
   }
   
+  .access-type-card {
+    border: 2px solid #e3e6f0;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  
+  .access-type-card:hover {
+    border-color: #4e73df;
+    box-shadow: 0 4px 8px rgba(78, 115, 223, 0.2);
+    transform: translateY(-2px);
+  }
+  
+  .access-type-card.selected {
+    border-color: #4e73df;
+    background: rgba(78, 115, 223, 0.05);
+    box-shadow: 0 6px 12px rgba(78, 115, 223, 0.3);
+  }
+  
+  .access-type-card .form-check-input:checked + .form-check-label {
+    color: #4e73df;
+    font-weight: 600;
+  }
+  
   .info-label {
     font-weight: 600;
     color: #495057;
@@ -296,32 +319,91 @@
           <form method="post">
             {% csrf_token %}
             
-            <div class="row">
-              <div class="col-md-6 mb-3">
-                <div class="card approval-card h-100">
-                  <div class="card-body text-center">
-                    <div class="form-check">
-                      <input class="form-check-input" type="radio" name="action" value="approve" id="approve" checked>
-                      <label class="form-check-label text-white" for="approve">
-                        <i class="fas fa-check-circle fa-3x mb-2 d-block"></i>
-                        <h5>Approve Access</h5>
-                        <p class="mb-0">Grant vehicle system access to this employee</p>
-                      </label>
+            <!-- Access Type Selection -->
+            <div class="mb-4">
+              <h6 class="mb-3">
+                <i class="fas fa-key me-2"></i>Select Access Type:
+              </h6>
+              <div class="row">
+                <div class="col-md-4 mb-3">
+                  <div class="card access-type-card h-100" data-access-type="driver">
+                    <div class="card-body text-center">
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio" name="access_type" value="driver" id="access_driver" checked>
+                        <label class="form-check-label" for="access_driver">
+                          <i class="fas fa-car fa-2x mb-2 d-block text-primary"></i>
+                          <h6>Vehicle Access</h6>
+                          <small class="text-muted">Access to vehicle management system only</small>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="col-md-4 mb-3">
+                  <div class="card access-type-card h-100" data-access-type="generator_user">
+                    <div class="card-body text-center">
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio" name="access_type" value="generator_user" id="access_generator">
+                        <label class="form-check-label" for="access_generator">
+                          <i class="fas fa-dharmachakra fa-2x mb-2 d-block text-warning"></i>
+                          <h6>Generator Access</h6>
+                          <small class="text-muted">Access to generator management system only</small>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="col-md-4 mb-3">
+                  <div class="card access-type-card h-100" data-access-type="both">
+                    <div class="card-body text-center">
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio" name="access_type" value="both" id="access_both">
+                        <label class="form-check-label" for="access_both">
+                          <i class="fas fa-crown fa-2x mb-2 d-block text-success"></i>
+                          <h6>Full Access</h6>
+                          <small class="text-muted">Access to both vehicle and generator systems</small>
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-              
-              <div class="col-md-6 mb-3">
-                <div class="card rejection-card h-100">
-                  <div class="card-body text-center">
-                    <div class="form-check">
-                      <input class="form-check-input" type="radio" name="action" value="reject" id="reject">
-                      <label class="form-check-label text-white" for="reject">
-                        <i class="fas fa-times-circle fa-3x mb-2 d-block"></i>
-                        <h5>Reject Access</h5>
-                        <p class="mb-0">Deny vehicle system access for this employee</p>
-                      </label>
+            </div>
+            
+            <!-- Approval/Rejection Decision -->
+            <div class="mb-4">
+              <h6 class="mb-3">
+                <i class="fas fa-gavel me-2"></i>Approval Decision:
+              </h6>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <div class="card approval-card h-100">
+                    <div class="card-body text-center">
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio" name="action" value="approve" id="approve" checked>
+                        <label class="form-check-label text-white" for="approve">
+                          <i class="fas fa-check-circle fa-3x mb-2 d-block"></i>
+                          <h5>Approve Access</h5>
+                          <p class="mb-0">Grant system access to this employee</p>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                  <div class="card rejection-card h-100">
+                    <div class="card-body text-center">
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio" name="action" value="reject" id="reject">
+                        <label class="form-check-label text-white" for="reject">
+                          <i class="fas fa-times-circle fa-3x mb-2 d-block"></i>
+                          <h5>Reject Access</h5>
+                          <p class="mb-0">Deny system access for this employee</p>
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -332,7 +414,7 @@
               <label for="rejection_reason" class="form-label">
                 <i class="fas fa-comment-alt me-2"></i>Reason for Rejection:
               </label>
-              <textarea class="form-control" name="rejection_reason" rows="3" placeholder="Please explain why access is being rejected (optional but recommended)"></textarea>
+              <textarea class="form-control" name="rejection_reason" rows="3" placeholder="Please explain why access is being rejected (required for rejection)"></textarea>
               <div class="form-text">This reason will be shown to the employee and logged for audit purposes.</div>
             </div>
             
@@ -359,25 +441,57 @@ document.addEventListener('DOMContentLoaded', function() {
   const rejectRadio = document.getElementById('reject');
   const rejectionReason = document.getElementById('rejection-reason');
   
+  // Access type handling
+  const accessTypeCards = document.querySelectorAll('.access-type-card');
+  const accessTypeRadios = document.querySelectorAll('input[name="access_type"]');
+  
+  function updateAccessTypeCards() {
+    accessTypeCards.forEach(card => {
+      const radio = card.querySelector('input[name="access_type"]');
+      if (radio.checked) {
+        card.classList.add('selected');
+      } else {
+        card.classList.remove('selected');
+      }
+    });
+  }
+  
+  // Handle access type card clicks
+  accessTypeCards.forEach(card => {
+    card.addEventListener('click', function() {
+      const radio = this.querySelector('input[name="access_type"]');
+      radio.checked = true;
+      updateAccessTypeCards();
+    });
+  });
+  
+  // Handle access type radio changes
+  accessTypeRadios.forEach(radio => {
+    radio.addEventListener('change', updateAccessTypeCards);
+  });
+  
+  // Rejection reason visibility
   function toggleRejectionReason() {
     if (rejectRadio.checked) {
       rejectionReason.style.display = 'block';
       rejectionReason.querySelector('textarea').focus();
+      rejectionReason.querySelector('textarea').required = true;
     } else {
       rejectionReason.style.display = 'none';
+      rejectionReason.querySelector('textarea').required = false;
     }
   }
   
   approveRadio.addEventListener('change', toggleRejectionReason);
   rejectRadio.addEventListener('change', toggleRejectionReason);
   
-  // Add visual feedback for radio selection
-  const cards = document.querySelectorAll('.approval-card, .rejection-card');
-  const radios = document.querySelectorAll('input[name="action"]');
+  // Add visual feedback for approval/rejection selection
+  const actionCards = document.querySelectorAll('.approval-card, .rejection-card');
+  const actionRadios = document.querySelectorAll('input[name="action"]');
   
-  radios.forEach(radio => {
+  actionRadios.forEach(radio => {
     radio.addEventListener('change', function() {
-      cards.forEach(card => {
+      actionCards.forEach(card => {
         card.style.transform = 'scale(1)';
         card.style.boxShadow = '';
       });
@@ -390,8 +504,37 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
   
-  // Initial state
+  // Form validation
+  const form = document.querySelector('form');
+  form.addEventListener('submit', function(e) {
+    if (rejectRadio.checked) {
+      const reasonTextarea = rejectionReason.querySelector('textarea');
+      if (!reasonTextarea.value.trim()) {
+        e.preventDefault();
+        alert('Please provide a reason for rejection.');
+        reasonTextarea.focus();
+        return false;
+      }
+    }
+  });
+  
+  // Initialize states
+  updateAccessTypeCards();
   toggleRejectionReason();
+  
+  // Add tooltips for better UX
+  const tooltipData = {
+    'driver': 'This employee will have access to vehicle booking, trip management, fuel tracking, and maintenance records.',
+    'generator_user': 'This employee will have access to generator management, usage tracking, fuel entries, and maintenance logs for assigned stores only.',
+    'both': 'This employee will have full access to both vehicle and generator management systems.'
+  };
+  
+  accessTypeCards.forEach(card => {
+    const accessType = card.dataset.accessType;
+    if (tooltipData[accessType]) {
+      card.title = tooltipData[accessType];
+    }
+  });
 });
 </script>
 {% endblock %}

@@ -1,0 +1,427 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}{{ store.name }} | Store Details{% endblock %}
+
+{% block extra_css %}
+<style>
+  .store-header {
+    background-color: #f8f9fc;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+  }
+  
+  .store-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+  }
+  
+  .store-location {
+    font-size: 1rem;
+    color: #6c757d;
+    margin-bottom: 10px;
+  }
+  
+  .store-info-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  
+  .store-info-icon {
+    width: 30px;
+    color: #4e73df;
+  }
+  
+  .stat-card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+    height: 100%;
+  }
+  
+  .stat-card:hover {
+    transform: translateY(-5px);
+  }
+  
+  .stat-icon {
+    font-size: 2rem;
+    opacity: 0.8;
+  }
+  
+  .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  
+  .generator-card {
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    margin-bottom: 15px;
+    border-left: 4px solid #4e73df;
+  }
+  
+  .generator-card:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .fuel-entry-item, .usage-item {
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border-left: 3px solid #36b9cc;
+    background-color: #f8f9fc;
+    transition: all 0.2s ease;
+  }
+  
+  .fuel-entry-item:hover, .usage-item:hover {
+    transform: translateX(5px);
+    background-color: #eaecf4;
+  }
+  
+  .empty-state {
+    padding: 30px;
+    text-align: center;
+    background-color: #f8f9fc;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .empty-icon {
+    font-size: 3rem;
+    color: #d1d3e2;
+    margin-bottom: 1rem;
+  }
+  
+  .action-buttons .btn {
+    margin-right: 5px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'generators:dashboard' %}">Generator Management</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'generators:store_list' %}">Stores</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ store.name }}</li>
+    </ol>
+  </nav>
+
+  <!-- Store Header -->
+  <div class="store-header">
+    <div class="row">
+      <div class="col-md-8">
+        <h1 class="store-title">{{ store.name }}</h1>
+        <div class="store-location">
+          <i class="fas fa-map-marker-alt me-2 text-primary"></i>{{ store.location }}
+        </div>
+        
+        <div class="store-info mt-3">
+          <div class="store-info-item">
+            <div class="store-info-icon">
+              <i class="fas fa-user"></i>
+            </div>
+            <div>
+              <strong>Manager:</strong> {{ store.manager_name|default:"Not assigned" }}
+            </div>
+          </div>
+          
+          <div class="store-info-item">
+            <div class="store-info-icon">
+              <i class="fas fa-phone-alt"></i>
+            </div>
+            <div>
+              <strong>Contact:</strong> {{ store.contact_info|default:"Not available" }}
+            </div>
+          </div>
+          
+          <div class="store-info-item">
+            <div class="store-info-icon">
+              <i class="fas fa-dharmachakra"></i>
+            </div>
+            <div>
+              <strong>Generators:</strong> {{ generator_count }} generators at this location
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 text-end">
+        <div class="action-buttons">
+          <a href="{% url 'generators:store_update' store.id %}" class="btn btn-primary">
+            <i class="fas fa-edit me-2"></i>Edit Store
+          </a>
+          <a href="{% url 'generators:store_delete' store.id %}" class="btn btn-danger">
+            <i class="fas fa-trash me-2"></i>Delete
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-primary stat-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                Total Generators
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 stat-value">{{ generator_count }}</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-dharmachakra stat-icon text-primary"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-success stat-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                Total Fuel Used
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 stat-value">
+                {{ fuel_stats.total_litres|default:0|floatformat:2|intcomma }} L
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-gas-pump stat-icon text-success"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-info stat-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                Total Fuel Cost
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 stat-value">
+                ₹ {{ fuel_stats.total_cost|default:0|floatformat:2|intcomma }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-rupee-sign stat-icon text-info"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-warning stat-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                Avg. Fuel Rate
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 stat-value">
+                ₹ {{ fuel_stats.avg_rate|default:0|floatformat:2|intcomma }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-chart-line stat-icon text-warning"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generators Section -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card shadow">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-dharmachakra me-2"></i>Generators at this Store
+          </h6>
+          <a href="{% url 'generators:generator_create' %}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus-circle me-2"></i>Add Generator
+          </a>
+        </div>
+        <div class="card-body">
+          {% if generators %}
+            <div class="row">
+              {% for generator in generators %}
+                <div class="col-lg-6 col-xl-4">
+                  <div class="card generator-card mb-4">
+                    <div class="card-body">
+                      <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">{{ generator.make_and_model }}</h5>
+                        <span class="badge bg-primary">{{ generator.capacity_kva }} kVA</span>
+                      </div>
+                      <div class="card-text">
+                        <div class="mb-2">
+                          <i class="fas fa-gas-pump me-2 text-primary"></i>
+                          <span>Fuel Type: {{ generator.get_fuel_type_display }}</span>
+                        </div>
+                        {% if generator.serial_number %}
+                        <div class="mb-2">
+                          <i class="fas fa-fingerprint me-2 text-primary"></i>
+                          <span>Serial: {{ generator.serial_number }}</span>
+                        </div>
+                        {% endif %}
+                      </div>
+                      <div class="mt-3">
+                        <a href="{% url 'generators:generator_detail' generator.id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                        <a href="{% url 'generators:usage_tracking_create' %}?generator={{ generator.id }}" class="btn btn-sm btn-outline-success">Log Usage</a>
+                        <a href="{% url 'generators:fuel_entry_create' %}?generator={{ generator.id }}" class="btn btn-sm btn-outline-info">Add Fuel</a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <i class="fas fa-dharmachakra empty-icon"></i>
+              <h4>No Generators Found</h4>
+              <p class="text-muted">
+                This store doesn't have any generators assigned to it yet.
+              </p>
+              <a href="{% url 'generators:generator_create' %}?store={{ store.id }}" class="btn btn-primary mt-3">
+                <i class="fas fa-plus-circle me-2"></i>Add Generator to this Store
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="row">
+    <!-- Recent Fuel Entries -->
+    <div class="col-lg-6 mb-4">
+      <div class="card shadow">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+          <h6 class="m-0 font-weight-bold text-success">
+            <i class="fas fa-gas-pump me-2"></i>Recent Fuel Entries
+          </h6>
+          <a href="{% url 'generators:fuel_entry_list' %}?store={{ store.id }}" class="btn btn-sm btn-success">
+            View All
+          </a>
+        </div>
+        <div class="card-body">
+          {% if store.fuel_entries.all %}
+            {% for entry in store.fuel_entries.all|slice:":5" %}
+              <div class="fuel-entry-item">
+                <div class="d-flex justify-content-between">
+                  <div>
+                    <strong>{{ entry.generator.make_and_model }}</strong>
+                    <div class="small text-muted">{{ entry.date_of_filling }}</div>
+                  </div>
+                  <div class="text-end">
+                    <div class="fw-bold">{{ entry.litres_filled }} L</div>
+                    <div class="small text-success">₹ {{ entry.total_fuel_cost|floatformat:2 }}</div>
+                  </div>
+                </div>
+                <div class="small mt-1">
+                  <span class="badge bg-light text-dark">{{ entry.get_fuel_type_display }}</span>
+                  {% if entry.filled_by %}
+                    <span class="ms-2">by {{ entry.filled_by.get_full_name }}</span>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="text-center p-4 text-muted">
+              <i class="fas fa-gas-pump fa-3x mb-3 text-muted"></i>
+              <p>No fuel entries recorded for this store yet.</p>
+              <a href="{% url 'generators:fuel_entry_create' %}?store={{ store.id }}" class="btn btn-sm btn-success">
+                Add Fuel Entry
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Usage -->
+    <div class="col-lg-6 mb-4">
+      <div class="card shadow">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+          <h6 class="m-0 font-weight-bold text-info">
+            <i class="fas fa-clock me-2"></i>Recent Generator Usage
+          </h6>
+          <a href="{% url 'generators:usage_tracking_list' %}?store={{ store.id }}" class="btn btn-sm btn-info">
+            View All
+          </a>
+        </div>
+        <div class="card-body">
+          {% if generators %}
+            {% with recent_usage=generators.0.usage_logs.all|slice:":5" %}
+              {% if recent_usage %}
+                {% for usage in recent_usage %}
+                  <div class="usage-item">
+                    <div class="d-flex justify-content-between">
+                      <div>
+                        <strong>{{ usage.generator.make_and_model }}</strong>
+                        <div class="small text-muted">{{ usage.date }}</div>
+                      </div>
+                      <div class="text-end">
+                        <div class="fw-bold">{{ usage.total_hours_run }} hrs</div>
+                        <div class="small text-info">{{ usage.start_time }} - {{ usage.end_time }}</div>
+                      </div>
+                    </div>
+                    <div class="small mt-1">
+                      <span class="badge bg-light text-dark">{{ usage.reason_for_use }}</span>
+                    </div>
+                  </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-center p-4 text-muted">
+                  <i class="fas fa-clock fa-3x mb-3 text-muted"></i>
+                  <p>No usage records for generators at this store yet.</p>
+                  <a href="{% url 'generators:usage_tracking_create' %}?store={{ store.id }}" class="btn btn-sm btn-info">
+                    Log Usage
+                  </a>
+                </div>
+              {% endif %}
+            {% endwith %}
+          {% else %}
+            <div class="text-center p-4 text-muted">
+              <i class="fas fa-dharmachakra fa-3x mb-3 text-muted"></i>
+              <p>Add generators to this store to track their usage.</p>
+              <a href="{% url 'generators:generator_create' %}?store={{ store.id }}" class="btn btn-sm btn-primary">
+                Add Generator
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    tooltipTriggerList.map(function(tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+  });
+</script>
+{% endblock %}

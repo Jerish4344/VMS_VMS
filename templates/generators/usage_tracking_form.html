@@ -1,0 +1,425 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  {% if action == 'Create' %}Log Generator Usage{% else %}Edit Usage Record{% endif %} | Generator Management
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .form-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    border-radius: 10px 10px 0 0;
+    padding: 15px 20px;
+  }
+  
+  .form-body {
+    padding: 20px;
+  }
+  
+  .form-footer {
+    background-color: #f8f9fc;
+    border-top: 1px solid #e3e6f0;
+    border-radius: 0 0 10px 10px;
+    padding: 15px 20px;
+  }
+  
+  .required-field::after {
+    content: "*";
+    color: #e74a3b;
+    margin-left: 4px;
+  }
+  
+  .form-control:focus, .form-select:focus {
+    border-color: #bac8f3;
+    box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
+  }
+  
+  .help-text {
+    font-size: 0.85rem;
+    color: #858796;
+    margin-top: 4px;
+  }
+  
+  .btn-action {
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-weight: 500;
+  }
+  
+  .btn-cancel {
+    background-color: #f8f9fc;
+    border-color: #d1d3e2;
+    color: #6e707e;
+  }
+  
+  .btn-cancel:hover {
+    background-color: #eaecf4;
+    border-color: #d1d3e2;
+    color: #6e707e;
+  }
+  
+  .total-hours-preview {
+    background-color: #f8f9fc;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 20px;
+    border-left: 4px solid #4e73df;
+  }
+  
+  .total-hours-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #4e73df;
+  }
+  
+  .store-selector {
+    margin-bottom: 15px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'generators:dashboard' %}">Generator Management</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'generators:usage_tracking_list' %}">Usage Tracking</a></li>
+      <li class="breadcrumb-item active" aria-current="page">
+        {% if action == 'Create' %}Log New Usage{% else %}Edit Usage Record{% endif %}
+      </li>
+    </ol>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">
+        {% if action == 'Create' %}Log Generator Usage{% else %}Edit Usage Record{% endif %}
+      </h1>
+      <p class="mb-0 text-muted">
+        {% if action == 'Create' %}
+          Record when and how long a generator was used
+        {% else %}
+          Update details for generator usage on {{ form.instance.date }}
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="card shadow form-card mb-4">
+    <div class="form-header">
+      <h5 class="m-0 font-weight-bold text-primary">
+        <i class="fas fa-clock me-2"></i>
+        {% if action == 'Create' %}Usage Details{% else %}Edit Usage Details{% endif %}
+      </h5>
+    </div>
+    
+    <div class="form-body">
+      <form method="post" novalidate id="usageForm">
+        {% csrf_token %}
+        
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for error in form.non_field_errors %}
+              {{ error }}
+            {% endfor %}
+          </div>
+        {% endif %}
+        
+        {% if not object %}
+        <div class="store-selector">
+          <label for="store_selector" class="form-label">Filter by Store</label>
+          <select id="store_selector" class="form-select">
+            <option value="">All Stores</option>
+            {% for store in stores %}
+              <option value="{{ store.id }}">{{ store.name }} ({{ store.location }})</option>
+            {% endfor %}
+          </select>
+          <div class="help-text">Select a store to filter available generators</div>
+        </div>
+        {% endif %}
+        
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label for="{{ form.generator.id_for_label }}" class="form-label required-field">Generator</label>
+            {{ form.generator }}
+            {% if form.generator.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.generator.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.generator.help_text %}
+              <div class="help-text">{{ form.generator.help_text }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="col-md-6">
+            <label for="{{ form.date.id_for_label }}" class="form-label required-field">Date</label>
+            {{ form.date }}
+            {% if form.date.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.date.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.date.help_text %}
+              <div class="help-text">{{ form.date.help_text }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label for="{{ form.start_time.id_for_label }}" class="form-label required-field">Start Time</label>
+            {{ form.start_time }}
+            {% if form.start_time.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.start_time.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.start_time.help_text %}
+              <div class="help-text">{{ form.start_time.help_text }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="col-md-6">
+            <label for="{{ form.end_time.id_for_label }}" class="form-label required-field">End Time</label>
+            {{ form.end_time }}
+            {% if form.end_time.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.end_time.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.end_time.help_text %}
+              <div class="help-text">{{ form.end_time.help_text }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="row mb-3">
+          <div class="col-12">
+            <label for="{{ form.reason_for_use.id_for_label }}" class="form-label required-field">Reason for Use</label>
+            {{ form.reason_for_use }}
+            {% if form.reason_for_use.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.reason_for_use.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.reason_for_use.help_text %}
+              <div class="help-text">{{ form.reason_for_use.help_text }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="row mb-3">
+          <div class="col-12">
+            <label for="{{ form.observations.id_for_label }}" class="form-label">Observations / Comments</label>
+            {{ form.observations }}
+            {% if form.observations.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.observations.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.observations.help_text %}
+              <div class="help-text">{{ form.observations.help_text }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="total-hours-preview">
+          <div class="row">
+            <div class="col-md-6">
+              <h6>Total Hours Run:</h6>
+              <div class="total-hours-value" id="totalHoursDisplay">
+                {% if form.instance.total_hours_run %}
+                  {{ form.instance.total_hours_run }} hours
+                {% else %}
+                  -- hours
+                {% endif %}
+              </div>
+              <div class="help-text">
+                <i class="fas fa-info-circle me-1"></i>
+                Total hours will be calculated automatically based on start and end times
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="alert alert-info mb-0">
+                <i class="fas fa-lightbulb me-2"></i>
+                <strong>Tip:</strong> For overnight usage, enter the end time on the next day. The system will calculate the correct hours.
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-footer d-flex justify-content-between">
+          <a href="{% url 'generators:usage_tracking_list' %}" class="btn btn-cancel btn-action">
+            <i class="fas fa-times me-2"></i>Cancel
+          </a>
+          <button type="submit" class="btn btn-primary btn-action">
+            {% if action == 'Create' %}
+              <i class="fas fa-plus-circle me-2"></i>Log Usage
+            {% else %}
+              <i class="fas fa-save me-2"></i>Update Usage
+            {% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add Bootstrap classes to form elements
+    const formControls = document.querySelectorAll('input, select, textarea');
+    formControls.forEach(element => {
+      if (!element.classList.contains('form-check-input')) {
+        if (element.tagName.toLowerCase() === 'select') {
+          element.classList.add('form-select');
+        } else if (element.tagName.toLowerCase() === 'textarea') {
+          element.classList.add('form-control');
+          element.rows = 3;
+        } else {
+          element.classList.add('form-control');
+        }
+      }
+    });
+    
+    // Focus on first field
+    const firstInput = document.querySelector('form select:first-of-type, form input:not([type=hidden]):first-of-type');
+    if (firstInput) {
+      firstInput.focus();
+    }
+    
+    // Pre-select generator if provided in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const generatorId = urlParams.get('generator');
+    if (generatorId) {
+      const generatorSelect = document.getElementById('id_generator');
+      if (generatorSelect) {
+        generatorSelect.value = generatorId;
+      }
+    }
+    
+    // Store filter handling
+    const storeSelector = document.getElementById('store_selector');
+    const generatorSelect = document.getElementById('id_generator');
+    
+    if (storeSelector && generatorSelect) {
+      // Pre-select store if provided in URL
+      const storeId = urlParams.get('store');
+      if (storeId) {
+        storeSelector.value = storeId;
+        filterGenerators(storeId);
+      }
+      
+      storeSelector.addEventListener('change', function() {
+        const selectedStoreId = this.value;
+        filterGenerators(selectedStoreId);
+      });
+      
+      function filterGenerators(storeId) {
+        // Save current selection
+        const currentSelection = generatorSelect.value;
+        
+        // Get all options
+        const options = Array.from(generatorSelect.options);
+        
+        if (!storeId) {
+          // Show all generators
+          options.forEach(option => {
+            option.style.display = '';
+          });
+        } else {
+          // Filter generators by store
+          fetch(`/generators/api/generators-by-store/${storeId}/`)
+            .then(response => response.json())
+            .then(data => {
+              // Clear existing options except the first empty one
+              while (generatorSelect.options.length > 1) {
+                generatorSelect.remove(1);
+              }
+              
+              // Add filtered options
+              data.forEach(generator => {
+                const option = document.createElement('option');
+                option.value = generator.id;
+                option.textContent = generator.make_and_model;
+                generatorSelect.appendChild(option);
+              });
+              
+              // Try to restore previous selection if it exists in new options
+              if (currentSelection) {
+                const exists = Array.from(generatorSelect.options).some(opt => opt.value === currentSelection);
+                if (exists) {
+                  generatorSelect.value = currentSelection;
+                }
+              }
+            });
+        }
+      }
+    }
+    
+    // Calculate total hours when start or end time changes
+    const startTimeInput = document.getElementById('id_start_time');
+    const endTimeInput = document.getElementById('id_end_time');
+    const dateInput = document.getElementById('id_date');
+    const totalHoursDisplay = document.getElementById('totalHoursDisplay');
+    
+    function calculateTotalHours() {
+      if (startTimeInput.value && endTimeInput.value && dateInput.value) {
+        const date = new Date(dateInput.value);
+        
+        // Parse start time
+        const [startHours, startMinutes] = startTimeInput.value.split(':').map(Number);
+        const startDate = new Date(date);
+        startDate.setHours(startHours, startMinutes, 0);
+        
+        // Parse end time
+        const [endHours, endMinutes] = endTimeInput.value.split(':').map(Number);
+        const endDate = new Date(date);
+        endDate.setHours(endHours, endMinutes, 0);
+        
+        // Handle overnight case
+        if (endDate < startDate) {
+          endDate.setDate(endDate.getDate() + 1);
+        }
+        
+        // Calculate difference in hours
+        const diffMs = endDate - startDate;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        
+        // Update display
+        totalHoursDisplay.textContent = diffHours.toFixed(2) + ' hours';
+      }
+    }
+    
+    if (startTimeInput && endTimeInput && dateInput && totalHoursDisplay) {
+      startTimeInput.addEventListener('change', calculateTotalHours);
+      endTimeInput.addEventListener('change', calculateTotalHours);
+      dateInput.addEventListener('change', calculateTotalHours);
+    }
+  });
+</script>
+{% endblock %}

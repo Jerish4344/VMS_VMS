@@ -26,6 +26,9 @@ urlpatterns = [
     
     # Fuel Management
     path('fuel/', include('fuel.urls')),
+
+    # Generator Management
+    path('generators/', include('generators.urls')),
     
     # Document Management
     path('documents/', include('documents.urls')),

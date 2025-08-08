@@ -39,8 +39,8 @@ class DriverApprovalMiddleware(MiddlewareMixin):
         if request.user.has_approval_permissions():
             return None
         
-        # For employees with vehicle access (user_type='driver')
-        if request.user.user_type == 'driver':
+        # For employees with vehicle access (user_type='driver') and generator users
+        if request.user.user_type in ['driver', 'generator_user']:
             # Check if user can access the system
             if not request.user.can_access_system():
                 logger.info(f"Blocking access for unapproved user: {request.user.username} to {current_path}")
@@ -61,6 +61,25 @@ class DriverApprovalMiddleware(MiddlewareMixin):
                 else:
                     # Fallback to pending approval
                     return redirect('pending_approval')
+        
+        # Additional check for generator users - restrict to generator module only
+        if request.user.user_type == 'generator_user':
+            # Define allowed paths for generator users
+            generator_allowed_paths = [
+                '/dashboard/',
+                '/generators/',
+                '/accounts/profile/',
+                '/accounts/change-password/',
+                '/accounts/notifications/',
+            ]
+            
+            # Check if current path is allowed for generator users
+            generator_path_allowed = any(current_path.startswith(path) for path in generator_allowed_paths)
+            
+            if not generator_path_allowed:
+                logger.info(f"Blocking generator user {request.user.username} from accessing {current_path}")
+                messages.error(request, "You don't have permission to access this section. You can only access the Generator module.")
+                return redirect('generators:generator_list')
         
         # Allow access for all other cases
         return None

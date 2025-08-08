@@ -37,6 +37,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             self.add_vehicle_manager_data(context)
         elif user_type == 'driver':
             self.add_driver_data(context)
+        elif user_type == 'generator_user':
+            self.add_generator_user_data(context)
             
         return context
     
@@ -76,24 +78,29 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         # Vehicles by type
         context['vehicle_types'] = Vehicle.objects.values('vehicle_type__name').annotate(count=Count('id'))
         
-        # Ongoing trips grouped by vehicle type
-        ongoing_trips = Trip.objects.filter(status='ongoing').select_related('vehicle', 'driver', 'vehicle__vehicle_type')
+        # Ongoing trips
+        context['ongoing_trips'] = Trip.objects.filter(status='ongoing').select_related('vehicle', 'driver')
         
-        # Group ongoing trips by vehicle type
+        # Group ongoing trips by vehicle type for the grouped view
+        ongoing_trips = Trip.objects.filter(status='ongoing').select_related('vehicle', 'driver', 'vehicle__vehicle_type')
         ongoing_trips_by_type = {}
+        ongoing_trips_summary = {}
+        
         for trip in ongoing_trips:
             vehicle_type = trip.vehicle.vehicle_type.name
+            
+            # For grouped view
             if vehicle_type not in ongoing_trips_by_type:
                 ongoing_trips_by_type[vehicle_type] = []
             ongoing_trips_by_type[vehicle_type].append(trip)
+            
+            # For summary cards
+            if vehicle_type not in ongoing_trips_summary:
+                ongoing_trips_summary[vehicle_type] = 0
+            ongoing_trips_summary[vehicle_type] += 1
         
-        context['ongoing_trips'] = ongoing_trips  # Keep original for backward compatibility
         context['ongoing_trips_by_type'] = ongoing_trips_by_type
-        
-        # Add summary counts by vehicle type
-        context['ongoing_trips_summary'] = {}
-        for vehicle_type, trips in ongoing_trips_by_type.items():
-            context['ongoing_trips_summary'][vehicle_type] = len(trips)
+        context['ongoing_trips_summary'] = ongoing_trips_summary
         
         # Recent accidents
         context['recent_accidents'] = Accident.objects.all().order_by('-date_time')[:5]
@@ -363,22 +370,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     def add_driver_data(self, context):
         driver = self.request.user
         
-        # Driver's ongoing trips with vehicle type information
-        ongoing_trips = Trip.objects.filter(
+        # Driver's ongoing trips
+        context['ongoing_trips'] = Trip.objects.filter(
             driver=driver,
             status='ongoing'
-        ).select_related('vehicle', 'vehicle__vehicle_type')
-        
-        # Group by vehicle type for driver too
-        ongoing_trips_by_type = {}
-        for trip in ongoing_trips:
-            vehicle_type = trip.vehicle.vehicle_type.name
-            if vehicle_type not in ongoing_trips_by_type:
-                ongoing_trips_by_type[vehicle_type] = []
-            ongoing_trips_by_type[vehicle_type].append(trip)
-        
-        context['ongoing_trips'] = ongoing_trips
-        context['ongoing_trips_by_type'] = ongoing_trips_by_type
+        ).select_related('vehicle')
         
         # Driver's recent trips
         recent_trips = Trip.objects.filter(
@@ -723,7 +719,137 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 'month': month_name_str,
                 'distance': int(distance)  # Convert to integer
             })
-
+    
+    def add_generator_user_data(self, context):
+        """Add generator-specific dashboard data for generator users"""
+        from generators.models import Store, Generator, UsageTracking, FuelEntry, MaintenanceLog
+        
+        # Get user's accessible stores
+        user_stores = self.request.user.get_accessible_stores()
+        
+        # Store statistics
+        context['total_stores'] = user_stores.count()
+        context['total_generators'] = Generator.objects.filter(store__in=user_stores).count()
+        
+        # Recent activities in user's stores
+        context['recent_usage'] = UsageTracking.objects.filter(
+            generator__store__in=user_stores
+        ).select_related('generator', 'generator__store').order_by('-date')[:5]
+        
+        context['recent_fuel_entries'] = FuelEntry.objects.filter(
+            store__in=user_stores
+        ).select_related('store', 'generator').order_by('-date_of_filling')[:5]
+        
+        context['recent_maintenance'] = MaintenanceLog.objects.filter(
+            generator__store__in=user_stores
+        ).select_related('generator', 'generator__store').order_by('-date_of_service')[:5]
+        
+        # Monthly fuel consumption for user's stores
+        thirty_days_ago = timezone.now().date() - timedelta(days=30)
+        monthly_fuel = FuelEntry.objects.filter(
+            store__in=user_stores,
+            date_of_filling__gte=thirty_days_ago
+        ).aggregate(
+            total_litres=Sum('litres_filled'),
+            total_cost=Sum('total_fuel_cost')
+        )
+        
+        context['monthly_fuel_litres'] = monthly_fuel['total_litres'] or 0
+        context['monthly_fuel_cost'] = monthly_fuel['total_cost'] or 0
+        
+        # Generator status distribution for user's stores
+        generator_statuses = Generator.objects.filter(store__in=user_stores).values(
+            'status'
+        ).annotate(count=Count('id'))
+        
+        context['generator_status_data'] = list(generator_statuses)
+        
+        # Usage hours in the last 30 days for user's stores
+        usage_hours = UsageTracking.objects.filter(
+            generator__store__in=user_stores,
+            date__gte=thirty_days_ago
+        ).aggregate(total_hours=Sum('total_hours_run'))
+        
+        context['monthly_usage_hours'] = usage_hours['total_hours'] or 0
+        
+        # Monthly fuel trends for charts (last 6 months)
+        six_months_ago = timezone.now().date() - timedelta(days=180)
+        monthly_fuel_trends = FuelEntry.objects.filter(
+            store__in=user_stores,
+            date_of_filling__gte=six_months_ago
+        ).annotate(
+            month=Extract('date_of_filling', 'month'),
+            year=Extract('date_of_filling', 'year')
+        ).values('month', 'year').annotate(
+            total_litres=Sum('litres_filled'),
+            total_cost=Sum('total_fuel_cost')
+        ).order_by('year', 'month')
+        
+        # Format monthly fuel data for charts
+        context['monthly_fuel_chart'] = []
+        for item in monthly_fuel_trends:
+            month_num = item['month']
+            month_name_str = month_name[month_num]
+            context['monthly_fuel_chart'].append({
+                'month': month_name_str,
+                'litres': float(item['total_litres'] or 0),
+                'cost': float(item['total_cost'] or 0)
+            })
+        
+        # Weekly usage trends for charts (last 12 weeks)
+        twelve_weeks_ago = timezone.now().date() - timedelta(weeks=12)
+        weekly_usage = []
+        
+        for i in range(12):
+            week_start = twelve_weeks_ago + timedelta(weeks=i)
+            week_end = week_start + timedelta(days=6)
+            
+            week_hours = UsageTracking.objects.filter(
+                generator__store__in=user_stores,
+                date__range=[week_start, week_end]
+            ).aggregate(total_hours=Sum('total_hours_run'))['total_hours'] or 0
+            
+            weekly_usage.append({
+                'week': f"Week {i+1}",
+                'hours': float(week_hours)
+            })
+        
+        context['weekly_usage_chart'] = weekly_usage
+        
+        # Generator efficiency (usage hours per fuel consumed)
+        generator_efficiency = []
+        for generator in Generator.objects.filter(store__in=user_stores):
+            # Get usage hours for this generator in the last 30 days
+            generator_hours = UsageTracking.objects.filter(
+                generator=generator,
+                date__gte=thirty_days_ago
+            ).aggregate(total_hours=Sum('total_hours_run'))['total_hours'] or 0
+            
+            # Get fuel consumption for this generator in the last 30 days
+            generator_fuel = FuelEntry.objects.filter(
+                generator=generator,
+                date_of_filling__gte=thirty_days_ago
+            ).aggregate(total_litres=Sum('litres_filled'))['total_litres'] or 0
+            
+            if generator_fuel > 0:
+                efficiency = generator_hours / generator_fuel
+                generator_efficiency.append({
+                    'generator': generator.make_and_model,
+                    'store': generator.store.name,
+                    'efficiency': round(efficiency, 2),
+                    'hours': float(generator_hours),
+                    'fuel': float(generator_fuel)
+                })
+        
+        context['generator_efficiency'] = sorted(generator_efficiency, 
+                                               key=lambda x: x['efficiency'], 
+                                               reverse=True)[:10]
+        
+        # Upcoming maintenance for user's generators
+        context['upcoming_generator_maintenance'] = MaintenanceLog.objects.filter(
+            generator__store__in=user_stores,
+            next_scheduled_maintenance__gte=timezone.now().date()
+        ).select_related('generator', 'generator__store').order_by('next_scheduled_maintenance')[:5]
 
 @require_http_methods(["GET"])
 def ongoing_trips_by_type_api(request):

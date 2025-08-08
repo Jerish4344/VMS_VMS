@@ -14,6 +14,7 @@ class CustomUser(AbstractUser):
         ('manager', 'Manager'),
         ('vehicle_manager', 'Vehicle Manager'),
         ('driver', 'Employee (Vehicle Access)'),  # Updated label
+        ('generator_user', 'Generator User'),  # New role for generator-only access
     )
     
     APPROVAL_STATUS = (
@@ -65,6 +66,20 @@ class CustomUser(AbstractUser):
     hr_designation = models.CharField(max_length=100, blank=True, help_text="Designation from HR")
     hr_employee_type = models.CharField(max_length=50, blank=True, help_text="Employee type from HR")
     
+    # Generator user specific fields
+    assigned_stores = models.ManyToManyField(
+        'generators.Store',
+        blank=True,
+        related_name='assigned_users',
+        help_text="Stores this user has access to (for generator users)"
+    )
+    
+    # Flag for users with both vehicle and generator access
+    has_full_access = models.BooleanField(
+        default=False,
+        help_text="True if user has both vehicle and generator access"
+    )
+    
     class Meta:
         ordering = ['username']
         verbose_name = 'User'
@@ -82,7 +97,7 @@ class CustomUser(AbstractUser):
     
     def can_access_system(self):
         """Check if user can access the system"""
-        if self.user_type == 'driver':  # This includes all employees with vehicle access
+        if self.user_type in ['driver', 'generator_user']:  # Include generator users
             return self.is_active and self.approval_status == 'approved'
         else:
             # Admins, managers, vehicle managers use normal Django auth
@@ -90,19 +105,32 @@ class CustomUser(AbstractUser):
     
     def is_pending_approval(self):
         """Check if employee is pending approval"""
-        return self.user_type == 'driver' and self.approval_status == 'pending'
+        return self.user_type in ['driver', 'generator_user'] and self.approval_status == 'pending'
     
     def needs_approval(self):
         """Check if user needs approval for system access"""
-        return self.user_type == 'driver'
+        return self.user_type in ['driver', 'generator_user']
     
-    def approve_access(self, approved_by_user, save=True):
-        """Approve employee access"""
+    def approve_access(self, approved_by_user, access_type='driver', save=True):
+        """Approve employee access with specified access type"""
         if self.needs_approval():
             self.approval_status = 'approved'
             self.approved_by = approved_by_user
             self.approved_at = timezone.now()
             self.rejection_reason = ''
+            
+            # Set the user type and access flags based on access type granted
+            if access_type == 'driver':
+                self.user_type = 'driver'
+                self.has_full_access = False
+            elif access_type == 'generator_user':
+                self.user_type = 'generator_user'
+                self.has_full_access = False
+            elif access_type == 'both':
+                # For both access, set as driver with full access flag
+                self.user_type = 'driver'
+                self.has_full_access = True
+            
             if save:
                 self.save()
     
@@ -138,6 +166,36 @@ class CustomUser(AbstractUser):
     
     def is_vehicle_manager(self):
         return self.user_type == 'vehicle_manager'
+    
+    def is_generator_user(self):
+        """Check if user is a generator user or has generator access"""
+        return self.user_type == 'generator_user' or self.has_full_access
+    
+    def has_vehicle_access(self):
+        """Check if user has vehicle system access"""
+        return self.user_type == 'driver' or self.has_full_access
+    
+    def has_generator_access(self):
+        """Check if user has generator system access"""
+        return self.user_type == 'generator_user' or self.has_full_access
+    
+    def has_store_access(self, store):
+        """Check if generator user has access to a specific store"""
+        if not self.has_generator_access():
+            return False
+        if self.has_full_access and self.user_type == 'driver':
+            return True  # Full access users can access all stores
+        return self.assigned_stores.filter(id=store.id).exists()
+    
+    def get_accessible_stores(self):
+        """Get list of stores this user can access"""
+        if not self.has_generator_access():
+            from generators.models import Store
+            return Store.objects.none()
+        if self.has_full_access and self.user_type == 'driver':
+            from generators.models import Store
+            return Store.objects.all()
+        return self.assigned_stores.all()
     
     def has_management_access(self):
         return self.user_type in ['admin', 'manager', 'vehicle_manager']

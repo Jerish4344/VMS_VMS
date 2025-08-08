@@ -1,0 +1,459 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Store Access Management{% endblock %}
+
+{% block extra_css %}
+<style>
+  .access-card {
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+  }
+  
+  .selection-panel {
+    background-color: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  
+  .user-item, .store-item {
+    padding: 0.75rem;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+    background-color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .user-item:hover, .store-item:hover {
+    background-color: #e9ecef;
+    transform: translateY(-1px);
+  }
+  
+  .user-item.selected, .store-item.selected {
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+  }
+  
+  .user-avatar {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    background-color: #4e73df;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  
+  .store-icon {
+    width: 35px;
+    height: 35px;
+    border-radius: 0.25rem;
+    background-color: #1cc88a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.2rem;
+  }
+  
+  .selection-actions {
+    background-color: #f8f9fc;
+    padding: 1.5rem;
+    border-top: 1px solid #e3e6f0;
+    border-bottom-left-radius: 0.35rem;
+    border-bottom-right-radius: 0.35rem;
+  }
+  
+  .current-access {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .access-summary {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .helper-text {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Heading -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Bulk Store Access Management</h1>
+    <a href="{% url 'generator_user_management' %}" class="btn btn-secondary">
+      <i class="fas fa-arrow-left"></i> Back to Generator Users
+    </a>
+  </div>
+
+  <!-- Helper Text -->
+  <div class="helper-text">
+    <h6><i class="fas fa-info-circle"></i> How to use this tool:</h6>
+    <ul class="mb-0">
+      <li>Select one or more generator users from the left panel</li>
+      <li>Select one or more stores from the right panel</li>
+      <li>Choose to either grant or remove access</li>
+      <li>Changes will be applied to all selected users for all selected stores</li>
+    </ul>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="row mb-4">
+    <div class="col-lg-3 col-md-6">
+      <div class="access-summary">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0">{{ generator_users|length }}</h4>
+            <p class="mb-0">Generator Users</p>
+          </div>
+          <i class="fas fa-users fa-2x opacity-75"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="access-summary" style="background: linear-gradient(45deg, #11998e, #38ef7d);">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0">{{ all_stores|length }}</h4>
+            <p class="mb-0">Total Stores</p>
+          </div>
+          <i class="fas fa-store fa-2x opacity-75"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="access-summary" style="background: linear-gradient(45deg, #FC466B, #3F5EFB);">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0" id="selectedUsers">0</h4>
+            <p class="mb-0">Selected Users</p>
+          </div>
+          <i class="fas fa-user-check fa-2x opacity-75"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="access-summary" style="background: linear-gradient(45deg, #FFAFBD, #ffc3a0);">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0" id="selectedStores">0</h4>
+            <p class="mb-0">Selected Stores</p>
+          </div>
+          <i class="fas fa-store-alt fa-2x opacity-75"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form method="post" id="bulkAccessForm">
+    {% csrf_token %}
+    
+    <div class="row">
+      <!-- Users Selection Panel -->
+      <div class="col-md-6">
+        <div class="card access-card">
+          <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+              <i class="fas fa-users"></i> Select Generator Users
+            </h6>
+            <div class="mt-2">
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllUsers()">Select All</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearUserSelection()">Clear All</button>
+            </div>
+          </div>
+          <div class="selection-panel">
+            {% for user in generator_users %}
+            <div class="user-item" data-user-id="{{ user.id }}" onclick="toggleUserSelection(this)">
+              <input type="checkbox" name="selected_users" value="{{ user.id }}" style="display: none;">
+              <div class="d-flex align-items-center">
+                <div class="user-avatar me-3">
+                  {{ user.first_name|first|default:user.username|first|upper }}
+                </div>
+                <div class="flex-grow-1">
+                  <div class="fw-bold">{{ user.get_full_name }}</div>
+                  <div class="text-muted small">@{{ user.username }}</div>
+                  <div class="text-info small">{{ user.assigned_stores.count }} stores assigned</div>
+                </div>
+                <div>
+                  <span class="badge bg-{% if user.approval_status == 'approved' %}success{% elif user.approval_status == 'pending' %}warning{% else %}danger{% endif %} status-badge">
+                    {{ user.get_approval_status_display }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {% empty %}
+            <div class="text-center text-muted py-3">
+              <i class="fas fa-users fa-2x mb-2"></i>
+              <p>No generator users found</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Stores Selection Panel -->
+      <div class="col-md-6">
+        <div class="card access-card">
+          <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+              <i class="fas fa-store"></i> Select Stores
+            </h6>
+            <div class="mt-2">
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllStores()">Select All</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearStoreSelection()">Clear All</button>
+            </div>
+          </div>
+          <div class="selection-panel">
+            {% for store in all_stores %}
+            <div class="store-item" data-store-id="{{ store.id }}" onclick="toggleStoreSelection(this)">
+              <input type="checkbox" name="selected_stores" value="{{ store.id }}" style="display: none;">
+              <div class="d-flex align-items-center">
+                <div class="store-icon me-3">
+                  <i class="fas fa-store"></i>
+                </div>
+                <div class="flex-grow-1">
+                  <div class="fw-bold">{{ store.name }}</div>
+                  <div class="text-muted small">{{ store.location }}</div>
+                  {% if store.manager_name %}
+                  <div class="text-info small">Manager: {{ store.manager_name }}</div>
+                  {% endif %}
+                </div>
+                <div>
+                  <span class="badge bg-info status-badge">
+                    {{ store.assigned_users.count }} users
+                  </span>
+                </div>
+              </div>
+            </div>
+            {% empty %}
+            <div class="text-center text-muted py-3">
+              <i class="fas fa-store fa-2x mb-2"></i>
+              <p>No stores found</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Panel -->
+    <div class="card access-card mt-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="fas fa-cogs"></i> Bulk Actions
+        </h6>
+      </div>
+      <div class="selection-actions">
+        <div class="row">
+          <div class="col-md-6">
+            <h6 class="text-secondary">Action Type</h6>
+            <div class="mb-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="action" id="bulk_assign" value="bulk_assign" checked>
+                <label class="form-check-label" for="bulk_assign">
+                  <i class="fas fa-plus-circle text-success"></i> Grant Store Access
+                </label>
+                <div class="text-muted small">Add selected stores to selected users</div>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="action" id="bulk_remove" value="bulk_remove">
+                <label class="form-check-label" for="bulk_remove">
+                  <i class="fas fa-minus-circle text-danger"></i> Remove Store Access
+                </label>
+                <div class="text-muted small">Remove selected stores from selected users</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-secondary">Selected Summary</h6>
+            <div class="current-access">
+              <div class="row">
+                <div class="col-6">
+                  <strong id="selectedUsersText">0 Users Selected</strong>
+                  <div class="text-muted small" id="selectedUsersList">None selected</div>
+                </div>
+                <div class="col-6">
+                  <strong id="selectedStoresText">0 Stores Selected</strong>
+                  <div class="text-muted small" id="selectedStoresList">None selected</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary" id="submitButton" disabled>
+                <i class="fas fa-save"></i> Apply Changes
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="clearAllSelections()">
+                <i class="fas fa-times"></i> Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+let selectedUsers = new Set();
+let selectedStores = new Set();
+
+function toggleUserSelection(element) {
+  const userId = element.dataset.userId;
+  const checkbox = element.querySelector('input[type="checkbox"]');
+  
+  if (selectedUsers.has(userId)) {
+    selectedUsers.delete(userId);
+    element.classList.remove('selected');
+    checkbox.checked = false;
+  } else {
+    selectedUsers.add(userId);
+    element.classList.add('selected');
+    checkbox.checked = true;
+  }
+  
+  updateSelectionSummary();
+}
+
+function toggleStoreSelection(element) {
+  const storeId = element.dataset.storeId;
+  const checkbox = element.querySelector('input[type="checkbox"]');
+  
+  if (selectedStores.has(storeId)) {
+    selectedStores.delete(storeId);
+    element.classList.remove('selected');
+    checkbox.checked = false;
+  } else {
+    selectedStores.add(storeId);
+    element.classList.add('selected');
+    checkbox.checked = true;
+  }
+  
+  updateSelectionSummary();
+}
+
+function selectAllUsers() {
+  document.querySelectorAll('.user-item').forEach(element => {
+    const userId = element.dataset.userId;
+    const checkbox = element.querySelector('input[type="checkbox"]');
+    selectedUsers.add(userId);
+    element.classList.add('selected');
+    checkbox.checked = true;
+  });
+  updateSelectionSummary();
+}
+
+function clearUserSelection() {
+  document.querySelectorAll('.user-item').forEach(element => {
+    const userId = element.dataset.userId;
+    const checkbox = element.querySelector('input[type="checkbox"]');
+    selectedUsers.delete(userId);
+    element.classList.remove('selected');
+    checkbox.checked = false;
+  });
+  updateSelectionSummary();
+}
+
+function selectAllStores() {
+  document.querySelectorAll('.store-item').forEach(element => {
+    const storeId = element.dataset.storeId;
+    const checkbox = element.querySelector('input[type="checkbox"]');
+    selectedStores.add(storeId);
+    element.classList.add('selected');
+    checkbox.checked = true;
+  });
+  updateSelectionSummary();
+}
+
+function clearStoreSelection() {
+  document.querySelectorAll('.store-item').forEach(element => {
+    const storeId = element.dataset.storeId;
+    const checkbox = element.querySelector('input[type="checkbox"]');
+    selectedStores.delete(storeId);
+    element.classList.remove('selected');
+    checkbox.checked = false;
+  });
+  updateSelectionSummary();
+}
+
+function clearAllSelections() {
+  clearUserSelection();
+  clearStoreSelection();
+}
+
+function updateSelectionSummary() {
+  // Update counters
+  document.getElementById('selectedUsers').textContent = selectedUsers.size;
+  document.getElementById('selectedStores').textContent = selectedStores.size;
+  
+  // Update text summaries
+  document.getElementById('selectedUsersText').textContent = `${selectedUsers.size} Users Selected`;
+  document.getElementById('selectedStoresText').textContent = `${selectedStores.size} Stores Selected`;
+  
+  // Update lists
+  const selectedUserNames = Array.from(selectedUsers).map(userId => {
+    const element = document.querySelector(`[data-user-id="${userId}"]`);
+    return element ? element.querySelector('.fw-bold').textContent : '';
+  }).filter(name => name).slice(0, 3);
+  
+  const selectedStoreNames = Array.from(selectedStores).map(storeId => {
+    const element = document.querySelector(`[data-store-id="${storeId}"]`);
+    return element ? element.querySelector('.fw-bold').textContent : '';
+  }).filter(name => name).slice(0, 3);
+  
+  document.getElementById('selectedUsersList').textContent = selectedUserNames.length > 0 
+    ? selectedUserNames.join(', ') + (selectedUsers.size > 3 ? ` +${selectedUsers.size - 3} more` : '')
+    : 'None selected';
+    
+  document.getElementById('selectedStoresList').textContent = selectedStoreNames.length > 0 
+    ? selectedStoreNames.join(', ') + (selectedStores.size > 3 ? ` +${selectedStores.size - 3} more` : '')
+    : 'None selected';
+  
+  // Enable/disable submit button
+  const submitButton = document.getElementById('submitButton');
+  submitButton.disabled = selectedUsers.size === 0 || selectedStores.size === 0;
+}
+
+// Form submission confirmation
+document.getElementById('bulkAccessForm').addEventListener('submit', function(e) {
+  const action = document.querySelector('input[name="action"]:checked').value;
+  const actionText = action === 'bulk_assign' ? 'grant access to' : 'remove access from';
+  
+  if (!confirm(`Are you sure you want to ${actionText} ${selectedStores.size} store(s) for ${selectedUsers.size} user(s)?`)) {
+    e.preventDefault();
+  }
+});
+
+// Initialize
+updateSelectionSummary();
+</script>
+{% endblock %}

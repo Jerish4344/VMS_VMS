@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Maintenance Log | Generator Management{% endblock %}
+
+{% block extra_css %}
+<style>
+  .delete-card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .delete-header {
+    background-color: #f8d7da;
+    border-bottom: 1px solid #f5c6cb;
+    border-radius: 10px 10px 0 0;
+    padding: 15px 20px;
+  }
+  
+  .delete-body {
+    padding: 20px;
+  }
+  
+  .delete-footer {
+    background-color: #f8f9fc;
+    border-top: 1px solid #e3e6f0;
+    border-radius: 0 0 10px 10px;
+    padding: 15px 20px;
+  }
+  
+  .maintenance-info {
+    background-color: #f8f9fc;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+  
+  .warning-icon {
+    font-size: 3rem;
+    color: #e74a3b;
+    margin-bottom: 1rem;
+  }
+  
+  .btn-danger-soft {
+    background-color: #fdeded;
+    border-color: #f8d7da;
+    color: #e74a3b;
+  }
+  
+  .btn-danger-soft:hover {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #e74a3b;
+  }
+  
+  .cost-badge {
+    background-color: #1cc88a;
+    color: white;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 5px;
+  }
+  
+  .service-badge {
+    background-color: #f6c23e;
+    color: white;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 5px;
+  }
+  
+  .schedule-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .overdue {
+    background-color: #e74a3b;
+    color: white;
+  }
+  
+  .upcoming {
+    background-color: #f6c23e;
+    color: white;
+  }
+  
+  .future {
+    background-color: #1cc88a;
+    color: white;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'generators:dashboard' %}">Generator Management</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'generators:maintenance_log_list' %}">Maintenance Logs</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Delete Maintenance Log</li>
+    </ol>
+  </nav>
+
+  <!-- Delete Card -->
+  <div class="card shadow delete-card mb-4">
+    <div class="delete-header">
+      <h5 class="m-0 font-weight-bold text-danger">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Confirm Maintenance Log Deletion
+      </h5>
+    </div>
+    
+    <div class="delete-body">
+      <div class="text-center mb-4">
+        <i class="fas fa-trash-alt warning-icon"></i>
+        <h4>Are you sure you want to delete this maintenance log?</h4>
+        <p class="text-muted">
+          This action <strong>cannot be undone</strong>. This will permanently delete the maintenance record
+          for <strong>{{ maintenance_log.generator.make_and_model }}</strong> on <strong>{{ maintenance_log.date_of_service }}</strong>.
+        </p>
+      </div>
+      
+      <div class="maintenance-info">
+        <h5>Maintenance Log Details:</h5>
+        <div class="row">
+          <div class="col-md-6">
+            <p><strong>Generator:</strong> {{ maintenance_log.generator.make_and_model }}</p>
+            <p><strong>Store:</strong> {{ maintenance_log.generator.store.name }}</p>
+            <p><strong>Date of Service:</strong> {{ maintenance_log.date_of_service }}</p>
+            <p>
+              <strong>Service Type:</strong> 
+              <span class="service-badge">{{ maintenance_log.service_type }}</span>
+            </p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Service Provider:</strong> {{ maintenance_log.service_provider }}</p>
+            {% if maintenance_log.amount %}
+            <p>
+              <strong>Service Cost:</strong> 
+              <span class="cost-badge">₹{{ maintenance_log.amount|floatformat:2 }}</span>
+            </p>
+            {% endif %}
+            {% if maintenance_log.invoice_number %}
+            <p><strong>Invoice Number:</strong> {{ maintenance_log.invoice_number }}</p>
+            {% endif %}
+            {% if maintenance_log.next_scheduled_maintenance %}
+            <p>
+              <strong>Next Scheduled:</strong> 
+              {{ maintenance_log.next_scheduled_maintenance }}
+              {% now "Y-m-d" as today %}
+              {% if maintenance_log.next_scheduled_maintenance < today %}
+                <span class="badge overdue schedule-badge">Overdue</span>
+              {% elif maintenance_log.next_scheduled_maintenance < today|date:"Y-m-d"|add_days:30 %}
+                <span class="badge upcoming schedule-badge">Soon</span>
+              {% else %}
+                <span class="badge future schedule-badge">Scheduled</span>
+              {% endif %}
+            </p>
+            {% endif %}
+          </div>
+        </div>
+        
+        {% if maintenance_log.notes %}
+        <div class="row mt-2">
+          <div class="col-12">
+            <p><strong>Notes:</strong></p>
+            <div class="alert alert-light">
+              {{ maintenance_log.notes }}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      
+      <div class="alert alert-warning">
+        <i class="fas fa-exclamation-circle me-2"></i>
+        <strong>Warning:</strong> Deleting this maintenance log will also remove any associated scheduled maintenance reminders.
+      </div>
+      
+      <form method="post">
+        {% csrf_token %}
+        <div class="delete-footer d-flex justify-content-between">
+          <a href="{% url 'generators:maintenance_log_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Cancel
+          </a>
+          <button type="submit" class="btn btn-danger">
+            <i class="fas fa-trash me-2"></i>Delete Maintenance Log
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
