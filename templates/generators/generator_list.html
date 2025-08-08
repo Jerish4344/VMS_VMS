@@ -1,0 +1,268 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Generator List | Generator Management{% endblock %}
+
+{% block extra_css %}
+<style>
+  .search-box {
+    background-color: #f8f9fc;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  }
+  
+  .table-responsive {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .table th {
+    background-color: #f8f9fc;
+    border-top: none;
+  }
+  
+  .action-buttons .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .empty-state {
+    padding: 50px 20px;
+    text-align: center;
+    background-color: #f8f9fc;
+    border-radius: 10px;
+  }
+  
+  .empty-icon {
+    font-size: 3rem;
+    color: #d1d3e2;
+    margin-bottom: 1rem;
+  }
+  
+  .fuel-badge {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+  }
+  
+  .capacity-badge {
+    background-color: #4e73df;
+    color: white;
+    font-weight: 600;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">Generator Management</h1>
+      <p class="mb-0 text-muted">View and manage all generators in the system</p>
+    </div>
+    <div>
+      <a href="{% url 'generators:generator_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus-circle me-2"></i>Add New Generator
+      </a>
+    </div>
+  </div>
+
+  <!-- Search Box -->
+  <div class="card shadow mb-4 search-box">
+    <div class="card-body p-3">
+      <form method="get" class="row g-3">
+        <div class="col-md-4">
+          <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" name="search" class="form-control" placeholder="Search by make, model, serial number..." value="{{ search_query }}">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <select name="store" class="form-select">
+            <option value="">All Stores</option>
+            {% for store in stores %}
+              <option value="{{ store.id }}" {% if store_filter == store.id|stringformat:"s" %}selected{% endif %}>{{ store.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <select name="fuel_type" class="form-select">
+            <option value="">All Fuel Types</option>
+            {% for value, label in fuel_types %}
+              <option value="{{ value }}" {% if fuel_type_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100">Filter</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Generators Table -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+      <h6 class="m-0 font-weight-bold text-primary">
+        <i class="fas fa-dharmachakra me-2"></i>Generators
+        {% if generators %}
+          <span class="badge bg-primary ms-2">{{ page_obj.paginator.count }}</span>
+        {% endif %}
+      </h6>
+      {% if generators %}
+        <div class="dropdown no-arrow">
+          <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+          </a>
+          <div class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="dropdownMenuLink">
+            <div class="dropdown-header">Export Options:</div>
+            <a class="dropdown-item" href="?export=csv{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if fuel_type_filter %}&fuel_type={{ fuel_type_filter }}{% endif %}">
+              <i class="fas fa-file-csv fa-sm fa-fw me-2 text-gray-400"></i>CSV
+            </a>
+            <a class="dropdown-item" href="?export=excel{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if fuel_type_filter %}&fuel_type={{ fuel_type_filter }}{% endif %}">
+              <i class="fas fa-file-excel fa-sm fa-fw me-2 text-gray-400"></i>Excel
+            </a>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item" href="?{% if search_query %}search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if fuel_type_filter %}&fuel_type={{ fuel_type_filter }}{% endif %}">
+              <i class="fas fa-sync fa-sm fa-fw me-2 text-gray-400"></i>Refresh
+            </a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% if generators %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Make & Model</th>
+                <th>Store</th>
+                <th>Capacity</th>
+                <th>Fuel Type</th>
+                <th>Serial Number</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for generator in generators %}
+                <tr>
+                  <td>
+                    <a href="{% url 'generators:generator_detail' generator.id %}" class="fw-bold text-primary">
+                      {{ generator.make_and_model }}
+                    </a>
+                  </td>
+                  <td>
+                    <a href="{% url 'generators:store_detail' generator.store.id %}">
+                      {{ generator.store.name }}
+                    </a>
+                  </td>
+                  <td>
+                    <span class="badge capacity-badge">{{ generator.capacity_kva }} kVA</span>
+                  </td>
+                  <td>
+                    {% if generator.fuel_type == 'diesel' %}
+                      <span class="badge bg-secondary fuel-badge">Diesel</span>
+                    {% elif generator.fuel_type == 'petrol' %}
+                      <span class="badge bg-success fuel-badge">Petrol</span>
+                    {% elif generator.fuel_type == 'gas' %}
+                      <span class="badge bg-info fuel-badge">Gas</span>
+                    {% else %}
+                      <span class="badge bg-warning fuel-badge">{{ generator.get_fuel_type_display }}</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ generator.serial_number|default:"--" }}</td>
+                  <td class="text-end action-buttons">
+                    <a href="{% url 'generators:generator_detail' generator.id %}" class="btn btn-sm btn-info" title="View Details">
+                      <i class="fas fa-eye"></i>
+                    </a>
+                    <a href="{% url 'generators:generator_update' generator.id %}" class="btn btn-sm btn-primary" title="Edit">
+                      <i class="fas fa-edit"></i>
+                    </a>
+                    <a href="{% url 'generators:generator_delete' generator.id %}" class="btn btn-sm btn-danger" title="Delete">
+                      <i class="fas fa-trash"></i>
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if is_paginated %}
+          <div class="d-flex justify-content-center mt-4">
+            <nav aria-label="Page navigation">
+              <ul class="pagination">
+                {% if page_obj.has_previous %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if fuel_type_filter %}&fuel_type={{ fuel_type_filter }}{% endif %}" aria-label="First">
+                      <span aria-hidden="true">&laquo;&laquo;</span>
+                    </a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if fuel_type_filter %}&fuel_type={{ fuel_type_filter }}{% endif %}" aria-label="Previous">
+                      <span aria-hidden="true">&laquo;</span>
+                    </a>
+                  </li>
+                {% endif %}
+                
+                {% for num in page_obj.paginator.page_range %}
+                  {% if page_obj.number == num %}
+                    <li class="page-item active"><a class="page-link" href="#">{{ num }}</a></li>
+                  {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if fuel_type_filter %}&fuel_type={{ fuel_type_filter }}{% endif %}">{{ num }}</a>
+                    </li>
+                  {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if fuel_type_filter %}&fuel_type={{ fuel_type_filter }}{% endif %}" aria-label="Next">
+                      <span aria-hidden="true">&raquo;</span>
+                    </a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if fuel_type_filter %}&fuel_type={{ fuel_type_filter }}{% endif %}" aria-label="Last">
+                      <span aria-hidden="true">&raquo;&raquo;</span>
+                    </a>
+                  </li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+        {% endif %}
+        
+      {% else %}
+        <div class="empty-state">
+          <i class="fas fa-dharmachakra empty-icon"></i>
+          <h4>No Generators Found</h4>
+          <p class="text-muted">
+            {% if search_query or store_filter or fuel_type_filter %}
+              No generators match your search criteria. Try adjusting your filters.
+            {% else %}
+              You haven't added any generators yet. Add your first generator to get started.
+            {% endif %}
+          </p>
+          <a href="{% url 'generators:generator_create' %}" class="btn btn-primary mt-3">
+            <i class="fas fa-plus-circle me-2"></i>Add Your First Generator
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add tooltips to action buttons
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    tooltipTriggerList.map(function(tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+  });
+</script>
+{% endblock %}

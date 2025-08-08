@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  {% if action == 'Create' %}Add New Store{% else %}Edit Store{% endif %} | Generator Management
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .form-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    border-radius: 10px 10px 0 0;
+    padding: 15px 20px;
+  }
+  
+  .form-body {
+    padding: 20px;
+  }
+  
+  .form-footer {
+    background-color: #f8f9fc;
+    border-top: 1px solid #e3e6f0;
+    border-radius: 0 0 10px 10px;
+    padding: 15px 20px;
+  }
+  
+  .required-field::after {
+    content: "*";
+    color: #e74a3b;
+    margin-left: 4px;
+  }
+  
+  .form-control:focus, .form-select:focus {
+    border-color: #bac8f3;
+    box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
+  }
+  
+  .help-text {
+    font-size: 0.85rem;
+    color: #858796;
+    margin-top: 4px;
+  }
+  
+  .btn-action {
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-weight: 500;
+  }
+  
+  .btn-cancel {
+    background-color: #f8f9fc;
+    border-color: #d1d3e2;
+    color: #6e707e;
+  }
+  
+  .btn-cancel:hover {
+    background-color: #eaecf4;
+    border-color: #d1d3e2;
+    color: #6e707e;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'generators:dashboard' %}">Generator Management</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'generators:store_list' %}">Stores</a></li>
+      <li class="breadcrumb-item active" aria-current="page">
+        {% if action == 'Create' %}Add New Store{% else %}Edit {{ object.name }}{% endif %}
+      </li>
+    </ol>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">
+        {% if action == 'Create' %}Add New Store{% else %}Edit Store{% endif %}
+      </h1>
+      <p class="mb-0 text-muted">
+        {% if action == 'Create' %}
+          Create a new store location for generator management
+        {% else %}
+          Update store information for {{ object.name }}
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="card shadow form-card mb-4">
+    <div class="form-header">
+      <h5 class="m-0 font-weight-bold text-primary">
+        <i class="fas fa-store me-2"></i>
+        {% if action == 'Create' %}Store Information{% else %}Edit Store Details{% endif %}
+      </h5>
+    </div>
+    
+    <div class="form-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for error in form.non_field_errors %}
+              {{ error }}
+            {% endfor %}
+          </div>
+        {% endif %}
+        
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label for="{{ form.name.id_for_label }}" class="form-label required-field">Store Name/Code</label>
+            {{ form.name }}
+            {% if form.name.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.name.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.name.help_text %}
+              <div class="help-text">{{ form.name.help_text }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="col-md-6">
+            <label for="{{ form.location.id_for_label }}" class="form-label required-field">Location</label>
+            {{ form.location }}
+            {% if form.location.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.location.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.location.help_text %}
+              <div class="help-text">{{ form.location.help_text }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label for="{{ form.manager_name.id_for_label }}" class="form-label">Manager Name</label>
+            {{ form.manager_name }}
+            {% if form.manager_name.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.manager_name.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.manager_name.help_text %}
+              <div class="help-text">{{ form.manager_name.help_text }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="col-md-6">
+            <label for="{{ form.contact_info.id_for_label }}" class="form-label">Contact Information</label>
+            {{ form.contact_info }}
+            {% if form.contact_info.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.contact_info.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if form.contact_info.help_text %}
+              <div class="help-text">{{ form.contact_info.help_text }}</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="form-footer d-flex justify-content-between">
+          <a href="{% url 'generators:store_list' %}" class="btn btn-cancel btn-action">
+            <i class="fas fa-times me-2"></i>Cancel
+          </a>
+          <button type="submit" class="btn btn-primary btn-action">
+            {% if action == 'Create' %}
+              <i class="fas fa-plus-circle me-2"></i>Create Store
+            {% else %}
+              <i class="fas fa-save me-2"></i>Update Store
+            {% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add Bootstrap classes to form elements
+    const formControls = document.querySelectorAll('input, select, textarea');
+    formControls.forEach(element => {
+      if (!element.classList.contains('form-check-input')) {
+        element.classList.add('form-control');
+      }
+    });
+    
+    // Focus on first field
+    const firstInput = document.querySelector('form input:not([type=hidden])');
+    if (firstInput) {
+      firstInput.focus();
+    }
+  });
+</script>
+{% endblock %}

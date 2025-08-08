@@ -1,0 +1,925 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Dashboard | Generator Management{% endblock %}
+
+{% block extra_css %}
+<style>
+  .dashboard-card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    height: 100%;
+  }
+  
+  .dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  }
+  
+  .dashboard-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    border-radius: 10px 10px 0 0;
+    padding: 15px 20px;
+  }
+  
+  .dashboard-body {
+    padding: 20px;
+  }
+  
+  .summary-icon {
+    font-size: 2rem;
+    opacity: 0.8;
+  }
+  
+  .summary-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+  }
+  
+  .summary-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+  }
+  
+  .status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+  }
+  
+  .status-active {
+    background-color: #1cc88a;
+  }
+  
+  .status-inactive {
+    background-color: #e74a3b;
+  }
+  
+  .status-maintenance {
+    background-color: #f6c23e;
+  }
+  
+  .quick-action-btn {
+    border-radius: 8px;
+    padding: 12px 15px;
+    margin-bottom: 10px;
+    text-align: left;
+    transition: all 0.2s ease;
+  }
+  
+  .quick-action-btn:hover {
+    transform: translateX(5px);
+  }
+  
+  .quick-action-icon {
+    font-size: 1.5rem;
+    margin-right: 10px;
+    width: 30px;
+    text-align: center;
+  }
+  
+  .schedule-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .overdue {
+    background-color: #e74a3b;
+    color: white;
+  }
+  
+  .upcoming {
+    background-color: #f6c23e;
+    color: white;
+  }
+  
+  .future {
+    background-color: #1cc88a;
+    color: white;
+  }
+  
+  .chart-container {
+    position: relative;
+    height: 250px;
+    width: 100%;
+  }
+  
+  .generator-card {
+    border-left: 4px solid #4e73df;
+    margin-bottom: 15px;
+    transition: all 0.2s ease;
+  }
+  
+  .generator-card:hover {
+    transform: translateX(5px);
+  }
+  
+  .generator-info {
+    font-size: 0.85rem;
+  }
+  
+  .generator-status {
+    font-weight: 600;
+  }
+  
+  .usage-badge {
+    background-color: #4e73df;
+    color: white;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 0.75rem;
+  }
+  
+  .empty-state {
+    padding: 30px 20px;
+    text-align: center;
+    background-color: #f8f9fc;
+    border-radius: 10px;
+  }
+  
+  .empty-icon {
+    font-size: 2.5rem;
+    color: #d1d3e2;
+    margin-bottom: 1rem;
+  }
+  
+  .progress-sm {
+    height: 5px;
+  }
+  
+  .fuel-trend-indicator {
+    font-size: 0.85rem;
+    padding: 2px 5px;
+    border-radius: 3px;
+  }
+  
+  .trend-up {
+    background-color: #f8d7da;
+    color: #e74a3b;
+  }
+  
+  .trend-down {
+    background-color: #d4edda;
+    color: #1cc88a;
+  }
+  
+  .trend-neutral {
+    background-color: #e9ecef;
+    color: #6c757d;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">Generator Management Dashboard</h1>
+      <p class="mb-0 text-muted">Overview of generator operations, maintenance, and fuel consumption</p>
+    </div>
+    <div>
+      <a href="{% url 'generators:generator_create' %}" class="btn btn-primary me-2">
+        <i class="fas fa-plus-circle me-2"></i>Add Generator
+      </a>
+      <div class="btn-group">
+        <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="fas fa-file-export me-2"></i>Export
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><a class="dropdown-item" href="?export=csv"><i class="fas fa-file-csv me-2"></i>CSV Report</a></li>
+          <li><a class="dropdown-item" href="?export=excel"><i class="fas fa-file-excel me-2"></i>Excel Report</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="?export=pdf"><i class="fas fa-file-pdf me-2"></i>PDF Summary</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Statistics Cards -->
+  <div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-primary dashboard-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-primary text-uppercase mb-1 summary-label">
+                Total Generators
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 summary-value">
+                {{ total_generators|default:0|intcomma }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-plug summary-icon text-primary"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-success dashboard-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-success text-uppercase mb-1 summary-label">
+                Total Hours Run
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 summary-value">
+                {{ total_hours|default:0|floatformat:1|intcomma }} hrs
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-clock summary-icon text-success"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-warning dashboard-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-warning text-uppercase mb-1 summary-label">
+                Fuel Consumed (30d)
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 summary-value">
+                {{ fuel_consumed_30d|default:0|floatformat:1|intcomma }} L
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-gas-pump summary-icon text-warning"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-danger dashboard-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-danger text-uppercase mb-1 summary-label">
+                Pending Maintenance
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 summary-value">
+                {{ pending_maintenance|default:0 }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-tools summary-icon text-danger"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Dashboard Content -->
+  <div class="row">
+    <!-- Left Column -->
+    <div class="col-lg-8">
+      <!-- Generator Status Overview -->
+      <div class="card shadow dashboard-card mb-4">
+        <div class="dashboard-header d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-plug me-2"></i>Generator Status Overview
+          </h6>
+          <a href="{% url 'generators:generator_list' %}" class="btn btn-sm btn-primary">
+            View All
+          </a>
+        </div>
+        <div class="dashboard-body">
+          {% if generators %}
+            {% for generator in generators|slice:":5" %}
+              <div class="card mb-3 generator-card">
+                <div class="card-body py-3">
+                  <div class="row align-items-center">
+                    <div class="col-md-5">
+                      <h6 class="mb-1">
+                        <a href="{% url 'generators:generator_detail' generator.id %}" class="text-dark">
+                          {{ generator.make_and_model }}
+                        </a>
+                      </h6>
+                      <div class="generator-info text-muted">
+                        {{ generator.store.name }} | {{ generator.capacity }} kVA
+                      </div>
+                    </div>
+                    <div class="col-md-3">
+                      <div class="generator-status">
+                        {% if generator.operational_status == 'operational' %}
+                          <span class="status-indicator status-active"></span> Operational
+                        {% elif generator.operational_status == 'maintenance' %}
+                          <span class="status-indicator status-maintenance"></span> In Maintenance
+                        {% else %}
+                          <span class="status-indicator status-inactive"></span> Not Operational
+                        {% endif %}
+                      </div>
+                      <div class="generator-info text-muted">
+                        Last service: {{ generator.last_maintenance_date|default:"Not serviced" }}
+                      </div>
+                    </div>
+                    <div class="col-md-2">
+                      <span class="usage-badge">
+                        {{ generator.total_hours_run|default:0 }} hrs
+                      </span>
+                      <div class="generator-info text-muted mt-1">
+                        Total runtime
+                      </div>
+                    </div>
+                    <div class="col-md-2 text-end">
+                      <div class="dropdown">
+                        <button class="btn btn-sm btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                          Actions
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                          <li>
+                            <a class="dropdown-item" href="{% url 'generators:usage_tracking_create' %}?generator={{ generator.id }}">
+                              <i class="fas fa-clock me-2 text-primary"></i>Log Usage
+                            </a>
+                          </li>
+                          <li>
+                            <a class="dropdown-item" href="{% url 'generators:fuel_entry_create' %}?generator={{ generator.id }}">
+                              <i class="fas fa-gas-pump me-2 text-success"></i>Add Fuel
+                            </a>
+                          </li>
+                          <li>
+                            <a class="dropdown-item" href="{% url 'generators:maintenance_log_create' %}?generator={{ generator.id }}">
+                              <i class="fas fa-tools me-2 text-warning"></i>Log Maintenance
+                            </a>
+                          </li>
+                          <li><hr class="dropdown-divider"></li>
+                          <li>
+                            <a class="dropdown-item" href="{% url 'generators:generator_update' generator.id %}">
+                              <i class="fas fa-edit me-2 text-info"></i>Edit
+                            </a>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+            
+            {% if generators.count > 5 %}
+              <div class="text-center mt-3">
+                <a href="{% url 'generators:generator_list' %}" class="btn btn-outline-primary">
+                  View All {{ generators.count }} Generators
+                </a>
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="empty-state">
+              <i class="fas fa-plug empty-icon"></i>
+              <h5>No Generators Found</h5>
+              <p class="text-muted">You haven't added any generators yet.</p>
+              <a href="{% url 'generators:generator_create' %}" class="btn btn-primary mt-2">
+                <i class="fas fa-plus-circle me-2"></i>Add First Generator
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Fuel Consumption Trends -->
+      <div class="card shadow dashboard-card mb-4">
+        <div class="dashboard-header d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-success">
+            <i class="fas fa-gas-pump me-2"></i>Fuel Consumption Trends
+          </h6>
+          <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-success active" id="fuelChart30d">30 Days</button>
+            <button type="button" class="btn btn-sm btn-outline-success" id="fuelChart90d">90 Days</button>
+            <button type="button" class="btn btn-sm btn-outline-success" id="fuelChartYear">1 Year</button>
+          </div>
+        </div>
+        <div class="dashboard-body">
+          {% if fuel_entries %}
+            <div class="chart-container">
+              <canvas id="fuelConsumptionChart"></canvas>
+            </div>
+            
+            <div class="row mt-4">
+              <div class="col-md-4">
+                <div class="card bg-light">
+                  <div class="card-body py-3">
+                    <div class="d-flex justify-content-between">
+                      <div>
+                        <h6 class="mb-1">Total Consumption</h6>
+                        <h4 class="mb-0">{{ total_fuel_consumed|default:0|floatformat:1|intcomma }} L</h4>
+                      </div>
+                      <div>
+                        <i class="fas fa-gas-pump fa-2x text-success opacity-50"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card bg-light">
+                  <div class="card-body py-3">
+                    <div class="d-flex justify-content-between">
+                      <div>
+                        <h6 class="mb-1">Average Cost</h6>
+                        <h4 class="mb-0">₹{{ avg_fuel_cost|default:0|floatformat:2 }}/L</h4>
+                      </div>
+                      <div>
+                        <i class="fas fa-rupee-sign fa-2x text-warning opacity-50"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card bg-light">
+                  <div class="card-body py-3">
+                    <div class="d-flex justify-content-between">
+                      <div>
+                        <h6 class="mb-1">Monthly Trend</h6>
+                        <h4 class="mb-0">
+                          {% if fuel_trend > 0 %}
+                            <span class="fuel-trend-indicator trend-up">
+                              <i class="fas fa-arrow-up me-1"></i>{{ fuel_trend|floatformat:1 }}%
+                            </span>
+                          {% elif fuel_trend < 0 %}
+                            <span class="fuel-trend-indicator trend-down">
+                              <i class="fas fa-arrow-down me-1"></i>{{ fuel_trend|abs|floatformat:1 }}%
+                            </span>
+                          {% else %}
+                            <span class="fuel-trend-indicator trend-neutral">
+                              <i class="fas fa-equals me-1"></i>0%
+                            </span>
+                          {% endif %}
+                        </h4>
+                      </div>
+                      <div>
+                        <i class="fas fa-chart-line fa-2x text-info opacity-50"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <i class="fas fa-gas-pump empty-icon"></i>
+              <h5>No Fuel Data Available</h5>
+              <p class="text-muted">Start tracking fuel consumption to see trends.</p>
+              <a href="{% url 'generators:fuel_entry_create' %}" class="btn btn-success mt-2">
+                <i class="fas fa-plus-circle me-2"></i>Add Fuel Entry
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Generator Usage Distribution -->
+      <div class="card shadow dashboard-card mb-4">
+        <div class="dashboard-header">
+          <h6 class="m-0 font-weight-bold text-info">
+            <i class="fas fa-chart-pie me-2"></i>Generator Usage Distribution
+          </h6>
+        </div>
+        <div class="dashboard-body">
+          {% if usage_data %}
+            <div class="row">
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="usageDistributionChart"></canvas>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <h6 class="mb-3">Top Reasons for Generator Use</h6>
+                <div class="table-responsive">
+                  <table class="table table-sm">
+                    <thead>
+                      <tr>
+                        <th>Reason</th>
+                        <th>Hours</th>
+                        <th>% of Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for reason in usage_reasons|slice:":5" %}
+                        <tr>
+                          <td>{{ reason.reason }}</td>
+                          <td>{{ reason.hours|floatformat:1 }} hrs</td>
+                          <td>
+                            <div class="d-flex align-items-center">
+                              <div class="me-2">{{ reason.percentage|floatformat:1 }}%</div>
+                              <div class="flex-grow-1">
+                                <div class="progress progress-sm">
+                                  <div class="progress-bar bg-info" role="progressbar" 
+                                       style="width: {{ reason.percentage }}%" 
+                                       aria-valuenow="{{ reason.percentage }}" 
+                                       aria-valuemin="0" 
+                                       aria-valuemax="100"></div>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                <div class="text-center mt-3">
+                  <a href="{% url 'generators:usage_tracking_list' %}" class="btn btn-outline-info btn-sm">
+                    View All Usage Records
+                  </a>
+                </div>
+              </div>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <i class="fas fa-chart-pie empty-icon"></i>
+              <h5>No Usage Data Available</h5>
+              <p class="text-muted">Start tracking generator usage to see distribution.</p>
+              <a href="{% url 'generators:usage_tracking_create' %}" class="btn btn-info mt-2">
+                <i class="fas fa-plus-circle me-2"></i>Log Generator Usage
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column -->
+    <div class="col-lg-4">
+      <!-- Quick Actions -->
+      <div class="card shadow dashboard-card mb-4">
+        <div class="dashboard-header">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-bolt me-2"></i>Quick Actions
+          </h6>
+        </div>
+        <div class="dashboard-body">
+          <a href="{% url 'generators:generator_create' %}" class="btn btn-primary btn-block quick-action-btn">
+            <i class="fas fa-plug quick-action-icon"></i>Add New Generator
+          </a>
+          <a href="{% url 'generators:usage_tracking_create' %}" class="btn btn-info btn-block quick-action-btn">
+            <i class="fas fa-clock quick-action-icon"></i>Log Generator Usage
+          </a>
+          <a href="{% url 'generators:fuel_entry_create' %}" class="btn btn-success btn-block quick-action-btn">
+            <i class="fas fa-gas-pump quick-action-icon"></i>Add Fuel Entry
+          </a>
+          <a href="{% url 'generators:maintenance_log_create' %}" class="btn btn-warning btn-block quick-action-btn">
+            <i class="fas fa-tools quick-action-icon"></i>Log Maintenance
+          </a>
+          <a href="{% url 'generators:store_create' %}" class="btn btn-secondary btn-block quick-action-btn">
+            <i class="fas fa-store quick-action-icon"></i>Add New Store
+          </a>
+          <a href="{% url 'generators:reports' %}" class="btn btn-danger btn-block quick-action-btn">
+            <i class="fas fa-file-alt quick-action-icon"></i>Generate Reports
+          </a>
+        </div>
+      </div>
+
+      <!-- Maintenance Alerts -->
+      <div class="card shadow dashboard-card mb-4">
+        <div class="dashboard-header d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-danger">
+            <i class="fas fa-exclamation-triangle me-2"></i>Maintenance Alerts
+          </h6>
+          <a href="{% url 'generators:maintenance_log_list' %}" class="btn btn-sm btn-danger">
+            View All
+          </a>
+        </div>
+        <div class="dashboard-body">
+          {% if maintenance_alerts %}
+            <div class="list-group">
+              {% for alert in maintenance_alerts %}
+                <div class="list-group-item list-group-item-action">
+                  <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">{{ alert.generator.make_and_model }}</h6>
+                    <small>
+                      {% if alert.next_scheduled_maintenance < today %}
+                        <span class="badge overdue schedule-badge">Overdue</span>
+                      {% elif alert.next_scheduled_maintenance < today_plus_30 %}
+                        <span class="badge upcoming schedule-badge">Due Soon</span>
+                      {% else %}
+                        <span class="badge future schedule-badge">Scheduled</span>
+                      {% endif %}
+                    </small>
+                  </div>
+                  <p class="mb-1">{{ alert.service_type }}</p>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                      Due: {{ alert.next_scheduled_maintenance }}
+                    </small>
+                    <a href="{% url 'generators:maintenance_log_create' %}?generator={{ alert.generator.id }}" 
+                       class="btn btn-sm btn-outline-danger">
+                      Log Service
+                    </a>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <i class="fas fa-check-circle empty-icon text-success"></i>
+              <h5>No Pending Maintenance</h5>
+              <p class="text-muted">All generators are up to date with maintenance.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Recent Fuel Entries -->
+      <div class="card shadow dashboard-card mb-4">
+        <div class="dashboard-header d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-success">
+            <i class="fas fa-gas-pump me-2"></i>Recent Fuel Entries
+          </h6>
+          <a href="{% url 'generators:fuel_entry_list' %}" class="btn btn-sm btn-success">
+            View All
+          </a>
+        </div>
+        <div class="dashboard-body">
+          {% if recent_fuel_entries %}
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Generator</th>
+                    <th>Litres</th>
+                    <th>Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for entry in recent_fuel_entries %}
+                    <tr>
+                      <td>{{ entry.date_of_filling }}</td>
+                      <td>{{ entry.generator.make_and_model|truncatechars:15 }}</td>
+                      <td>{{ entry.litres_filled|floatformat:1 }} L</td>
+                      <td>₹{{ entry.total_fuel_cost|floatformat:2|intcomma }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <i class="fas fa-gas-pump empty-icon"></i>
+              <h5>No Recent Fuel Entries</h5>
+              <p class="text-muted">Start tracking fuel consumption.</p>
+              <a href="{% url 'generators:fuel_entry_create' %}" class="btn btn-success mt-2">
+                <i class="fas fa-plus-circle me-2"></i>Add Fuel Entry
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Store Summary -->
+      <div class="card shadow dashboard-card mb-4">
+        <div class="dashboard-header d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-info">
+            <i class="fas fa-store me-2"></i>Store Summary
+          </h6>
+          <a href="{% url 'generators:store_list' %}" class="btn btn-sm btn-info">
+            View All
+          </a>
+        </div>
+        <div class="dashboard-body">
+          {% if stores %}
+            <div class="list-group">
+              {% for store in stores|slice:":5" %}
+                <div class="list-group-item list-group-item-action">
+                  <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">{{ store.name }}</h6>
+                    <small>{{ store.generators.count }} generator(s)</small>
+                  </div>
+                  <p class="mb-1">{{ store.location }}</p>
+                  <small class="text-muted">
+                    Contact: {{ store.contact_person|default:"Not specified" }}
+                  </small>
+                </div>
+              {% endfor %}
+            </div>
+            
+            {% if stores.count > 5 %}
+              <div class="text-center mt-3">
+                <a href="{% url 'generators:store_list' %}" class="btn btn-outline-info btn-sm">
+                  View All {{ stores.count }} Stores
+                </a>
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="empty-state">
+              <i class="fas fa-store empty-icon"></i>
+              <h5>No Stores Found</h5>
+              <p class="text-muted">Add stores to manage generators by location.</p>
+              <a href="{% url 'generators:store_create' %}" class="btn btn-info mt-2">
+                <i class="fas fa-plus-circle me-2"></i>Add First Store
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Chart color configuration
+    const chartColors = {
+      primary: '#4e73df',
+      success: '#1cc88a',
+      info: '#36b9cc',
+      warning: '#f6c23e',
+      danger: '#e74a3b',
+      secondary: '#858796',
+      light: '#f8f9fc',
+      dark: '#5a5c69'
+    };
+    
+    // Chart.js global configuration
+    Chart.defaults.font.family = "'Nunito', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+    Chart.defaults.color = '#858796';
+    Chart.defaults.scale.grid.color = 'rgba(0, 0, 0, 0.05)';
+    
+    // Function to create fuel consumption chart
+    function createFuelConsumptionChart() {
+      const ctx = document.getElementById('fuelConsumptionChart');
+      
+      // Check if chart element exists
+      if (!ctx) return;
+      
+      // Sample data - replace with actual data from backend
+      const fuelData = {
+        labels: {{ fuel_chart_labels|safe|default:"[]" }},
+        datasets: [{
+          label: 'Fuel Consumption (Litres)',
+          data: {{ fuel_chart_data|safe|default:"[]" }},
+          backgroundColor: 'rgba(28, 200, 138, 0.2)',
+          borderColor: chartColors.success,
+          borderWidth: 2,
+          pointBackgroundColor: chartColors.success,
+          pointBorderColor: '#fff',
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: chartColors.success,
+          tension: 0.3
+        }]
+      };
+      
+      const fuelChart = new Chart(ctx, {
+        type: 'line',
+        data: fuelData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleFont: {
+                size: 12
+              },
+              bodyFont: {
+                size: 14
+              },
+              callbacks: {
+                label: function(context) {
+                  return `${context.parsed.y.toFixed(1)} litres`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                display: false
+              }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return value + ' L';
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      // Time period buttons functionality
+      document.getElementById('fuelChart30d').addEventListener('click', function() {
+        updateFuelChart(fuelChart, '30d');
+        toggleActiveButton(this);
+      });
+      
+      document.getElementById('fuelChart90d').addEventListener('click', function() {
+        updateFuelChart(fuelChart, '90d');
+        toggleActiveButton(this);
+      });
+      
+      document.getElementById('fuelChartYear').addEventListener('click', function() {
+        updateFuelChart(fuelChart, 'year');
+        toggleActiveButton(this);
+      });
+      
+      function toggleActiveButton(activeButton) {
+        document.querySelectorAll('#fuelChart30d, #fuelChart90d, #fuelChartYear').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        activeButton.classList.add('active');
+      }
+      
+      function updateFuelChart(chart, period) {
+        // This would typically fetch data from the server
+        // For now, we'll just simulate different data
+        
+        fetch(`/generators/api/fuel-data/?period=${period}`)
+          .then(response => response.json())
+          .then(data => {
+            chart.data.labels = data.labels;
+            chart.data.datasets[0].data = data.values;
+            chart.update();
+          })
+          .catch(error => {
+            console.error('Error fetching fuel data:', error);
+          });
+      }
+    }
+    
+    // Function to create usage distribution chart
+    function createUsageDistributionChart() {
+      const ctx = document.getElementById('usageDistributionChart');
+      
+      // Check if chart element exists
+      if (!ctx) return;
+      
+      // Sample data - replace with actual data from backend
+      const usageData = {
+        labels: {{ usage_chart_labels|safe|default:"[]" }},
+        datasets: [{
+          data: {{ usage_chart_data|safe|default:"[]" }},
+          backgroundColor: [
+            chartColors.primary,
+            chartColors.success,
+            chartColors.info,
+            chartColors.warning,
+            chartColors.danger,
+            chartColors.secondary
+          ],
+          borderWidth: 1
+        }]
+      };
+      
+      const usageChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: usageData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                padding: 20,
+                boxWidth: 12
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || '';
+                  const value = context.parsed || 0;
+                  const total = context.dataset.data.reduce((acc, data) => acc + data, 0);
+                  const percentage = Math.round((value / total) * 100);
+                  return `${label}: ${value} hrs (${percentage}%)`;
+                }
+              }
+            }
+          },
+          cutout: '70%'
+        }
+      });
+    }
+    
+    // Initialize charts
+    createFuelConsumptionChart();
+    createUsageDistributionChart();
+  });
+</script>
+{% endblock %}

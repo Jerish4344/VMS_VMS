@@ -1,0 +1,305 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Generator User Management{% endblock %}
+
+{% block extra_css %}
+<style>
+  .management-card {
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+  }
+  
+  .filter-section {
+    background-color: #f8f9fc;
+    padding: 1rem;
+    border-radius: 0.35rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #4e73df;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+  }
+  
+  .store-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  
+  .store-tag {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+  }
+  
+  .status-badge {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 0.25rem;
+  }
+  
+  .stats-card {
+    background: linear-gradient(45deg, #4e73df, #36b9cc);
+    color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Heading -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Generator User Management</h1>
+    <div class="btn-group">
+      <a href="{% url 'store_access_management' %}" class="btn btn-primary">
+        <i class="fas fa-store"></i> Bulk Store Access
+      </a>
+      <a href="{% url 'user_create' %}" class="btn btn-success">
+        <i class="fas fa-plus"></i> Add New User
+      </a>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="row mb-4">
+    <div class="col-lg-3 col-md-6">
+      <div class="stats-card">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0">{{ generator_users|length }}</h4>
+            <p class="mb-0">Total Generator Users</p>
+          </div>
+          <i class="fas fa-users fa-2x"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="stats-card" style="background: linear-gradient(45deg, #1cc88a, #36b9cc);">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0">{{ generator_users|dictsort:"approval_status"|dictsortreversed:"approved"|length }}</h4>
+            <p class="mb-0">Approved Users</p>
+          </div>
+          <i class="fas fa-check-circle fa-2x"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="stats-card" style="background: linear-gradient(45deg, #f6c23e, #fab005);">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0">{{ generator_users|dictsort:"approval_status"|dictsortreversed:"pending"|length }}</h4>
+            <p class="mb-0">Pending Approval</p>
+          </div>
+          <i class="fas fa-clock fa-2x"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="stats-card" style="background: linear-gradient(45deg, #e74a3b, #c0392b);">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0">{{ all_stores|length }}</h4>
+            <p class="mb-0">Total Stores</p>
+          </div>
+          <i class="fas fa-store fa-2x"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Section -->
+  <div class="filter-section">
+    <form method="get" class="row align-items-center">
+      <div class="col-md-4">
+        <label for="status" class="form-label">Filter by Status:</label>
+        <select name="status" id="status" class="form-select" onchange="this.form.submit()">
+          <option value="">All Statuses</option>
+          <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+          <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+          <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label for="search" class="form-label">Search:</label>
+        <input type="text" name="search" id="search" class="form-control" placeholder="Search by name or username..." value="{{ request.GET.search }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">&nbsp;</label>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-search"></i> Search
+          </button>
+          <a href="{% url 'generator_user_management' %}" class="btn btn-secondary">
+            <i class="fas fa-times"></i> Clear
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Generator Users Table -->
+  <div class="card management-card">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">
+        <i class="fas fa-list"></i> Generator Users
+      </h6>
+    </div>
+    <div class="card-body">
+      {% if generator_users %}
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead class="table-light">
+            <tr>
+              <th>User</th>
+              <th>Contact Info</th>
+              <th>Status</th>
+              <th>Store Access</th>
+              <th>Joined</th>
+              <th>Last Login</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in generator_users %}
+            <tr>
+              <td>
+                <div class="d-flex align-items-center">
+                  <div class="user-avatar me-3">
+                    {{ user.first_name|first|default:user.username|first|upper }}
+                  </div>
+                  <div>
+                    <div class="fw-bold">{{ user.get_full_name }}</div>
+                    <div class="text-muted small">@{{ user.username }}</div>
+                    {% if user.hr_employee_id %}
+                    <div class="text-info small">ID: {{ user.hr_employee_id }}</div>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div>
+                  {% if user.email %}
+                  <div class="small"><i class="fas fa-envelope text-muted"></i> {{ user.email }}</div>
+                  {% endif %}
+                  {% if user.phone_number %}
+                  <div class="small"><i class="fas fa-phone text-muted"></i> {{ user.phone_number }}</div>
+                  {% endif %}
+                  {% if user.hr_department %}
+                  <div class="small"><i class="fas fa-building text-muted"></i> {{ user.hr_department }}</div>
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <span class="badge bg-{% if user.approval_status == 'pending' %}warning{% elif user.approval_status == 'approved' %}success{% else %}danger{% endif %} status-badge">
+                  {{ user.get_approval_status_display }}
+                </span>
+                {% if not user.is_active %}
+                <br><span class="badge bg-secondary status-badge mt-1">Inactive</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="store-tags">
+                  {% for store in user.assigned_stores.all %}
+                  <span class="badge bg-info store-tag">{{ store.name }}</span>
+                  {% empty %}
+                  <span class="text-muted small">No stores assigned</span>
+                  {% endfor %}
+                </div>
+                <div class="text-muted small mt-1">
+                  {{ user.assigned_stores.count }} of {{ all_stores|length }} stores
+                </div>
+              </td>
+              <td>
+                <div class="small">{{ user.date_joined|date:"M d, Y" }}</div>
+                <div class="text-muted small">{{ user.date_joined|timesince }} ago</div>
+              </td>
+              <td>
+                {% if user.last_login %}
+                <div class="small">{{ user.last_login|date:"M d, Y" }}</div>
+                <div class="text-muted small">{{ user.last_login|timesince }} ago</div>
+                {% else %}
+                <span class="text-muted small">Never</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="action-buttons">
+                  <a href="{% url 'generator_user_approval' user.id %}" class="btn btn-sm btn-primary" title="Manage User">
+                    <i class="fas fa-cog"></i>
+                  </a>
+                  <a href="{% url 'user_detail' user.id %}" class="btn btn-sm btn-info" title="View Details">
+                    <i class="fas fa-eye"></i>
+                  </a>
+                  {% if user.approval_status == 'pending' %}
+                  <span class="badge bg-warning small">Needs Review</span>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      {% if is_paginated %}
+      <nav aria-label="Generator users pagination" class="mt-4">
+        <ul class="pagination justify-content-center">
+          {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}">First</a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">Previous</a>
+          </li>
+          {% endif %}
+          
+          <li class="page-item active">
+            <span class="page-link">
+              Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+          </li>
+          
+          {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">Next</a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}">Last</a>
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+      
+      {% else %}
+      <div class="text-center py-5">
+        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+        <h4 class="text-muted">No Generator Users Found</h4>
+        <p class="text-muted">{% if status_filter %}No users match your current filter.{% else %}There are no generator users in the system yet.{% endif %}</p>
+        <a href="{% url 'user_create' %}" class="btn btn-primary mt-3">
+          <i class="fas fa-plus"></i> Add First Generator User
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

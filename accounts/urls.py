@@ -7,7 +7,9 @@ from .views import (
     PendingDriversListView, DriverApprovalView, AllDriversListView, toggle_driver_status,
     # Existing admin views
     UserListView, UserCreateView, UserUpdateView, UserDetailView, 
-    UserDeactivateView, ProfileUpdateView
+    UserDeactivateView, ProfileUpdateView,
+    # Generator user management views
+    GeneratorUserApprovalView, GeneratorUserManagementView, StoreAccessManagementView
 )
 
 urlpatterns = [
@@ -41,4 +43,9 @@ urlpatterns = [
     
     # Profile management
     path('profile/', ProfileUpdateView.as_view(), name='profile'),
+    
+    # Generator user management URLs
+    path('generator-users/', GeneratorUserManagementView.as_view(), name='generator_user_management'),
+    path('generator-users/<int:employee_id>/approve/', GeneratorUserApprovalView.as_view(), name='generator_user_approval'),
+    path('store-access-management/', StoreAccessManagementView.as_view(), name='store_access_management'),
 ]

@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Generator User Approval - {{ employee.get_full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .approval-card {
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+  }
+  
+  .store-checkbox {
+    margin-bottom: 0.5rem;
+  }
+  
+  .store-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    background-color: #f8f9fc;
+  }
+  
+  .approval-actions {
+    background-color: #f8f9fc;
+    border-top: 1px solid #e3e6f0;
+    padding: 1.5rem;
+  }
+  
+  .employee-info {
+    background-color: #ffffff;
+    border-radius: 0.35rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .info-label {
+    font-weight: 600;
+    color: #5a5c69;
+  }
+  
+  .status-badge {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Heading -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Generator User Approval</h1>
+    <a href="{% url 'generator_user_management' %}" class="btn btn-secondary">
+      <i class="fas fa-arrow-left"></i> Back to Generator Users
+    </a>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <!-- Employee Information Card -->
+      <div class="card approval-card mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-user"></i> Employee Information
+          </h6>
+          <span class="badge bg-{% if employee.approval_status == 'pending' %}warning{% elif employee.approval_status == 'approved' %}success{% else %}danger{% endif %} status-badge">
+            {{ employee.get_approval_status_display }}
+          </span>
+        </div>
+        <div class="employee-info">
+          <div class="row">
+            <div class="col-md-6">
+              <p><span class="info-label">Full Name:</span> {{ employee.get_full_name }}</p>
+              <p><span class="info-label">Username:</span> {{ employee.username }}</p>
+              <p><span class="info-label">Email:</span> {{ employee.email|default:"Not provided" }}</p>
+              <p><span class="info-label">Phone:</span> {{ employee.phone_number|default:"Not provided" }}</p>
+            </div>
+            <div class="col-md-6">
+              <p><span class="info-label">User Type:</span> {{ employee.get_user_type_display }}</p>
+              <p><span class="info-label">Date Joined:</span> {{ employee.date_joined|date:"M d, Y H:i" }}</p>
+              <p><span class="info-label">Last Login:</span> {{ employee.last_login|date:"M d, Y H:i"|default:"Never" }}</p>
+              <p><span class="info-label">Status:</span> 
+                {% if employee.is_active %}
+                  <span class="badge bg-success">Active</span>
+                {% else %}
+                  <span class="badge bg-danger">Inactive</span>
+                {% endif %}
+              </p>
+            </div>
+          </div>
+          
+          {% if employee.hr_data %}
+          <hr>
+          <h6 class="text-primary">HR Information</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <p><span class="info-label">Employee ID:</span> {{ employee.hr_employee_id|default:"Not available" }}</p>
+              <p><span class="info-label">Department:</span> {{ employee.hr_department|default:"Not available" }}</p>
+            </div>
+            <div class="col-md-6">
+              <p><span class="info-label">Designation:</span> {{ employee.hr_designation|default:"Not available" }}</p>
+              <p><span class="info-label">Employee Type:</span> {{ employee.hr_employee_type|default:"Not available" }}</p>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Store Access Management Card -->
+      <div class="card approval-card mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-store"></i> Store Access Management
+          </h6>
+        </div>
+        <div class="card-body">
+          <form method="post" id="storeAccessForm">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_stores">
+            
+            <div class="row">
+              <div class="col-md-6">
+                <h6 class="text-secondary">Available Stores</h6>
+                <div class="store-list">
+                  {% for store in all_stores %}
+                  <div class="form-check store-checkbox">
+                    <input class="form-check-input" type="checkbox" name="assigned_stores" value="{{ store.id }}" 
+                           id="store_{{ store.id }}" {% if store in assigned_stores %}checked{% endif %}>
+                    <label class="form-check-label" for="store_{{ store.id }}">
+                      <strong>{{ store.name }}</strong><br>
+                      <small class="text-muted">{{ store.location }}</small>
+                      {% if store.manager_name %}
+                        <br><small class="text-info">Manager: {{ store.manager_name }}</small>
+                      {% endif %}
+                    </label>
+                  </div>
+                  {% empty %}
+                  <p class="text-muted">No stores available.</p>
+                  {% endfor %}
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <h6 class="text-secondary">Currently Assigned Stores</h6>
+                <div class="assigned-stores">
+                  {% for store in assigned_stores %}
+                  <div class="alert alert-info py-2 mb-2">
+                    <strong>{{ store.name }}</strong><br>
+                    <small>{{ store.location }}</small>
+                  </div>
+                  {% empty %}
+                  <p class="text-muted">No stores currently assigned.</p>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+            
+            <div class="mt-3">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> Update Store Access
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Approval Actions Card -->
+      <div class="card approval-card">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-check-circle"></i> Approval Actions
+          </h6>
+        </div>
+        <div class="approval-actions">
+          {% if employee.approval_status == 'pending' %}
+          <form method="post" id="approvalForm">
+            {% csrf_token %}
+            
+            <div class="mb-3">
+              <button type="submit" name="action" value="approve" class="btn btn-success btn-block w-100 mb-2">
+                <i class="fas fa-check"></i> Approve Access
+              </button>
+            </div>
+            
+            <div class="mb-3">
+              <label for="rejection_reason" class="form-label">Rejection Reason (Optional)</label>
+              <textarea class="form-control" id="rejection_reason" name="rejection_reason" rows="3" 
+                        placeholder="Provide reason for rejection..."></textarea>
+            </div>
+            
+            <div class="mb-3">
+              <button type="submit" name="action" value="reject" class="btn btn-danger btn-block w-100">
+                <i class="fas fa-times"></i> Reject Access
+              </button>
+            </div>
+          </form>
+          {% else %}
+          <div class="text-center">
+            <p class="mb-3">
+              <span class="badge bg-{% if employee.approval_status == 'approved' %}success{% else %}danger{% endif %} p-2">
+                {{ employee.get_approval_status_display }}
+              </span>
+            </p>
+            
+            {% if employee.approved_by %}
+            <p class="text-muted small">
+              {{ employee.get_approval_status_display }} by {{ employee.approved_by.get_full_name }}<br>
+              on {{ employee.approved_at|date:"M d, Y H:i" }}
+            </p>
+            {% endif %}
+            
+            {% if employee.rejection_reason %}
+            <div class="alert alert-danger">
+              <strong>Rejection Reason:</strong><br>
+              {{ employee.rejection_reason }}
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Quick Stats Card -->
+      <div class="card approval-card mt-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-chart-bar"></i> Quick Stats
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="text-center">
+            <div class="row">
+              <div class="col-6">
+                <h4 class="text-primary">{{ assigned_stores|length }}</h4>
+                <p class="text-muted small mb-0">Assigned Stores</p>
+              </div>
+              <div class="col-6">
+                <h4 class="text-info">{{ all_stores|length }}</h4>
+                <p class="text-muted small mb-0">Total Stores</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-check/uncheck logic for better UX
+  const checkboxes = document.querySelectorAll('input[name="assigned_stores"]');
+  
+  checkboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+      // You can add any additional logic here if needed
+      console.log('Store assignment changed:', this.value, this.checked);
+    });
+  });
+  
+  // Confirmation for rejection
+  const rejectButton = document.querySelector('button[value="reject"]');
+  if (rejectButton) {
+    rejectButton.addEventListener('click', function(e) {
+      if (!confirm('Are you sure you want to reject this generator user\'s access?')) {
+        e.preventDefault();
+      }
+    });
+  }
+});
+</script>
+{% endblock %}

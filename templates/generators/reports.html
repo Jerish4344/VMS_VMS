@@ -1,0 +1,888 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Reports | Generator Management{% endblock %}
+
+{% block extra_css %}
+<style>
+  .report-card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    height: 100%;
+  }
+  
+  .report-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  }
+  
+  .report-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    border-radius: 10px 10px 0 0;
+    padding: 15px 20px;
+  }
+  
+  .report-body {
+    padding: 20px;
+  }
+  
+  .report-footer {
+    background-color: #f8f9fc;
+    border-top: 1px solid #e3e6f0;
+    border-radius: 0 0 10px 10px;
+    padding: 15px 20px;
+  }
+  
+  .report-icon {
+    font-size: 2.5rem;
+    opacity: 0.8;
+    margin-bottom: 1rem;
+  }
+  
+  .report-type-card {
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: 2px solid transparent;
+  }
+  
+  .report-type-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  }
+  
+  .report-type-card.active {
+    border-color: #4e73df;
+    background-color: rgba(78, 115, 223, 0.05);
+  }
+  
+  .date-range-inputs {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .date-range-inputs label {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+  
+  .quick-date-btn {
+    margin-right: 5px;
+    margin-bottom: 5px;
+  }
+  
+  .export-options {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .export-option {
+    border-radius: 10px;
+    padding: 15px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background-color: #f8f9fc;
+  }
+  
+  .export-option:hover {
+    background-color: #eaecf4;
+    transform: translateY(-3px);
+  }
+  
+  .export-icon {
+    font-size: 2rem;
+    margin-bottom: 10px;
+  }
+  
+  .csv-icon {
+    color: #1cc88a;
+  }
+  
+  .excel-icon {
+    color: #36b9cc;
+  }
+  
+  .pdf-icon {
+    color: #e74a3b;
+  }
+  
+  .preview-container {
+    border: 1px solid #e3e6f0;
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 20px;
+    background-color: #fff;
+    min-height: 400px;
+  }
+  
+  .preview-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+    color: #858796;
+  }
+  
+  .preview-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+  
+  .form-section {
+    background-color: #f8f9fc;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .form-section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 15px;
+    color: #4e73df;
+  }
+  
+  .btn-generate {
+    padding: 10px 25px;
+    font-weight: 600;
+  }
+  
+  .chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+  }
+  
+  .tab-content {
+    padding-top: 20px;
+  }
+  
+  .nav-tabs .nav-link {
+    border-radius: 10px 10px 0 0;
+  }
+  
+  .nav-tabs .nav-link.active {
+    background-color: #f8f9fc;
+    border-bottom-color: #f8f9fc;
+  }
+  
+  .report-sample {
+    opacity: 0.7;
+    max-width: 100%;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">Generator Reports</h1>
+      <p class="mb-0 text-muted">Generate detailed reports and analytics for generator operations</p>
+    </div>
+  </div>
+
+  <!-- Report Types Selection -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card shadow report-card">
+        <div class="report-header">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-file-alt me-2"></i>Select Report Type
+          </h6>
+        </div>
+        <div class="report-body">
+          <div class="row">
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="card report-type-card active" data-report-type="usage" id="usageReportCard">
+                <div class="card-body text-center py-4">
+                  <i class="fas fa-clock report-icon text-primary"></i>
+                  <h5>Usage Report</h5>
+                  <p class="text-muted mb-0">Generator runtime and operational analytics</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="card report-type-card" data-report-type="fuel" id="fuelReportCard">
+                <div class="card-body text-center py-4">
+                  <i class="fas fa-gas-pump report-icon text-success"></i>
+                  <h5>Fuel Consumption</h5>
+                  <p class="text-muted mb-0">Fuel usage patterns and efficiency analysis</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="card report-type-card" data-report-type="maintenance" id="maintenanceReportCard">
+                <div class="card-body text-center py-4">
+                  <i class="fas fa-tools report-icon text-warning"></i>
+                  <h5>Maintenance Report</h5>
+                  <p class="text-muted mb-0">Service history and upcoming maintenance</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+              <div class="card report-type-card" data-report-type="cost" id="costReportCard">
+                <div class="card-body text-center py-4">
+                  <i class="fas fa-rupee-sign report-icon text-danger"></i>
+                  <h5>Cost Analysis</h5>
+                  <p class="text-muted mb-0">Operational costs and financial insights</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Report Configuration -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card shadow report-card">
+        <div class="report-header">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-sliders-h me-2"></i>Configure Report
+          </h6>
+        </div>
+        <div class="report-body">
+          <form id="reportForm" method="get" action="{% url 'generators:generate_report' %}">
+            <input type="hidden" name="report_type" id="reportTypeInput" value="usage">
+            
+            <!-- Common Filters -->
+            <div class="form-section">
+              <div class="form-section-title">
+                <i class="fas fa-filter me-2"></i>General Filters
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="store" class="form-label">Store</label>
+                  <select name="store" id="store" class="form-select">
+                    <option value="">All Stores</option>
+                    {% for store in stores %}
+                      <option value="{{ store.id }}">{{ store.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label for="generator" class="form-label">Generator</label>
+                  <select name="generator" id="generator" class="form-select">
+                    <option value="">All Generators</option>
+                    {% for generator in generators %}
+                      <option value="{{ generator.id }}" data-store="{{ generator.store.id }}">{{ generator.make_and_model }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              
+              <div class="row g-3 mt-3">
+                <div class="col-md-6">
+                  <label class="form-label">Date Range</label>
+                  <div class="mb-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary quick-date-btn" data-range="7">Last 7 Days</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary quick-date-btn" data-range="30">Last 30 Days</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary quick-date-btn" data-range="90">Last 90 Days</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary quick-date-btn" data-range="365">Last Year</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary quick-date-btn" data-range="custom">Custom</button>
+                  </div>
+                  <div class="date-range-inputs">
+                    <label for="date_from">From:</label>
+                    <input type="date" id="date_from" name="date_from" class="form-control">
+                    <label for="date_to">To:</label>
+                    <input type="date" id="date_to" name="date_to" class="form-control">
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <label for="format" class="form-label">Report Format</label>
+                  <select name="format" id="format" class="form-select">
+                    <option value="detailed">Detailed Report</option>
+                    <option value="summary">Summary Report</option>
+                    <option value="chart">Chart View</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Usage Report Specific Filters -->
+            <div class="form-section" id="usageFilters">
+              <div class="form-section-title">
+                <i class="fas fa-clock me-2"></i>Usage Report Options
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="usage_reason" class="form-label">Reason for Use</label>
+                  <select name="usage_reason" id="usage_reason" class="form-select">
+                    <option value="">All Reasons</option>
+                    <option value="power_outage">Power Outage</option>
+                    <option value="scheduled_maintenance">Scheduled Maintenance</option>
+                    <option value="testing">Testing</option>
+                    <option value="emergency">Emergency</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label for="min_hours" class="form-label">Minimum Hours Run</label>
+                  <input type="number" id="min_hours" name="min_hours" class="form-control" min="0" step="0.5" placeholder="Enter minimum hours">
+                </div>
+              </div>
+              <div class="row g-3 mt-3">
+                <div class="col-md-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="group_by_store" name="group_by_store" value="1">
+                    <label class="form-check-label" for="group_by_store">Group by Store</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="include_observations" name="include_observations" value="1">
+                    <label class="form-check-label" for="include_observations">Include Observations</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Fuel Report Specific Filters -->
+            <div class="form-section" id="fuelFilters" style="display: none;">
+              <div class="form-section-title">
+                <i class="fas fa-gas-pump me-2"></i>Fuel Report Options
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="fuel_type" class="form-label">Fuel Type</label>
+                  <select name="fuel_type" id="fuel_type" class="form-select">
+                    <option value="">All Types</option>
+                    <option value="diesel">Diesel</option>
+                    <option value="petrol">Petrol</option>
+                    <option value="gas">Gas</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label for="vendor" class="form-label">Vendor</label>
+                  <input type="text" id="vendor" name="vendor" class="form-control" placeholder="Filter by vendor name">
+                </div>
+              </div>
+              <div class="row g-3 mt-3">
+                <div class="col-md-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="show_cost_analysis" name="show_cost_analysis" value="1">
+                    <label class="form-check-label" for="show_cost_analysis">Include Cost Analysis</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="show_efficiency" name="show_efficiency" value="1">
+                    <label class="form-check-label" for="show_efficiency">Show Efficiency Metrics</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Maintenance Report Specific Filters -->
+            <div class="form-section" id="maintenanceFilters" style="display: none;">
+              <div class="form-section-title">
+                <i class="fas fa-tools me-2"></i>Maintenance Report Options
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="service_type" class="form-label">Service Type</label>
+                  <select name="service_type" id="service_type" class="form-select">
+                    <option value="">All Types</option>
+                    <option value="Regular Maintenance">Regular Maintenance</option>
+                    <option value="Oil Change">Oil Change</option>
+                    <option value="Filter Replacement">Filter Replacement</option>
+                    <option value="Battery Replacement">Battery Replacement</option>
+                    <option value="Annual Service">Annual Service</option>
+                    <option value="Emergency Repair">Emergency Repair</option>
+                    <option value="Inspection">Inspection</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label for="service_provider" class="form-label">Service Provider</label>
+                  <input type="text" id="service_provider" name="service_provider" class="form-control" placeholder="Filter by service provider">
+                </div>
+              </div>
+              <div class="row g-3 mt-3">
+                <div class="col-md-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="include_upcoming" name="include_upcoming" value="1" checked>
+                    <label class="form-check-label" for="include_upcoming">Include Upcoming Maintenance</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="show_overdue_only" name="show_overdue_only" value="1">
+                    <label class="form-check-label" for="show_overdue_only">Show Overdue Maintenance Only</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Cost Analysis Report Specific Filters -->
+            <div class="form-section" id="costFilters" style="display: none;">
+              <div class="form-section-title">
+                <i class="fas fa-rupee-sign me-2"></i>Cost Analysis Options
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="cost_type" class="form-label">Cost Type</label>
+                  <select name="cost_type" id="cost_type" class="form-select">
+                    <option value="all">All Costs</option>
+                    <option value="fuel">Fuel Costs Only</option>
+                    <option value="maintenance">Maintenance Costs Only</option>
+                    <option value="operational">Operational Costs</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label for="comparison" class="form-label">Comparison</label>
+                  <select name="comparison" id="comparison" class="form-select">
+                    <option value="none">No Comparison</option>
+                    <option value="previous_period">Previous Period</option>
+                    <option value="previous_year">Previous Year</option>
+                    <option value="between_generators">Between Generators</option>
+                    <option value="between_stores">Between Stores</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row g-3 mt-3">
+                <div class="col-md-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="show_roi" name="show_roi" value="1">
+                    <label class="form-check-label" for="show_roi">Include ROI Analysis</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="show_projections" name="show_projections" value="1">
+                    <label class="form-check-label" for="show_projections">Include Future Projections</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Generate Button -->
+            <div class="text-center mt-4">
+              <button type="submit" class="btn btn-primary btn-generate">
+                <i class="fas fa-file-alt me-2"></i>Generate Report
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Options -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card shadow report-card">
+        <div class="report-header">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-download me-2"></i>Export Options
+          </h6>
+        </div>
+        <div class="report-body">
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <div class="export-option" id="exportCSV">
+                <i class="fas fa-file-csv export-icon csv-icon"></i>
+                <h5>CSV Export</h5>
+                <p class="text-muted mb-0">Raw data in comma-separated values format</p>
+              </div>
+            </div>
+            <div class="col-md-4 mb-3">
+              <div class="export-option" id="exportExcel">
+                <i class="fas fa-file-excel export-icon excel-icon"></i>
+                <h5>Excel Export</h5>
+                <p class="text-muted mb-0">Formatted spreadsheet with data analysis</p>
+              </div>
+            </div>
+            <div class="col-md-4 mb-3">
+              <div class="export-option" id="exportPDF">
+                <i class="fas fa-file-pdf export-icon pdf-icon"></i>
+                <h5>PDF Export</h5>
+                <p class="text-muted mb-0">Professional report with charts and tables</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Report Preview -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card shadow report-card">
+        <div class="report-header d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-eye me-2"></i>Report Preview
+          </h6>
+          <div>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="refreshPreview">
+              <i class="fas fa-sync-alt me-1"></i>Refresh Preview
+            </button>
+          </div>
+        </div>
+        <div class="report-body">
+          <div class="preview-container">
+            <!-- Tabs for Different Preview Types -->
+            <ul class="nav nav-tabs" id="previewTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="table-tab" data-bs-toggle="tab" data-bs-target="#table-preview" type="button" role="tab" aria-controls="table-preview" aria-selected="true">Table View</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="chart-tab" data-bs-toggle="tab" data-bs-target="#chart-preview" type="button" role="tab" aria-controls="chart-preview" aria-selected="false">Chart View</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary-preview" type="button" role="tab" aria-controls="summary-preview" aria-selected="false">Summary View</button>
+              </li>
+            </ul>
+            
+            <div class="tab-content" id="previewTabsContent">
+              <!-- Table View -->
+              <div class="tab-pane fade show active" id="table-preview" role="tabpanel" aria-labelledby="table-tab">
+                <div id="tablePreviewContent">
+                  <div class="preview-placeholder">
+                    <i class="fas fa-table preview-icon"></i>
+                    <h5>No Report Generated</h5>
+                    <p>Configure your report settings and click "Generate Report" to see a preview</p>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Chart View -->
+              <div class="tab-pane fade" id="chart-preview" role="tabpanel" aria-labelledby="chart-tab">
+                <div id="chartPreviewContent">
+                  <div class="preview-placeholder">
+                    <i class="fas fa-chart-bar preview-icon"></i>
+                    <h5>No Chart Generated</h5>
+                    <p>Configure your report settings and click "Generate Report" to see chart visualizations</p>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Summary View -->
+              <div class="tab-pane fade" id="summary-preview" role="tabpanel" aria-labelledby="summary-tab">
+                <div id="summaryPreviewContent">
+                  <div class="preview-placeholder">
+                    <i class="fas fa-file-alt preview-icon"></i>
+                    <h5>No Summary Generated</h5>
+                    <p>Configure your report settings and click "Generate Report" to see a summary</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Report Samples -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card shadow report-card">
+        <div class="report-header">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-lightbulb me-2"></i>Sample Reports
+          </h6>
+        </div>
+        <div class="report-body">
+          <div class="row">
+            <div class="col-md-3 mb-3">
+              <div class="card">
+                <div class="card-body text-center">
+                  <h6>Usage Report</h6>
+                  <img src="{% static 'generators/img/sample_usage_report.png' %}" alt="Sample Usage Report" class="report-sample">
+                  <button class="btn btn-sm btn-outline-primary mt-3" data-sample="usage">Load Sample</button>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <div class="card">
+                <div class="card-body text-center">
+                  <h6>Fuel Consumption</h6>
+                  <img src="{% static 'generators/img/sample_fuel_report.png' %}" alt="Sample Fuel Report" class="report-sample">
+                  <button class="btn btn-sm btn-outline-success mt-3" data-sample="fuel">Load Sample</button>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <div class="card">
+                <div class="card-body text-center">
+                  <h6>Maintenance Report</h6>
+                  <img src="{% static 'generators/img/sample_maintenance_report.png' %}" alt="Sample Maintenance Report" class="report-sample">
+                  <button class="btn btn-sm btn-outline-warning mt-3" data-sample="maintenance">Load Sample</button>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <div class="card">
+                <div class="card-body text-center">
+                  <h6>Cost Analysis</h6>
+                  <img src="{% static 'generators/img/sample_cost_report.png' %}" alt="Sample Cost Analysis" class="report-sample">
+                  <button class="btn btn-sm btn-outline-danger mt-3" data-sample="cost">Load Sample</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Report Type Selection
+    const reportTypeCards = document.querySelectorAll('.report-type-card');
+    const reportTypeInput = document.getElementById('reportTypeInput');
+    const filterSections = {
+      usage: document.getElementById('usageFilters'),
+      fuel: document.getElementById('fuelFilters'),
+      maintenance: document.getElementById('maintenanceFilters'),
+      cost: document.getElementById('costFilters')
+    };
+    
+    reportTypeCards.forEach(card => {
+      card.addEventListener('click', function() {
+        // Update active state
+        reportTypeCards.forEach(c => c.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Update hidden input
+        const reportType = this.dataset.reportType;
+        reportTypeInput.value = reportType;
+        
+        // Show/hide appropriate filter sections
+        Object.keys(filterSections).forEach(key => {
+          filterSections[key].style.display = key === reportType ? 'block' : 'none';
+        });
+      });
+    });
+    
+    // Date Range Quick Buttons
+    const quickDateBtns = document.querySelectorAll('.quick-date-btn');
+    const dateFromInput = document.getElementById('date_from');
+    const dateToInput = document.getElementById('date_to');
+    
+    quickDateBtns.forEach(btn => {
+      btn.addEventListener('click', function() {
+        quickDateBtns.forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const range = this.dataset.range;
+        const today = new Date();
+        let fromDate = new Date();
+        
+        if (range === 'custom') {
+          // Just enable the inputs without setting dates
+          dateFromInput.disabled = false;
+          dateToInput.disabled = false;
+          return;
+        }
+        
+        // Calculate from date based on range
+        fromDate.setDate(today.getDate() - parseInt(range));
+        
+        // Format dates as YYYY-MM-DD
+        const formatDate = (date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+        
+        dateFromInput.value = formatDate(fromDate);
+        dateToInput.value = formatDate(today);
+      });
+    });
+    
+    // Store-Generator Relationship
+    const storeSelect = document.getElementById('store');
+    const generatorSelect = document.getElementById('generator');
+    
+    storeSelect.addEventListener('change', function() {
+      const storeId = this.value;
+      const generators = Array.from(generatorSelect.options);
+      
+      // Reset generator selection
+      generatorSelect.value = '';
+      
+      // Show/hide generators based on store selection
+      generators.forEach(option => {
+        if (!storeId || option.value === '' || option.dataset.store === storeId) {
+          option.style.display = '';
+        } else {
+          option.style.display = 'none';
+        }
+      });
+    });
+    
+    // Export Buttons
+    document.getElementById('exportCSV').addEventListener('click', function() {
+      const form = document.getElementById('reportForm');
+      const exportInput = document.createElement('input');
+      exportInput.type = 'hidden';
+      exportInput.name = 'export_format';
+      exportInput.value = 'csv';
+      form.appendChild(exportInput);
+      form.submit();
+      form.removeChild(exportInput);
+    });
+    
+    document.getElementById('exportExcel').addEventListener('click', function() {
+      const form = document.getElementById('reportForm');
+      const exportInput = document.createElement('input');
+      exportInput.type = 'hidden';
+      exportInput.name = 'export_format';
+      exportInput.value = 'excel';
+      form.appendChild(exportInput);
+      form.submit();
+      form.removeChild(exportInput);
+    });
+    
+    document.getElementById('exportPDF').addEventListener('click', function() {
+      const form = document.getElementById('reportForm');
+      const exportInput = document.createElement('input');
+      exportInput.type = 'hidden';
+      exportInput.name = 'export_format';
+      exportInput.value = 'pdf';
+      form.appendChild(exportInput);
+      form.submit();
+      form.removeChild(exportInput);
+    });
+    
+    // Refresh Preview Button
+    document.getElementById('refreshPreview').addEventListener('click', function() {
+      const form = document.getElementById('reportForm');
+      const previewInput = document.createElement('input');
+      previewInput.type = 'hidden';
+      previewInput.name = 'preview_only';
+      previewInput.value = '1';
+      
+      // Get form data
+      const formData = new FormData(form);
+      
+      // Remove the input we just added to avoid submitting it
+      form.removeChild(previewInput);
+      
+      // Show loading state
+      document.getElementById('tablePreviewContent').innerHTML = '<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i><p class="mt-3">Loading preview...</p></div>';
+      document.getElementById('chartPreviewContent').innerHTML = '<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i><p class="mt-3">Loading preview...</p></div>';
+      document.getElementById('summaryPreviewContent').innerHTML = '<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i><p class="mt-3">Loading preview...</p></div>';
+      
+      // Make AJAX request to get preview
+      fetch('{% url "generators:preview_report" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        // Update preview sections
+        if (data.table_html) {
+          document.getElementById('tablePreviewContent').innerHTML = data.table_html;
+        }
+        if (data.chart_data) {
+          document.getElementById('chartPreviewContent').innerHTML = '<div class="chart-container"><canvas id="previewChart"></canvas></div>';
+          createPreviewChart(data.chart_data);
+        }
+        if (data.summary_html) {
+          document.getElementById('summaryPreviewContent').innerHTML = data.summary_html;
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching preview:', error);
+        document.getElementById('tablePreviewContent').innerHTML = '<div class="alert alert-danger">Error loading preview. Please try again.</div>';
+      });
+    });
+    
+    // Sample Report Buttons
+    const sampleButtons = document.querySelectorAll('[data-sample]');
+    sampleButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        const sampleType = this.dataset.sample;
+        
+        // Set report type
+        reportTypeInput.value = sampleType;
+        reportTypeCards.forEach(card => {
+          card.classList.toggle('active', card.dataset.reportType === sampleType);
+        });
+        
+        // Show/hide appropriate filter sections
+        Object.keys(filterSections).forEach(key => {
+          filterSections[key].style.display = key === sampleType ? 'block' : 'none';
+        });
+        
+        // Load sample data
+        fetch(`{% url 'generators:sample_report' %}?type=${sampleType}`)
+          .then(response => response.json())
+          .then(data => {
+            // Update preview sections
+            if (data.table_html) {
+              document.getElementById('tablePreviewContent').innerHTML = data.table_html;
+            }
+            if (data.chart_data) {
+              document.getElementById('chartPreviewContent').innerHTML = '<div class="chart-container"><canvas id="previewChart"></canvas></div>';
+              createPreviewChart(data.chart_data);
+            }
+            if (data.summary_html) {
+              document.getElementById('summaryPreviewContent').innerHTML = data.summary_html;
+            }
+            
+            // Switch to table tab
+            document.getElementById('table-tab').click();
+          })
+          .catch(error => {
+            console.error('Error loading sample:', error);
+          });
+      });
+    });
+    
+    // Function to create preview chart
+    function createPreviewChart(chartData) {
+      const ctx = document.getElementById('previewChart');
+      if (!ctx) return;
+      
+      // Chart.js configuration
+      new Chart(ctx, {
+        type: chartData.type || 'bar',
+        data: {
+          labels: chartData.labels || [],
+          datasets: chartData.datasets || []
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)'
+            }
+          }
+        }
+      });
+    }
+    
+    // Set default date range (last 30 days)
+    document.querySelector('.quick-date-btn[data-range="30"]').click();
+  });
+</script>
+{% endblock %}

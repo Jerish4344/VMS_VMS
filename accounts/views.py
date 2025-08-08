@@ -49,6 +49,18 @@ class ApprovalLoginView(LoginView):
                 # Fallback for any other status
                 return reverse_lazy('pending_approval')
         
+        # For generator users - check approval status
+        elif user.user_type == 'generator_user':
+            if user.approval_status == 'pending':
+                return reverse_lazy('pending_approval')
+            elif user.approval_status == 'rejected':
+                return reverse_lazy('access_rejected')
+            elif user.approval_status == 'approved':
+                return reverse_lazy('dashboard')
+            else:
+                # Fallback for any other status
+                return reverse_lazy('pending_approval')
+        
         # Fallback
         return reverse_lazy('dashboard')
     
@@ -81,6 +93,26 @@ class ApprovalLoginView(LoginView):
                     f'Welcome back, {user.get_full_name()} ({hr_role})! '
                     f'You have full access to the vehicle management system.'
                 )
+        elif user.user_type == 'generator_user':
+            if user.approval_status == 'pending':
+                messages.info(
+                    self.request,
+                    f'Welcome {user.get_full_name()}! Your generator access request is pending approval from management. '
+                    f'You will be notified once your request is reviewed.'
+                )
+            elif user.approval_status == 'rejected':
+                messages.error(
+                    self.request,
+                    f'Hello {user.get_full_name()}, your generator access request has been rejected. '
+                    f'Please contact management for more information.'
+                )
+            elif user.approval_status == 'approved':
+                assigned_stores_count = user.assigned_stores.count()
+                messages.success(
+                    self.request,
+                    f'Welcome back, {user.get_full_name()}! '
+                    f'You have access to {assigned_stores_count} store(s) for generator management.'
+                )
         else:
             # Managers/Vehicle Managers/Admins
             user_type_display = {
@@ -104,7 +136,7 @@ class ApprovalLoginView(LoginView):
             # Redirect authenticated users based on their status
             if request.user.has_approval_permissions():
                 return redirect('dashboard')
-            elif request.user.user_type == 'driver':
+            elif request.user.user_type in ['driver', 'generator_user']:
                 if not request.user.can_access_system():
                     if request.user.approval_status == 'pending':
                         return redirect('pending_approval')
@@ -127,8 +159,8 @@ def custom_logout(request):
 @login_required
 def pending_approval_view(request):
     """View for employees pending approval - blocks all other access"""
-    # Only allow drivers with pending status
-    if request.user.user_type != 'driver' or request.user.approval_status != 'pending':
+    # Only allow drivers and generator users with pending status
+    if request.user.user_type not in ['driver', 'generator_user'] or request.user.approval_status != 'pending':
         if request.user.has_approval_permissions():
             return redirect('dashboard')
         elif request.user.approval_status == 'approved':
@@ -145,6 +177,7 @@ def pending_approval_view(request):
         'hr_data': request.user.hr_data or {},
         'authenticated_at': request.user.hr_authenticated_at,
         'hr_role': request.user.get_hr_role_display(),
+        'is_generator_user': request.user.user_type == 'generator_user',
     }
     return render(request, 'accounts/pending_approval.html', context)
 
@@ -152,8 +185,8 @@ def pending_approval_view(request):
 @login_required
 def access_rejected_view(request):
     """View for employees with rejected access - blocks all other access"""
-    # Only allow drivers with rejected status
-    if request.user.user_type != 'driver' or request.user.approval_status != 'rejected':
+    # Only allow drivers and generator users with rejected status
+    if request.user.user_type not in ['driver', 'generator_user'] or request.user.approval_status != 'rejected':
         if request.user.has_approval_permissions():
             return redirect('dashboard')
         elif request.user.approval_status == 'approved':
@@ -171,6 +204,7 @@ def access_rejected_view(request):
         'rejected_by': request.user.approved_by,
         'rejected_at': request.user.approved_at,
         'hr_role': request.user.get_hr_role_display(),
+        'is_generator_user': request.user.user_type == 'generator_user',
     }
     return render(request, 'accounts/access_rejected.html', context)
 
@@ -212,13 +246,12 @@ class PendingEmployeesListView(VehicleManagerRequiredMixin, ListView):
 
 
 class EmployeeApprovalView(VehicleManagerRequiredMixin, View):
-    """View to approve or reject employee access"""
+    """View to approve or reject employee access with access type selection"""
     
     def get(self, request, employee_id):
         employee = get_object_or_404(
             CustomUser, 
             id=employee_id, 
-            user_type='driver',
             approval_status='pending'
         )
         
@@ -233,28 +266,47 @@ class EmployeeApprovalView(VehicleManagerRequiredMixin, View):
         employee = get_object_or_404(
             CustomUser, 
             id=employee_id, 
-            user_type='driver',
             approval_status='pending'
         )
         
-        action = request.POST.get('action')
+        form = DriverApprovalForm(request.POST)
         
-        if action == 'approve':
-            employee.approve_access(request.user)
-            messages.success(
-                request,
-                f'Employee {employee.get_full_name()} has been approved for vehicle system access.'
-            )
-            logger.info(f"Employee {employee.username} approved by {request.user.username}")
+        if form.is_valid():
+            action = form.cleaned_data['action']
             
-        elif action == 'reject':
-            reason = request.POST.get('rejection_reason', '')
-            employee.reject_access(request.user, reason)
-            messages.warning(
-                request,
-                f'Employee {employee.get_full_name()} access has been rejected.'
-            )
-            logger.info(f"Employee {employee.username} rejected by {request.user.username}")
+            if action == 'approve':
+                access_type = form.cleaned_data['access_type']
+                employee.approve_access(request.user, access_type)
+                
+                # Create appropriate success message based on access type
+                access_messages = {
+                    'driver': 'vehicle system access',
+                    'generator_user': 'generator system access',
+                    'both': 'full system access (vehicles + generators)'
+                }
+                
+                messages.success(
+                    request,
+                    f'Employee {employee.get_full_name()} has been approved for {access_messages[access_type]}.'
+                )
+                logger.info(f"Employee {employee.username} approved for {access_type} access by {request.user.username}")
+                
+            elif action == 'reject':
+                reason = form.cleaned_data['rejection_reason']
+                employee.reject_access(request.user, reason)
+                messages.warning(
+                    request,
+                    f'Employee {employee.get_full_name()} access has been rejected.'
+                )
+                logger.info(f"Employee {employee.username} rejected by {request.user.username}")
+        else:
+            # Form validation failed, show errors
+            context = {
+                'employee': employee,
+                'hr_data': employee.hr_data or {},
+                'form': form
+            }
+            return render(request, 'accounts/employee_approval.html', context)
         
         return redirect('pending_employees')
 
@@ -324,10 +376,11 @@ def toggle_employee_status(request, employee_id):
         action = request.POST.get('action')
         
         if action == 'approve':
-            employee.approve_access(request.user)
+            access_type = request.POST.get('access_type', 'driver')  # Default to driver for quick approve
+            employee.approve_access(request.user, access_type)
             return JsonResponse({
                 'success': True,
-                'message': f'{employee.get_full_name()} approved',
+                'message': f'{employee.get_full_name()} approved for {access_type} access',
                 'new_status': 'approved'
             })
         
@@ -616,3 +669,145 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
     
     def get_object(self, queryset=None):
         return self.request.user
+
+
+class GeneratorUserApprovalView(VehicleManagerRequiredMixin, View):
+    """View to approve/reject generator users and manage store access"""
+    
+    def get(self, request, employee_id):
+        employee = get_object_or_404(
+            CustomUser, 
+            id=employee_id, 
+            user_type='generator_user'
+        )
+        
+        from generators.models import Store
+        all_stores = Store.objects.all()
+        assigned_stores = employee.assigned_stores.all()
+        
+        context = {
+            'employee': employee,
+            'hr_data': employee.hr_data or {},
+            'all_stores': all_stores,
+            'assigned_stores': assigned_stores,
+            'form': DriverApprovalForm()
+        }
+        return render(request, 'accounts/generator_user_approval.html', context)
+    
+    def post(self, request, employee_id):
+        employee = get_object_or_404(
+            CustomUser, 
+            id=employee_id, 
+            user_type='generator_user'
+        )
+        
+        action = request.POST.get('action')
+        
+        if action == 'approve':
+            employee.approve_access(request.user)
+            messages.success(
+                request,
+                f'Generator user {employee.get_full_name()} has been approved for system access.'
+            )
+            logger.info(f"Generator user {employee.username} approved by {request.user.username}")
+            
+        elif action == 'reject':
+            reason = request.POST.get('rejection_reason', '')
+            employee.reject_access(request.user, reason)
+            messages.warning(
+                request,
+                f'Generator user {employee.get_full_name()} access has been rejected.'
+            )
+            logger.info(f"Generator user {employee.username} rejected by {request.user.username}")
+            
+        elif action == 'update_stores':
+            # Update store assignments
+            store_ids = request.POST.getlist('assigned_stores')
+            from generators.models import Store
+            stores = Store.objects.filter(id__in=store_ids)
+            employee.assigned_stores.set(stores)
+            
+            messages.success(
+                request,
+                f'Store assignments updated for {employee.get_full_name()}.'
+            )
+            logger.info(f"Store assignments updated for {employee.username} by {request.user.username}")
+        
+        return redirect('generator_user_management')
+
+
+class GeneratorUserManagementView(VehicleManagerRequiredMixin, ListView):
+    """List all generator users with their store access"""
+    model = CustomUser
+    template_name = 'accounts/generator_user_management.html'
+    context_object_name = 'generator_users'
+    paginate_by = 20
+    
+    def get_queryset(self):
+        queryset = CustomUser.objects.filter(user_type='generator_user').prefetch_related('assigned_stores').order_by('-date_joined')
+        
+        # Filter by status if requested
+        status = self.request.GET.get('status')
+        if status in ['pending', 'approved', 'rejected']:
+            queryset = queryset.filter(approval_status=status)
+        
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from generators.models import Store
+        context['all_stores'] = Store.objects.all()
+        context['status_filter'] = self.request.GET.get('status', '')
+        return context
+
+
+class StoreAccessManagementView(VehicleManagerRequiredMixin, View):
+    """Bulk manage store access for multiple users"""
+    
+    def get(self, request):
+        from generators.models import Store
+        context = {
+            'generator_users': CustomUser.objects.filter(user_type='generator_user'),
+            'all_stores': Store.objects.all()
+        }
+        return render(request, 'accounts/store_access_management.html', context)
+    
+    def post(self, request):
+        from generators.models import Store
+        
+        # Get the action type
+        action = request.POST.get('action')
+        
+        if action == 'bulk_assign':
+            user_ids = request.POST.getlist('selected_users')
+            store_ids = request.POST.getlist('selected_stores')
+            
+            users = CustomUser.objects.filter(id__in=user_ids, user_type='generator_user')
+            stores = Store.objects.filter(id__in=store_ids)
+            
+            for user in users:
+                for store in stores:
+                    user.assigned_stores.add(store)
+            
+            messages.success(
+                request,
+                f'Store access granted to {len(users)} users for {len(stores)} stores.'
+            )
+            
+        elif action == 'bulk_remove':
+            user_ids = request.POST.getlist('selected_users')
+            store_ids = request.POST.getlist('selected_stores')
+            
+            users = CustomUser.objects.filter(id__in=user_ids, user_type='generator_user')
+            stores = Store.objects.filter(id__in=store_ids)
+            
+            for user in users:
+                for store in stores:
+                    user.assigned_stores.remove(store)
+            
+            messages.success(
+                request,
+                f'Store access removed from {len(users)} users for {len(stores)} stores.'
+            )
+        
+        return redirect('store_access_management')

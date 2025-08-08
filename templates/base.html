@@ -279,51 +279,115 @@
           </a>
         </li>
         
-        <!-- Employee Approval Section for Managers -->
-        {% if request.user.has_approval_permissions %}
-        <li>
-          <a href="#employeeSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
-            <i class="fas fa-user-check"></i> Employee Access
-            {% if pending_approvals_count > 0 %}
-              <span class="sidebar-notification-badge">{{ pending_approvals_count }}</span>
-            {% endif %}
-          </a>
-          <ul class="collapse list-unstyled {% if 'pending' in request.resolver_match.url_name or 'employee' in request.resolver_match.url_name %}show{% endif %}" id="employeeSubmenu">
-            <li>
-              <a href="{% url 'pending_employees' %}" class="menu-item-enhanced">
-                Pending Approvals
-                {% if pending_approvals_count > 0 %}
-                  <span class="sidebar-notification-badge">{{ pending_approvals_count }}</span>
-                {% endif %}
-              </a>
-            </li>
-            <li>
-              <a href="{% url 'all_employees' %}" class="menu-item-enhanced">All Employees</a>
-            </li>
-          </ul>
-        </li>
-        {% endif %}
-        
-        <li>
-          <a href="#vehicleSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
-            <i class="fas fa-car"></i> Vehicles
-          </a>
-          <ul class="collapse list-unstyled {% if 'vehicle' in request.resolver_match.url_name %}show{% endif %}" id="vehicleSubmenu">
-            <li>
-              <a href="{% url 'vehicle_list' %}" class="menu-item-enhanced">All Vehicles</a>
-            </li>
-            {% if request.user.user_type != 'driver' %}
-            <li>
-              <a href="{% url 'vehicle_create' %}" class="menu-item-enhanced">Add Vehicle</a>
-            </li>
-            <li>
-              <a href="{% url 'vehicle_type_list' %}" class="menu-item-enhanced">Vehicle Types</a>
-            </li>
-            {% endif %}
-          </ul>
-        </li>
-        
-        <!-- Vehicle Tracking Section -->
+        <!-- Show different menus based on user type -->
+        {% if request.user.is_generator_user %}
+          <!-- Generator Users - Only Generator Module -->
+          <li>
+            <a href="#generatorSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-dharmachakra"></i> Generators
+            </a>
+            <ul class="collapse list-unstyled {% if request.resolver_match.url_name == 'store_list' or request.resolver_match.url_name == 'store_create' or request.resolver_match.url_name == 'generator_list' or request.resolver_match.url_name == 'generator_create' or request.resolver_match.url_name == 'usage_tracking_list' or request.resolver_match.url_name == 'fuel_entry_list' or request.resolver_match.url_name == 'maintenance_log_list' %}show{% endif %}" id="generatorSubmenu">
+              <!-- Stores -->
+              <li>
+                <a href="{% url 'generators:store_list' %}" class="menu-item-enhanced">Stores</a>
+              </li>
+              {% if request.user.has_approval_permissions %}
+              <li>
+                <a href="{% url 'generators:store_create' %}" class="menu-item-enhanced">Add Store</a>
+              </li>
+              {% endif %}
+              <!-- Generators -->
+              <li>
+                <a href="{% url 'generators:generator_list' %}" class="menu-item-enhanced">Generators</a>
+              </li>
+              {% if request.user.has_approval_permissions %}
+              <li>
+                <a href="{% url 'generators:generator_create' %}" class="menu-item-enhanced">Add Generator</a>
+              </li>
+              {% endif %}
+              <!-- Logs -->
+              <li>
+                <a href="{% url 'generators:usage_tracking_list' %}" class="menu-item-enhanced">Usage Tracking</a>
+              </li>
+              <li>
+                <a href="{% url 'generators:fuel_entry_list' %}" class="menu-item-enhanced">Fuel Entries</a>
+              </li>
+              <li>
+                <a href="{% url 'generators:maintenance_log_list' %}" class="menu-item-enhanced">Maintenance Logs</a>
+              </li>
+            </ul>
+          </li>
+        {% else %}
+          <!-- Regular Users - All Modules -->
+          
+          <!-- Employee Approval Section for Managers -->
+          {% if request.user.has_approval_permissions %}
+          <li>
+            <a href="#employeeSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-user-check"></i> Employee Access
+              {% if pending_approvals_count > 0 %}
+                <span class="sidebar-notification-badge">{{ pending_approvals_count }}</span>
+              {% endif %}
+            </a>
+            <ul class="collapse list-unstyled {% if 'pending' in request.resolver_match.url_name or 'employee' in request.resolver_match.url_name %}show{% endif %}" id="employeeSubmenu">
+              <li>
+                <a href="{% url 'pending_employees' %}" class="menu-item-enhanced">
+                  Pending Approvals
+                  {% if pending_approvals_count > 0 %}
+                    <span class="sidebar-notification-badge">{{ pending_approvals_count }}</span>
+                  {% endif %}
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'all_employees' %}" class="menu-item-enhanced">All Employees</a>
+              </li>
+            </ul>
+          </li>
+          
+          <!-- Generator User Management Section for Managers -->
+          <li>
+            <a href="#generatorUserSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-dharmachakra"></i> Generator Users
+              {% if pending_generator_users_count > 0 %}
+                <span class="sidebar-notification-badge">{{ pending_generator_users_count }}</span>
+              {% endif %}
+            </a>
+            <ul class="collapse list-unstyled {% if 'generator_user' in request.resolver_match.url_name or 'store_access' in request.resolver_match.url_name %}show{% endif %}" id="generatorUserSubmenu">
+              <li>
+                <a href="{% url 'generator_user_management' %}" class="menu-item-enhanced">
+                  All Generator Users
+                  {% if pending_generator_users_count > 0 %}
+                    <span class="sidebar-notification-badge">{{ pending_generator_users_count }}</span>
+                  {% endif %}
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'store_access_management' %}" class="menu-item-enhanced">Store Access Management</a>
+              </li>
+            </ul>
+          </li>
+          {% endif %}
+          
+          <li>
+            <a href="#vehicleSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-car"></i> Vehicles
+            </a>
+            <ul class="collapse list-unstyled {% if 'vehicle' in request.resolver_match.url_name %}show{% endif %}" id="vehicleSubmenu">
+              <li>
+                <a href="{% url 'vehicle_list' %}" class="menu-item-enhanced">All Vehicles</a>
+              </li>
+              {% if request.user.user_type != 'driver' %}
+              <li>
+                <a href="{% url 'vehicle_create' %}" class="menu-item-enhanced">Add Vehicle</a>
+              </li>
+              <li>
+                <a href="{% url 'vehicle_type_list' %}" class="menu-item-enhanced">Vehicle Types</a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+
+          <!-- Vehicle Tracking Section -->
         <li>
           <a href="#trackingSubmenu" data-bs-toggle="collapse" aria-expanded="false"
              class="dropdown-toggle menu-item-enhanced">
@@ -366,7 +430,7 @@
             {% endif %}
           </ul>
         </li>
-
+        
         <li>
           <a href="#tripSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-route"></i> Trips
@@ -421,6 +485,40 @@
             {% endif %}
           </ul>
         </li>
+        
+        {% if request.user.user_type != 'driver' %}
+        <li>
+          <a href="#generatorSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+            <i class="fas fa-dharmachakra"></i> Generators
+          </a>
+          <ul class="collapse list-unstyled {% if request.resolver_match.url_name == 'store_list' or request.resolver_match.url_name == 'store_create' or request.resolver_match.url_name == 'generator_list' or request.resolver_match.url_name == 'generator_create' or request.resolver_match.url_name == 'usage_tracking_list' or request.resolver_match.url_name == 'fuel_entry_list' or request.resolver_match.url_name == 'maintenance_log_list' %}show{% endif %}" id="generatorSubmenu">
+            <!-- Stores -->
+            <li>
+              <a href="{% url 'generators:store_list' %}" class="menu-item-enhanced">Stores</a>
+            </li>
+            <li>
+              <a href="{% url 'generators:store_create' %}" class="menu-item-enhanced">Add Store</a>
+            </li>
+            <!-- Generators -->
+            <li>
+              <a href="{% url 'generators:generator_list' %}" class="menu-item-enhanced">Generators</a>
+            </li>
+            <li>
+              <a href="{% url 'generators:generator_create' %}" class="menu-item-enhanced">Add Generator</a>
+            </li>
+            <!-- Logs -->
+            <li>
+              <a href="{% url 'generators:usage_tracking_list' %}" class="menu-item-enhanced">Usage Tracking</a>
+            </li>
+            <li>
+              <a href="{% url 'generators:fuel_entry_list' %}" class="menu-item-enhanced">Fuel Entries</a>
+            </li>
+            <li>
+              <a href="{% url 'generators:maintenance_log_list' %}" class="menu-item-enhanced">Maintenance Logs</a>
+            </li>
+          </ul>
+        </li>
+        {% endif %}
         
         <li>
           <a href="#maintenanceSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
@@ -515,6 +613,7 @@
           </ul>
         </li>
         {% endif %}
+        {% endif %} <!-- End of regular users menu -->
       </ul>
       
       <ul class="list-unstyled sidebar-footer">
@@ -724,6 +823,9 @@
   <!-- Main JavaScript -->
   <script src="{% static 'js/main.js' %}"></script>
   
+  <!-- Time Utilities JavaScript -->
+  <script src="{% static 'js/time-utils.js' %}"></script>
+  
   <!-- Enhanced Notification JavaScript -->
   <script>
     // Auto-refresh notifications every 30 seconds for managers
@@ -847,6 +949,9 @@
       }
     });
   </script>
+  
+  <!-- Time Utilities -->
+  <script src="{% static 'js/time-utils.js' %}"></script>
   
   {% block extra_js %}{% endblock %}
 </body>

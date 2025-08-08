@@ -1,0 +1,522 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Maintenance Logs | Generator Management{% endblock %}
+
+{% block extra_css %}
+<style>
+  .search-box {
+    background-color: #f8f9fc;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  }
+  
+  .table-responsive {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .table th {
+    background-color: #f8f9fc;
+    border-top: none;
+  }
+  
+  .action-buttons .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .empty-state {
+    padding: 50px 20px;
+    text-align: center;
+    background-color: #f8f9fc;
+    border-radius: 10px;
+  }
+  
+  .empty-icon {
+    font-size: 3rem;
+    color: #d1d3e2;
+    margin-bottom: 1rem;
+  }
+  
+  .service-type-badge {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+    background-color: #f6c23e;
+    color: white;
+  }
+  
+  .date-range-inputs {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .date-range-inputs label {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+  
+  .summary-card {
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+  }
+  
+  .summary-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .summary-icon {
+    font-size: 2rem;
+    opacity: 0.8;
+  }
+  
+  .summary-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  
+  .summary-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+  }
+  
+  .schedule-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .overdue {
+    background-color: #e74a3b;
+    color: white;
+  }
+  
+  .upcoming {
+    background-color: #f6c23e;
+    color: white;
+  }
+  
+  .future {
+    background-color: #1cc88a;
+    color: white;
+  }
+  
+  .service-type-cell {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">Maintenance Log Management</h1>
+      <p class="mb-0 text-muted">Track and manage generator maintenance and service history</p>
+    </div>
+    <div>
+      <a href="{% url 'generators:maintenance_log_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus-circle me-2"></i>Add Maintenance Log
+      </a>
+    </div>
+  </div>
+
+  <!-- Search Box -->
+  <div class="card shadow mb-4 search-box">
+    <div class="card-body p-3">
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" name="search" class="form-control" placeholder="Search by service type, provider..." value="{{ search_query }}">
+          </div>
+        </div>
+        <div class="col-md-2">
+          <select name="store" class="form-select">
+            <option value="">All Stores</option>
+            {% for store in stores %}
+              <option value="{{ store.id }}" {% if store_filter == store.id|stringformat:"s" %}selected{% endif %}>{{ store.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <select name="generator" class="form-select">
+            <option value="">All Generators</option>
+            {% for generator in generators %}
+              <option value="{{ generator.id }}" {% if generator_filter == generator.id|stringformat:"s" %}selected{% endif %}>{{ generator.make_and_model }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <select name="service_type" class="form-select">
+            <option value="">All Service Types</option>
+            {% for service_type in service_types %}
+              <option value="{{ service_type }}" {% if service_type_filter == service_type %}selected{% endif %}>{{ service_type }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <div class="date-range-inputs">
+            <label for="date_from">From:</label>
+            <input type="date" id="date_from" name="date_from" class="form-control" value="{{ date_from }}">
+            <label for="date_to">To:</label>
+            <input type="date" id="date_to" name="date_to" class="form-control" value="{{ date_to }}">
+          </div>
+        </div>
+        <div class="col-md-12 text-end">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-filter me-2"></i>Apply Filters
+          </button>
+          <a href="{% url 'generators:maintenance_log_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-undo me-2"></i>Reset
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Summary Statistics -->
+  {% if maintenance_stats %}
+  <div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-warning summary-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-warning text-uppercase mb-1 summary-label">
+                Total Services
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 summary-value">
+                {{ maintenance_stats.total_services|default:0|intcomma }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-tools summary-icon text-warning"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-danger summary-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-danger text-uppercase mb-1 summary-label">
+                Total Cost
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 summary-value">
+                ₹ {{ maintenance_stats.total_cost|default:0|floatformat:2|intcomma }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-rupee-sign summary-icon text-danger"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-success summary-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-success text-uppercase mb-1 summary-label">
+                Upcoming Services
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 summary-value">
+                {{ upcoming_maintenance|length|default:0 }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-calendar-check summary-icon text-success"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card border-left-info summary-card h-100 py-2">
+        <div class="card-body">
+          <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+              <div class="text-xs font-weight-bold text-info text-uppercase mb-1 summary-label">
+                Overdue Services
+              </div>
+              <div class="h5 mb-0 font-weight-bold text-gray-800 summary-value">
+                {{ overdue_count|default:0 }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-exclamation-circle summary-icon text-info"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Maintenance Logs Table -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+      <h6 class="m-0 font-weight-bold text-primary">
+        <i class="fas fa-tools me-2"></i>Maintenance Logs
+        {% if maintenance_logs %}
+          <span class="badge bg-primary ms-2">{{ page_obj.paginator.count }}</span>
+        {% endif %}
+      </h6>
+      {% if maintenance_logs %}
+        <div class="dropdown no-arrow">
+          <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+          </a>
+          <div class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="dropdownMenuLink">
+            <div class="dropdown-header">Export Options:</div>
+            <a class="dropdown-item" href="?export=csv{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if service_type_filter %}&service_type={{ service_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">
+              <i class="fas fa-file-csv fa-sm fa-fw me-2 text-gray-400"></i>CSV
+            </a>
+            <a class="dropdown-item" href="?export=excel{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if service_type_filter %}&service_type={{ service_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">
+              <i class="fas fa-file-excel fa-sm fa-fw me-2 text-gray-400"></i>Excel
+            </a>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item" href="?{% if search_query %}search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if service_type_filter %}&service_type={{ service_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">
+              <i class="fas fa-sync fa-sm fa-fw me-2 text-gray-400"></i>Refresh
+            </a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% if maintenance_logs %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Service Date</th>
+                <th>Generator</th>
+                <th>Store</th>
+                <th>Service Type</th>
+                <th>Service Provider</th>
+                <th>Next Service</th>
+                <th>Cost</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for log in maintenance_logs %}
+                <tr>
+                  <td>{{ log.date_of_service }}</td>
+                  <td>
+                    <a href="{% url 'generators:generator_detail' log.generator.id %}" class="fw-bold text-primary">
+                      {{ log.generator.make_and_model }}
+                    </a>
+                  </td>
+                  <td>
+                    <a href="{% url 'generators:store_detail' log.generator.store.id %}">
+                      {{ log.generator.store.name }}
+                    </a>
+                  </td>
+                  <td class="service-type-cell" title="{{ log.service_type }}">
+                    <span class="service-type-badge">{{ log.service_type }}</span>
+                  </td>
+                  <td>{{ log.service_provider }}</td>
+                  <td>
+                    {% if log.next_scheduled_maintenance %}
+                      {{ log.next_scheduled_maintenance }}
+                      {% if log.next_scheduled_maintenance < today %}
+                        <span class="badge overdue schedule-badge">Overdue</span>
+                      {% elif log.next_scheduled_maintenance < today_plus_30 %}
+                        <span class="badge upcoming schedule-badge">Soon</span>
+                      {% else %}
+                        <span class="badge future schedule-badge">Scheduled</span>
+                      {% endif %}
+                    {% else %}
+                      --
+                    {% endif %}
+                  </td>
+                  <td>{% if log.amount %}₹{{ log.amount|floatformat:2|intcomma }}{% else %}--{% endif %}</td>
+                  <td class="text-end action-buttons">
+                    <a href="{% url 'generators:maintenance_log_update' log.id %}" class="btn btn-sm btn-primary" title="Edit">
+                      <i class="fas fa-edit"></i>
+                    </a>
+                    <a href="{% url 'generators:maintenance_log_delete' log.id %}" class="btn btn-sm btn-danger" title="Delete">
+                      <i class="fas fa-trash"></i>
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if is_paginated %}
+          <div class="d-flex justify-content-center mt-4">
+            <nav aria-label="Page navigation">
+              <ul class="pagination">
+                {% if page_obj.has_previous %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if service_type_filter %}&service_type={{ service_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="First">
+                      <span aria-hidden="true">&laquo;&laquo;</span>
+                    </a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if service_type_filter %}&service_type={{ service_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="Previous">
+                      <span aria-hidden="true">&laquo;</span>
+                    </a>
+                  </li>
+                {% endif %}
+                
+                {% for num in page_obj.paginator.page_range %}
+                  {% if page_obj.number == num %}
+                    <li class="page-item active"><a class="page-link" href="#">{{ num }}</a></li>
+                  {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if service_type_filter %}&service_type={{ service_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">{{ num }}</a>
+                    </li>
+                  {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if service_type_filter %}&service_type={{ service_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="Next">
+                      <span aria-hidden="true">&raquo;</span>
+                    </a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if service_type_filter %}&service_type={{ service_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="Last">
+                      <span aria-hidden="true">&raquo;&raquo;</span>
+                    </a>
+                  </li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+        {% endif %}
+        
+      {% else %}
+        <div class="empty-state">
+          <i class="fas fa-tools empty-icon"></i>
+          <h4>No Maintenance Logs Found</h4>
+          <p class="text-muted">
+            {% if search_query or store_filter or generator_filter or service_type_filter or date_from or date_to %}
+              No maintenance logs match your search criteria. Try adjusting your filters.
+            {% else %}
+              You haven't recorded any maintenance logs yet. Start by adding your first maintenance record.
+            {% endif %}
+          </p>
+          <a href="{% url 'generators:maintenance_log_create' %}" class="btn btn-primary mt-3">
+            <i class="fas fa-plus-circle me-2"></i>Add First Maintenance Log
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Upcoming Maintenance Section -->
+  {% if upcoming_maintenance %}
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+      <h6 class="m-0 font-weight-bold text-warning">
+        <i class="fas fa-calendar-alt me-2"></i>Upcoming Maintenance
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Due Date</th>
+              <th>Generator</th>
+              <th>Store</th>
+              <th>Service Type</th>
+              <th>Last Service</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for maintenance in upcoming_maintenance %}
+              <tr>
+                <td><strong>{{ maintenance.next_scheduled_maintenance }}</strong></td>
+                <td>
+                  <a href="{% url 'generators:generator_detail' maintenance.generator.id %}">
+                    {{ maintenance.generator.make_and_model }}
+                  </a>
+                </td>
+                <td>{{ maintenance.generator.store.name }}</td>
+                <td>{{ maintenance.service_type }}</td>
+                <td>{{ maintenance.date_of_service }}</td>
+                <td>
+                  {% if maintenance.next_scheduled_maintenance < today %}
+                    <span class="badge overdue">Overdue</span>
+                  {% elif maintenance.next_scheduled_maintenance < today_plus_30 %}
+                    <span class="badge upcoming">Due Soon</span>
+                  {% else %}
+                    <span class="badge future">Scheduled</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <a href="{% url 'generators:maintenance_log_create' %}?generator={{ maintenance.generator.id }}" class="btn btn-sm btn-success">
+                    <i class="fas fa-check-circle me-1"></i>Log Service
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add tooltips to action buttons
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    tooltipTriggerList.map(function(tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Store filter change handler
+    const storeSelect = document.querySelector('select[name="store"]');
+    const generatorSelect = document.querySelector('select[name="generator"]');
+    
+    if (storeSelect && generatorSelect) {
+      storeSelect.addEventListener('change', function() {
+        const storeId = this.value;
+        
+        // Reset generator selection
+        generatorSelect.innerHTML = '<option value="">All Generators</option>';
+        
+        if (storeId) {
+          // Fetch generators for the selected store
+          fetch(`/generators/api/generators-by-store/${storeId}/`)
+            .then(response => response.json())
+            .then(data => {
+              data.forEach(generator => {
+                const option = document.createElement('option');
+                option.value = generator.id;
+                option.textContent = generator.make_and_model;
+                generatorSelect.appendChild(option);
+              });
+            });
+        }
+      });
+    }
+  });
+</script>
+{% endblock %}

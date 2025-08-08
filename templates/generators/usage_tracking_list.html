@@ -1,0 +1,338 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Usage Tracking | Generator Management{% endblock %}
+
+{% block extra_css %}
+<style>
+  .search-box {
+    background-color: #f8f9fc;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  }
+  
+  .table-responsive {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .table th {
+    background-color: #f8f9fc;
+    border-top: none;
+  }
+  
+  .action-buttons .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .empty-state {
+    padding: 50px 20px;
+    text-align: center;
+    background-color: #f8f9fc;
+    border-radius: 10px;
+  }
+  
+  .empty-icon {
+    font-size: 3rem;
+    color: #d1d3e2;
+    margin-bottom: 1rem;
+  }
+  
+  .hours-badge {
+    background-color: #4e73df;
+    color: white;
+    font-weight: 600;
+  }
+  
+  .date-range-inputs {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .date-range-inputs label {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+  
+  .reason-cell {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .observations-cell {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">Generator Usage Tracking</h1>
+      <p class="mb-0 text-muted">Track and manage generator usage hours</p>
+    </div>
+    <div>
+      <a href="{% url 'generators:usage_tracking_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus-circle me-2"></i>Log New Usage
+      </a>
+    </div>
+  </div>
+
+  <!-- Search Box -->
+  <div class="card shadow mb-4 search-box">
+    <div class="card-body p-3">
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" name="search" class="form-control" placeholder="Search by reason or observations..." value="{{ search_query }}">
+          </div>
+        </div>
+        <div class="col-md-2">
+          <select name="store" class="form-select">
+            <option value="">All Stores</option>
+            {% for store in stores %}
+              <option value="{{ store.id }}" {% if store_filter == store.id|stringformat:"s" %}selected{% endif %}>{{ store.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <select name="generator" class="form-select">
+            <option value="">All Generators</option>
+            {% for generator in generators %}
+              <option value="{{ generator.id }}" {% if generator_filter == generator.id|stringformat:"s" %}selected{% endif %}>{{ generator.make_and_model }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <div class="date-range-inputs">
+            <label for="date_from">From:</label>
+            <input type="date" id="date_from" name="date_from" class="form-control" value="{{ date_from }}">
+            <label for="date_to">To:</label>
+            <input type="date" id="date_to" name="date_to" class="form-control" value="{{ date_to }}">
+          </div>
+        </div>
+        <div class="col-md-1">
+          <button type="submit" class="btn btn-primary w-100">Filter</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Usage Records Table -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+      <h6 class="m-0 font-weight-bold text-primary">
+        <i class="fas fa-clock me-2"></i>Usage Records
+        {% if usage_records %}
+          <span class="badge bg-primary ms-2">{{ page_obj.paginator.count }}</span>
+        {% endif %}
+      </h6>
+      {% if usage_records %}
+        <div class="dropdown no-arrow">
+          <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+          </a>
+          <div class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="dropdownMenuLink">
+            <div class="dropdown-header">Export Options:</div>
+            <a class="dropdown-item" href="?export=csv{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">
+              <i class="fas fa-file-csv fa-sm fa-fw me-2 text-gray-400"></i>CSV
+            </a>
+            <a class="dropdown-item" href="?export=excel{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">
+              <i class="fas fa-file-excel fa-sm fa-fw me-2 text-gray-400"></i>Excel
+            </a>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item" href="?{% if search_query %}search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">
+              <i class="fas fa-sync fa-sm fa-fw me-2 text-gray-400"></i>Refresh
+            </a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% if usage_records %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Generator</th>
+                <th>Store</th>
+                <th>Time Period</th>
+                <th>Hours Run</th>
+                <th>Reason for Use</th>
+                <th>Observations</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for usage in usage_records %}
+                <tr>
+                  <td>{{ usage.date }}</td>
+                  <td>
+                    <a href="{% url 'generators:generator_detail' usage.generator.id %}" class="fw-bold text-primary">
+                      {{ usage.generator.make_and_model }}
+                    </a>
+                  </td>
+                  <td>
+                    <a href="{% url 'generators:store_detail' usage.generator.store.id %}">
+                      {{ usage.generator.store.name }}
+                    </a>
+                  </td>
+                  <td>{{ usage.start_time }} - {{ usage.end_time }}</td>
+                  <td>
+                    <span class="badge hours-badge">{{ usage.total_hours_run }} hrs</span>
+                  </td>
+                  <td class="reason-cell" title="{{ usage.reason_for_use }}">
+                    {{ usage.reason_for_use }}
+                  </td>
+                  <td class="observations-cell" title="{{ usage.observations|default:'' }}">
+                    {{ usage.observations|default:"-" }}
+                  </td>
+                  <td class="text-end action-buttons">
+                    <a href="{% url 'generators:usage_tracking_update' usage.id %}" class="btn btn-sm btn-primary" title="Edit">
+                      <i class="fas fa-edit"></i>
+                    </a>
+                    <a href="{% url 'generators:usage_tracking_delete' usage.id %}" class="btn btn-sm btn-danger" title="Delete">
+                      <i class="fas fa-trash"></i>
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Summary Stats -->
+        <div class="row mt-4 mb-3">
+          <div class="col-md-6">
+            <div class="card bg-light">
+              <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <span class="text-primary fw-bold">Total Hours:</span>
+                    <span class="ms-2">{{ total_hours|floatformat:2 }} hours</span>
+                  </div>
+                  <div>
+                    <span class="text-primary fw-bold">Records:</span>
+                    <span class="ms-2">{{ page_obj.paginator.count }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Pagination -->
+        {% if is_paginated %}
+          <div class="d-flex justify-content-center mt-4">
+            <nav aria-label="Page navigation">
+              <ul class="pagination">
+                {% if page_obj.has_previous %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="First">
+                      <span aria-hidden="true">&laquo;&laquo;</span>
+                    </a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="Previous">
+                      <span aria-hidden="true">&laquo;</span>
+                    </a>
+                  </li>
+                {% endif %}
+                
+                {% for num in page_obj.paginator.page_range %}
+                  {% if page_obj.number == num %}
+                    <li class="page-item active"><a class="page-link" href="#">{{ num }}</a></li>
+                  {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">{{ num }}</a>
+                    </li>
+                  {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="Next">
+                      <span aria-hidden="true">&raquo;</span>
+                    </a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if store_filter %}&store={{ store_filter }}{% endif %}{% if generator_filter %}&generator={{ generator_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" aria-label="Last">
+                      <span aria-hidden="true">&raquo;&raquo;</span>
+                    </a>
+                  </li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+        {% endif %}
+        
+      {% else %}
+        <div class="empty-state">
+          <i class="fas fa-clock empty-icon"></i>
+          <h4>No Usage Records Found</h4>
+          <p class="text-muted">
+            {% if search_query or store_filter or generator_filter or date_from or date_to %}
+              No usage records match your search criteria. Try adjusting your filters.
+            {% else %}
+              You haven't logged any generator usage yet. Start by logging your first usage record.
+            {% endif %}
+          </p>
+          <a href="{% url 'generators:usage_tracking_create' %}" class="btn btn-primary mt-3">
+            <i class="fas fa-plus-circle me-2"></i>Log First Usage
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add tooltips to action buttons
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    tooltipTriggerList.map(function(tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Store filter change handler
+    const storeSelect = document.querySelector('select[name="store"]');
+    const generatorSelect = document.querySelector('select[name="generator"]');
+    
+    if (storeSelect && generatorSelect) {
+      storeSelect.addEventListener('change', function() {
+        const storeId = this.value;
+        
+        // Reset generator selection
+        generatorSelect.innerHTML = '<option value="">All Generators</option>';
+        
+        if (storeId) {
+          // Fetch generators for the selected store
+          fetch(`/generators/api/generators-by-store/${storeId}/`)
+            .then(response => response.json())
+            .then(data => {
+              data.forEach(generator => {
+                const option = document.createElement('option');
+                option.value = generator.id;
+                option.textContent = generator.make_and_model;
+                generatorSelect.appendChild(option);
+              });
+            });
+        }
+      });
+    }
+  });
+</script>
+{% endblock %}
