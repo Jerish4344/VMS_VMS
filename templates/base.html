@@ -387,7 +387,8 @@
             </ul>
           </li>
 
-          <!-- Vehicle Tracking Section -->
+          <!-- Vehicle Tracking Section (Hidden for drivers) -->
+          {% if request.user.user_type != 'driver' %}
         <li>
           <a href="#trackingSubmenu" data-bs-toggle="collapse" aria-expanded="false"
              class="dropdown-toggle menu-item-enhanced">
@@ -430,6 +431,7 @@
             {% endif %}
           </ul>
         </li>
+          {% endif %}
         
         <li>
           <a href="#tripSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
