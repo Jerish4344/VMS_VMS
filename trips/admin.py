@@ -10,16 +10,32 @@ from .consultant_models import ConsultantRate
 
 @admin.register(Trip)
 class TripAdmin(admin.ModelAdmin):
+    actions = ["soft_delete_selected"]
+
+    def delete_model(self, request, obj):
+        # Use soft delete instead of hard delete
+        obj.soft_delete(request.user)
+
+    def delete_queryset(self, request, queryset):
+        # Use soft delete for bulk deletes
+        for obj in queryset:
+            obj.soft_delete(request.user)
+
+    def soft_delete_selected(self, request, queryset):
+        for obj in queryset:
+            obj.soft_delete(request.user)
+        self.message_user(request, f"{queryset.count()} trip(s) soft deleted.")
+    soft_delete_selected.short_description = "Soft delete selected trips (mark as deleted)"
     """Admin configuration for Trip model."""
     
-    list_display = ('id', 'vehicle', 'driver', 'get_route_summary', 'start_time', 'end_time', 'status', 'distance_traveled')
-    list_filter = ('status', 'vehicle', 'driver', 'start_time')
+    list_display = ('id', 'vehicle', 'driver', 'get_route_summary', 'start_time', 'end_time', 'status', 'is_deleted', 'deleted_by', 'deleted_at', 'distance_traveled')
+    list_filter = ('status', 'vehicle', 'driver', 'start_time', 'is_deleted')
     search_fields = ('vehicle__license_plate', 'driver__username', 'purpose', 'origin', 'destination')
     readonly_fields = ('distance_traveled', 'duration', 'get_route_summary')
     
     fieldsets = (
         ('Trip Details', {
-            'fields': ('vehicle', 'driver', 'start_time', 'end_time', 'status')
+            'fields': ('vehicle', 'driver', 'start_time', 'end_time', 'status', 'is_deleted', 'deleted_by', 'deleted_at')
         }),
         ('Route Information', {
             'fields': ('origin', 'destination', 'get_route_summary')

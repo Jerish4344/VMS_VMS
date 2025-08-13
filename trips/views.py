@@ -68,9 +68,9 @@ class TripListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         # Get base queryset based on user permissions
         if self.request.user.user_type == 'driver':
-            queryset = Trip.objects.filter(driver=self.request.user)
+            queryset = Trip.objects.filter(driver=self.request.user, is_deleted=False)
         elif self.request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
-            queryset = Trip.objects.all()
+            queryset = Trip.objects.filter(is_deleted=False)
         else:
             queryset = Trip.objects.none()
         
@@ -278,8 +278,7 @@ class DriverTripsView(LoginRequiredMixin, ListView):
         by status / date range, ordered by most-recent first.
         """
         driver = self._get_driver()
-
-        qs = Trip.objects.filter(driver=driver).select_related('vehicle', 'driver')
+        qs = Trip.objects.filter(driver=driver, is_deleted=False).select_related('vehicle', 'driver')
 
         # Status filter
         status = self.request.GET.get('status', '').strip()
@@ -870,7 +869,7 @@ class ManualTripListView(LoginRequiredMixin, VehicleManagerRequiredMixin, ListVi
     paginate_by = 20
 
     def get_queryset(self):
-        queryset = Trip.objects.all().select_related('vehicle', 'driver').order_by('-start_time')
+        queryset = Trip.objects.filter(is_deleted=False).select_related('vehicle', 'driver').order_by('-start_time')
 
         search = self.request.GET.get('search', '').strip()
         if search:
@@ -1248,7 +1247,7 @@ def trip_delete(request, pk):
                 vehicle.save()
             
             # Delete the trip
-            trip.delete()
+            trip.soft_delete(request.user)
             
             # Handle different response types
             if request.headers.get('Content-Type') == 'application/json' or request.META.get('HTTP_ACCEPT', '').startswith('application/json'):
@@ -1290,7 +1289,7 @@ def export_manual_trips(request):
     trip_ids = request.GET.get('trip_ids')
     
     # Build queryset
-    queryset = Trip.objects.all().select_related('vehicle', 'driver').order_by('-start_time')
+    queryset = Trip.objects.filter(is_deleted=False).select_related('vehicle', 'driver').order_by('-start_time')
     
     # Apply filters
     if trip_ids:

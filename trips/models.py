@@ -10,6 +10,11 @@ from django.apps import apps  # Lazy model lookup to avoid circular imports
 ConsultantRate = None
 
 class Trip(models.Model):
+    def delete(self, using=None, keep_parents=False, user=None):
+        """
+        Override delete to perform a soft delete. Pass user to record who deleted.
+        """
+        self.soft_delete(user)
     """Record of a vehicle trip."""
     
     STATUS_CHOICES = (
@@ -73,6 +78,27 @@ class Trip(models.Model):
     # Add timestamps for audit trail
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Soft delete fields
+    is_deleted = models.BooleanField(default=False, help_text="Mark trip as deleted instead of removing from DB")
+    deleted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='deleted_trips',
+        help_text="User who deleted this trip"
+    )
+    deleted_at = models.DateTimeField(null=True, blank=True, help_text="When the trip was deleted")
+    def soft_delete(self, user):
+        """
+        Soft delete the trip, recording who deleted and when.
+        """
+        if not self.is_deleted:
+            self.is_deleted = True
+            self.deleted_by = user
+            self.deleted_at = timezone.now()
+            self.save()
     
     class Meta:
         ordering = ['-start_time']
