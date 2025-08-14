@@ -387,8 +387,7 @@
             </ul>
           </li>
 
-          <!-- Vehicle Tracking Section (Hidden for drivers) -->
-          {% if request.user.user_type != 'driver' %}
+          <!-- Vehicle Tracking Section -->
         <li>
           <a href="#trackingSubmenu" data-bs-toggle="collapse" aria-expanded="false"
              class="dropdown-toggle menu-item-enhanced">
@@ -431,7 +430,6 @@
             {% endif %}
           </ul>
         </li>
-          {% endif %}
         
         <li>
           <a href="#tripSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
@@ -611,6 +609,9 @@
             </li>
             <li>
               <a href="{% url 'consultant_report' %}" class="menu-item-enhanced">Consultant Report</a>
+            </li>
+            <li>
+              <a href="{% url 'daily_usage_cost' %}" class="menu-item-enhanced">Daily Usage Cost</a>
             </li>
           </ul>
         </li>

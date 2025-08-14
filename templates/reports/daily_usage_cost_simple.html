@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Daily Vehicle Usage Cost Report - VMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1>Daily Vehicle Usage Cost Report</h1>
+    
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4>₹{{ total_cost|floatformat:2 }}</h4>
+                    <p>Total Cost</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4>{{ total_distance }} km</h4>
+                    <p>Total Distance</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4>₹{{ avg_cost_per_km|floatformat:2 }}</h4>
+                    <p>Avg Cost per KM</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4>{{ active_vehicles }}</h4>
+                    <p>Active Vehicles</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row">
+                <div class="col-md-3">
+                    <label>Start Date</label>
+                    <input type="date" class="form-control" name="start_date" value="{{ start_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label>End Date</label>
+                    <input type="date" class="form-control" name="end_date" value="{{ end_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-4">
+                    <label>Vehicle</label>
+                    <select class="form-control" name="vehicle">
+                        <option value="">All Vehicles</option>
+                        {% for vehicle in vehicles %}
+                            <option value="{{ vehicle.id }}">{{ vehicle.license_plate }} - {{ vehicle.make }} {{ vehicle.model }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label>&nbsp;</label>
+                    <button type="submit" class="btn btn-primary form-control" style="color: white;">Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Daily Usage Data -->
+    <div class="card">
+        <div class="card-header">
+            <h5>Daily Vehicle Usage Cost Analysis</h5>
+        </div>
+        <div class="card-body">
+            {% if daily_usage %}
+                <div class="row">
+                    {% for day_data in daily_usage %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6>{{ day_data.vehicle__license_plate }}</h6>
+                                    <p><strong>{{ day_data.vehicle__make }} {{ day_data.vehicle__model }}</strong></p>
+                                    <p>Cost: <span class="text-success">₹{{ day_data.total_cost|floatformat:2 }}</span></p>
+                                    <p>Distance: {{ day_data.total_distance }} km</p>
+                                    <p>Trips: {{ day_data.trip_count }}</p>
+                                    {% if day_data.vehicle__rate_per_km %}
+                                        <small>Rate: ₹{{ day_data.vehicle__rate_per_km }}/km</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center">
+                    <h5>No usage data found</h5>
+                    <p>No completed trips found for the selected date range.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1204,3 +1204,175 @@ class FuelReportView(ReportBaseView):
         filename = f"fuel_energy_report_with_invoices_{context['start_date']}_to_{context['end_date']}"
         
         return export_data, filename, headers
+
+
+class DailyUsageCostView(ReportBaseView):
+    """View for daily vehicle usage cost summary."""
+    template_name = 'reports/daily_usage_cost_simple.html'
+    
+    def get_context_data(self, **kwargs):
+        from django.db.models.functions import TruncDate
+        from django.db.models import Min, Max
+        context = super().get_context_data(**kwargs)
+
+        # Get date range from request
+        start_date, end_date = self.get_date_range_filters()
+        if not start_date:
+            start_date = timezone.now().date() - timedelta(days=30)
+        else:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        if not end_date:
+            end_date = timezone.now().date()
+        else:
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        context['start_date'] = start_date
+        context['end_date'] = end_date
+
+        # Vehicle filter
+        vehicle_id = self.request.GET.get('vehicle')
+        vehicle_filter = {}
+        if vehicle_id:
+            vehicle_filter['vehicle_id'] = vehicle_id
+            context['selected_vehicle'] = Vehicle.objects.get(id=vehicle_id)
+
+        # Annotate and aggregate in DB (group by vehicle only)
+        trip_qs = Trip.objects.filter(
+            status='completed',
+            **vehicle_filter
+        ).filter(
+            start_time__date__gte=start_date,
+            start_time__date__lte=end_date
+        ).select_related('vehicle', 'driver')
+
+        trip_qs = trip_qs.annotate(
+            trip_distance=ExpressionWrapper(
+                F('end_odometer') - F('start_odometer'),
+                output_field=FloatField()
+            ),
+            trip_cost=ExpressionWrapper(
+                F('vehicle__rate_per_km') * (F('end_odometer') - F('start_odometer')),
+                output_field=FloatField()
+            ),
+            trip_duration=ExpressionWrapper(
+                (F('end_time') - F('start_time')),
+                output_field=FloatField()
+            )
+        )
+
+        grouped = trip_qs.values(
+            'vehicle',
+            'vehicle__license_plate',
+            'vehicle__make',
+            'vehicle__model',
+            'vehicle__rate_per_km',
+        ).annotate(
+            total_distance=Sum('trip_distance'),
+            total_cost=Sum('trip_cost'),
+            trip_count=Count('id'),
+            first_trip_time=Min('start_time'),
+            last_trip_time=Max('end_time'),
+            total_duration=Sum(ExpressionWrapper(F('end_time') - F('start_time'), output_field=FloatField())),
+        ).order_by('vehicle__license_plate')
+
+        # No pagination needed, show all vehicles
+        daily_usage = list(grouped)
+
+        # Summary statistics
+        total_cost = sum(item['total_cost'] or 0 for item in daily_usage)
+        total_distance = sum(item['total_distance'] or 0 for item in daily_usage)
+        context.update({
+            'daily_usage': daily_usage,
+            'total_cost': total_cost,
+            'total_distance': total_distance,
+            'avg_cost_per_km': total_cost / total_distance if total_distance > 0 else 0,
+            'total_days': None,
+            'active_vehicles': len(daily_usage),
+            'vehicles': Vehicle.objects.filter(status__in=['available', 'in_use']).order_by('license_plate'),
+        })
+        return context
+        return context
+    
+    def get_export_data(self, context):
+        """Prepare data for export."""
+        headers = [
+            'Date', 'Vehicle', 'License Plate', 'Total Distance (km)', 
+            'Rate per KM', 'Total Cost', 'Trip Count', 'First Trip', 'Last Trip'
+        ]
+        
+        export_data = []
+        
+        # Get all daily usage data (not just paginated)
+        start_date = context['start_date']
+        end_date = context['end_date']
+        
+        vehicle_id = self.request.GET.get('vehicle')
+        vehicle_filter = {}
+        if vehicle_id:
+            vehicle_filter['vehicle_id'] = vehicle_id
+        
+        trips = Trip.objects.filter(
+            status='completed',
+            **vehicle_filter
+        ).extra(
+            where=["DATE(start_time) >= %s AND DATE(start_time) <= %s"],
+            params=[start_date, end_date]
+        ).select_related('vehicle', 'driver').order_by('-start_time')
+        
+        # Group by date and vehicle
+        daily_usage = {}
+        for trip in trips:
+            trip_date = trip.start_time.date()
+            vehicle = trip.vehicle
+            distance = trip.distance_traveled()
+            
+            # Calculate cost using vehicle's rate per km
+            if vehicle.rate_per_km and distance > 0:
+                cost = float(vehicle.rate_per_km) * distance
+            else:
+                cost = 0
+            
+            # Create daily entry key
+            key = (trip_date, vehicle.id)
+            
+            if key not in daily_usage:
+                daily_usage[key] = {
+                    'date': trip_date,
+                    'vehicle': vehicle,
+                    'total_distance': 0,
+                    'total_cost': 0,
+                    'trip_count': 0,
+                    'first_trip_time': trip.start_time,
+                    'last_trip_time': trip.end_time or trip.start_time
+                }
+            
+            # Update daily totals
+            daily_usage[key]['total_distance'] += distance
+            daily_usage[key]['total_cost'] += cost
+            daily_usage[key]['trip_count'] += 1
+            
+            # Update trip times
+            if trip.start_time < daily_usage[key]['first_trip_time']:
+                daily_usage[key]['first_trip_time'] = trip.start_time
+            if trip.end_time and trip.end_time > daily_usage[key]['last_trip_time']:
+                daily_usage[key]['last_trip_time'] = trip.end_time
+        
+        # Convert to export format
+        for usage_data in daily_usage.values():
+            export_data.append({
+                'date': usage_data['date'].strftime('%Y-%m-%d'),
+                'vehicle': str(usage_data['vehicle']),
+                'license_plate': usage_data['vehicle'].license_plate,
+                'total_distance_(km)': usage_data['total_distance'],
+                'rate_per_km': float(usage_data['vehicle'].rate_per_km) if usage_data['vehicle'].rate_per_km else 0,
+                'total_cost': usage_data['total_cost'],
+                'trip_count': usage_data['trip_count'],
+                'first_trip': usage_data['first_trip_time'].strftime('%Y-%m-%d %H:%M'),
+                'last_trip': usage_data['last_trip_time'].strftime('%Y-%m-%d %H:%M')
+            })
+        
+        # Sort by date and vehicle
+        export_data.sort(key=lambda x: (x['date'], x['vehicle']), reverse=True)
+        
+        filename = f"daily_usage_cost_summary_{start_date}_to_{end_date}"
+        
+        return export_data, filename, headers

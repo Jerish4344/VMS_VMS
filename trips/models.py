@@ -219,6 +219,13 @@ class Trip(models.Model):
             return max(0, self.end_odometer - self.start_odometer)
         return 0
     
+    def trip_cost(self):
+        """Calculate the cost of this trip based on vehicle's rate per km."""
+        distance = self.distance_traveled()
+        if self.vehicle.rate_per_km and distance > 0:
+            return float(self.vehicle.rate_per_km) * distance
+        return 0
+    
     def get_duration_timedelta(self):
         """Calculate trip duration as a timedelta object."""
         if self.end_time and self.start_time:
