@@ -589,7 +589,9 @@
             </li>
           </ul>
         </li>
+        {% endif %}
         
+        {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
         <li>
           <a href="#reportSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-chart-bar"></i> Reports

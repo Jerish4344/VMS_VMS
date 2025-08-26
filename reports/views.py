@@ -6,7 +6,7 @@ from django.db.models import Sum, Count, Avg, F, ExpressionWrapper, FloatField, 
 from django.db.models.functions import TruncMonth, TruncYear, Coalesce
 from django.utils import timezone
 from django.http import HttpResponse, JsonResponse
-from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin
+from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin
 from vehicles.models import Vehicle, VehicleType
 from trips.models import Trip
 from maintenance.models import Maintenance
@@ -25,7 +25,7 @@ try:
 except ImportError:
     XLSX_AVAILABLE = False
 
-class ReportBaseView(LoginRequiredMixin, ManagerRequiredMixin, TemplateView):
+class ReportBaseView(LoginRequiredMixin, VehicleManagerRequiredMixin, TemplateView):
     """Base class for all report views with common functionality."""
     
     def get(self, request, *args, **kwargs):

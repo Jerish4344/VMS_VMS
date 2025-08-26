@@ -3,7 +3,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Sum, Count, F, ExpressionWrapper, FloatField, Q
 from django.utils import timezone
 from django.http import HttpResponse
-from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin
+from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin
 from trips.models import Trip
 from trips.consultant_models import ConsultantRate
 from accounts.models import CustomUser
