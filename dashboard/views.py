@@ -28,7 +28,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         
         # Basic statistics
         context['total_vehicles'] = Vehicle.objects.count()
-        context['active_trips'] = Trip.objects.filter(status='ongoing').count()
+        context['active_trips'] = Trip.objects.filter(status='ongoing', is_deleted=False).count()
         
         # Different dashboard data based on user type
         if user_type in ['admin', 'manager']:
@@ -45,7 +45,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     def get_completed_trips_with_duration(self, filter_params=None):
         """Helper method to get completed trips and safely calculate duration"""
         # Start with base query for completed trips
-        query = Trip.objects.filter(status='completed', end_time__isnull=False)
+        query = Trip.objects.filter(status='completed', end_time__isnull=False, is_deleted=False)
         
         # Apply additional filters if provided
         if filter_params:
@@ -79,10 +79,10 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['vehicle_types'] = Vehicle.objects.values('vehicle_type__name').annotate(count=Count('id'))
         
         # Ongoing trips
-        context['ongoing_trips'] = Trip.objects.filter(status='ongoing').select_related('vehicle', 'driver')
+        context['ongoing_trips'] = Trip.objects.filter(status='ongoing', is_deleted=False).select_related('vehicle', 'driver')
         
         # Group ongoing trips by vehicle type for the grouped view
-        ongoing_trips = Trip.objects.filter(status='ongoing').select_related('vehicle', 'driver', 'vehicle__vehicle_type')
+        ongoing_trips = Trip.objects.filter(status='ongoing', is_deleted=False).select_related('vehicle', 'driver', 'vehicle__vehicle_type')
         ongoing_trips_by_type = {}
         ongoing_trips_summary = {}
         
@@ -124,7 +124,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         # Vehicle utilization (trips per vehicle this month)
         first_of_month = timezone.now().date().replace(day=1)
         context['vehicle_utilization'] = Trip.objects.filter(
-            start_time__gte=first_of_month
+            start_time__gte=first_of_month,
+            is_deleted=False
         ).values('vehicle__license_plate').annotate(
             trip_count=Count('id')
         ).order_by('-trip_count')[:10]
@@ -133,7 +134,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         # Updated to include duration calculation
         driver_performance = Trip.objects.filter(
             start_time__gte=first_of_month,
-            status='completed'
+            status='completed',
+            is_deleted=False
         ).annotate(
             trip_duration=ExpressionWrapper(
                 F('end_time') - F('start_time'),
@@ -309,8 +311,9 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['fuel_efficiency'] = []
         for vehicle in Vehicle.objects.all():
             trips = Trip.objects.filter(
-                vehicle=vehicle,
-                status='completed'
+            vehicle=vehicle,
+            status='completed',
+            is_deleted=False
             ).aggregate(
                 total_distance=Sum('end_odometer') - Sum('start_odometer')
             )
@@ -373,12 +376,14 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         # Driver's ongoing trips
         context['ongoing_trips'] = Trip.objects.filter(
             driver=driver,
-            status='ongoing'
+            status='ongoing',
+            is_deleted=False
         ).select_related('vehicle')
         
         # Driver's recent trips
         recent_trips = Trip.objects.filter(
-            driver=driver
+            driver=driver,
+            is_deleted=False
         ).order_by('-start_time')[:10]
         
         # Add duration and distance to trips
@@ -419,7 +424,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         monthly_stats = Trip.objects.filter(
             driver=driver,
             start_time__gte=first_of_month,
-            status='completed'
+            status='completed',
+            is_deleted=False
         ).aggregate(
             total_distance=Sum(F('end_odometer') - F('start_odometer')),
             trip_count=Count('id')

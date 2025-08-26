@@ -140,6 +140,7 @@ class VehicleReportView(ReportBaseView):
             start_time__gte=start_datetime,
             start_time__lte=end_datetime,
             start_odometer__isnull=False,
+            is_deleted=False
         ).select_related('vehicle')
         
         # Calculate trip data for each vehicle
@@ -406,7 +407,8 @@ class DriverReportView(ReportBaseView):
         trips_data = Trip.objects.filter(
             start_time__gte=start_datetime,
             start_time__lte=end_datetime,
-            driver__isnull=False
+            driver__isnull=False,
+            is_deleted=False
         ).values('driver_id').annotate(
             trip_count=Count('id'),
             completed_count=Count('id', filter=Q(status='completed')),
