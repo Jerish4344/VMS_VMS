@@ -15,6 +15,7 @@ class CustomUser(AbstractUser):
         ('vehicle_manager', 'Vehicle Manager'),
         ('driver', 'Employee (Vehicle Access)'),  # Updated label
         ('generator_user', 'Generator User'),  # New role for generator-only access
+	('sor_team', 'SOR Team'),  # SOR team role
     )
     
     APPROVAL_STATUS = (

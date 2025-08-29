@@ -538,7 +538,6 @@ class EndTripView(LoginRequiredMixin, UpdateView):
         trip = form.instance
         destination = form.cleaned_data.get('destination')
         end_odometer = form.cleaned_data.get('end_odometer')
-        
         try:
             # Use the model's end_trip method
             trip.end_trip(
@@ -546,23 +545,29 @@ class EndTripView(LoginRequiredMixin, UpdateView):
                 end_odometer=end_odometer, 
                 notes=form.cleaned_data.get('notes')
             )
-            
+            # Update SOR status if this trip is linked to a SOR
+            from sor.models import SOR
+            try:
+                sor = SOR.objects.get(trip=trip)
+                sor.status = 'completed'
+                # Set SOR distance_km from trip distance
+                sor.distance_km = trip.distance_traveled()
+                sor.save()
+            except SOR.DoesNotExist:
+                pass
             # Success message with role indication
             user_role = self.request.user.get_user_type_display()
             ended_by = "you" if trip.driver == self.request.user else f"{user_role}"
-            
             messages.success(
                 self.request, 
                 f'Trip ended successfully by {ended_by}! Distance: {trip.distance_traveled()} km'
             )
-            
         except ValidationError as e:
             messages.error(self.request, str(e))
             return self.form_invalid(form)
         except Exception as e:
             messages.error(self.request, f'Error ending trip: {str(e)}')
             return self.form_invalid(form)
-        
         return redirect('trip_detail', pk=trip.pk)
     
     def form_invalid(self, form):

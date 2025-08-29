@@ -35,6 +35,9 @@ urlpatterns = [
     
     # Accident Management
     path('accidents/', include('accidents.urls')),
+
+    # SOR Management
+    path('sor/', include('sor.urls')),
     
     # Reports
     path('reports/', include('reports.urls')),

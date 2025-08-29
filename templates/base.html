@@ -240,7 +240,7 @@
         </button>
       </div>
       
-      <div class="sidebar-user">
+  <div class="sidebar-user d-flex align-items-center" style="gap: 12px; position: relative;">
         {% if request.user.profile_picture %}
           <img src="{{ request.user.profile_picture.url }}" alt="{% get_employee_display_name request.user %}" class="user-avatar">
         {% else %}
@@ -249,6 +249,7 @@
             {{ display_name|first|upper }}
           </div>
         {% endif %}
+  <!-- SOR Notification Bell removed from sidebar -->
         <div class="user-info">
           <div class="user-name">{% get_employee_display_name request.user %}</div>
           <div class="user-role">
@@ -273,14 +274,15 @@
       </div>
       
       <ul class="list-unstyled components">
+        {% if request.user.user_type != 'sor_team' %}
         <li {% if request.resolver_match.url_name == 'dashboard' %}{% endif %}>
           <a href="{% url 'dashboard' %}" class="menu-item-enhanced">
             <i class="fas fa-tachometer-alt"></i> Dashboard
           </a>
         </li>
-        
+        {% endif %}
         <!-- Show different menus based on user type -->
-        {% if request.user.is_generator_user %}
+  {% if request.user.is_generator_user %}
           <!-- Generator Users - Only Generator Module -->
           <li>
             <a href="#generatorSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
@@ -314,6 +316,21 @@
               </li>
               <li>
                 <a href="{% url 'generators:maintenance_log_list' %}" class="menu-item-enhanced">Maintenance Logs</a>
+              </li>
+            </ul>
+          </li>
+        {% elif request.user.user_type == 'sor_team' %}
+          <!-- SOR Team - Only SOR Section -->
+          <li>
+            <a href="#sorSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-file-invoice"></i> SOR
+            </a>
+            <ul class="collapse list-unstyled {% if 'sor' in request.resolver_match.url_name %}show{% endif %}" id="sorSubmenu">
+              <li>
+                <a href="{% url 'sor_list' %}" class="menu-item-enhanced">All SOR Entries</a>
+              </li>
+              <li>
+                <a href="{% url 'sor_create' %}" class="menu-item-enhanced">Create SOR Entry</a>
               </li>
             </ul>
           </li>
@@ -574,6 +591,21 @@
             </li>
           </ul>
         </li>
+
+          <!-- SOR (Security Outward Register) Section -->
+          <li>
+            <a href="#sorSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-clipboard-list"></i> SOR
+            </a>
+            <ul class="collapse list-unstyled {% if 'sor' in request.resolver_match.url_name %}show{% endif %}" id="sorSubmenu">
+              <li>
+                <a href="{% url 'sor_list' %}" class="menu-item-enhanced">All SOR Entries</a>
+              </li>
+              <li>
+                <a href="{% url 'sor_create' %}" class="menu-item-enhanced">Create SOR Entry</a>
+              </li>
+            </ul>
+          </li>
         
         {% if request.user.user_type == 'admin' %}
         <li>
@@ -651,69 +683,18 @@
           </button>
           
           <div class="ms-auto d-flex align-items-center">
-            <!-- Notification Bell for Managers -->
-            {% if request.user.has_approval_permissions %}
-            <div class="dropdown me-3" id="notificationDropdown">
-              <button class="btn btn-link p-0 notification-bell" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="notificationButton">
+            <!-- SOR Notification Bell for Drivers in Navbar -->
+            {% if request.user.user_type == 'driver' %}
+            <div class="dropdown me-3" id="sorNotificationDropdown">
+              <button class="btn btn-link p-0 notification-bell" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="sorNotificationBell">
                 <i class="fas fa-bell"></i>
-                {% if pending_approvals_count > 0 %}
-                  <span class="notification-badge {% if new_approval_requests_count > 0 %}urgent{% endif %}" id="notificationBadge">
-                    {{ pending_approvals_count }}
-                  </span>
-                {% endif %}
+                <span id="sorNotificationBadge" class="notification-badge" style="display:none;">0</span>
               </button>
-              <div class="dropdown-menu dropdown-menu-end notification-dropdown" aria-labelledby="notificationButton">
-                <div class="dropdown-header d-flex justify-content-between align-items-center">
-                  <span><i class="fas fa-bell me-2"></i><strong>Pending Approvals</strong></span>
-                  {% if pending_approvals_count > 0 %}
-                    <a href="{% url 'pending_employees' %}" class="btn btn-sm btn-light">View All</a>
-                  {% endif %}
+              <div class="dropdown-menu dropdown-menu-end notification-dropdown p-0" aria-labelledby="sorNotificationBell" style="min-width: 350px;">
+                <div class="dropdown-header">SOR Notifications</div>
+                <div id="sorNotificationList">
+                  <div class="no-notifications">No new SOR notifications.</div>
                 </div>
-                
-                <div id="notificationList">
-                  {% if recent_pending_employees %}
-                    {% for employee in recent_pending_employees %}
-                      <div class="notification-item d-flex {% if employee.hr_authenticated_at|is_urgent_request %}urgent{% endif %}" onclick="window.location.href='{% url 'employee_approval' employee.id %}'">
-                        {% if employee.profile_picture %}
-                          <img src="{{ employee.profile_picture.url }}" alt="{% get_employee_display_name employee %}" class="notification-avatar">
-                        {% else %}
-                          <div class="notification-avatar-placeholder">
-                            {% get_employee_display_name employee as display_name %}
-                            {{ display_name|first|upper }}
-                          </div>
-                        {% endif %}
-                        <div class="notification-content">
-                          <div class="notification-name">{% get_employee_display_name employee %}</div>
-                          <div class="notification-role">{% get_employee_hr_role employee %}</div>
-                          <div class="notification-time {% if employee.hr_authenticated_at|is_urgent_request %}urgent{% endif %}">
-                            <i class="fas fa-clock me-1"></i>
-                            {{ employee.hr_authenticated_at|time_since_request }}
-                            {% if employee.hr_authenticated_at|is_urgent_request %}
-                              <i class="fas fa-exclamation-triangle ms-1"></i>
-                            {% endif %}
-                          </div>
-                        </div>
-                      </div>
-                    {% endfor %}
-                  {% else %}
-                    <div class="notification-item">
-                      <div class="notification-content text-center text-muted">
-                        <i class="fas fa-check-circle fa-2x mb-2 text-success"></i>
-                        <div><strong>All caught up!</strong></div>
-                        <div>No pending approvals.</div>
-                      </div>
-                    </div>
-                  {% endif %}
-                </div>
-
-                {% if pending_approvals_count > 5 %}
-                <div class="dropdown-divider"></div>
-                <div class="text-center p-3">
-                  <a href="{% url 'pending_employees' %}" class="btn btn-sm btn-primary">
-                    <i class="fas fa-list me-2"></i>View All {{ pending_approvals_count }} Requests
-                  </a>
-                </div>
-                {% endif %}
               </div>
             </div>
             {% endif %}
@@ -833,39 +814,39 @@
   
   <!-- Enhanced Notification JavaScript -->
   <script>
-    // Auto-refresh notifications every 30 seconds for managers
-    {% if request.user.has_approval_permissions %}
-    setInterval(function() {
-      fetch('/accounts/notifications/data/')
+    // Auto-refresh SOR notifications every 30 seconds for drivers
+  {% if request.user.user_type == 'driver' %}
+    function updateSORNotifications() {
+      fetch('/sor/notifications/api/')
         .then(response => response.json())
         .then(data => {
-          const badge = document.getElementById('notificationBadge');
-          const sidebarBadges = document.querySelectorAll('.sidebar-notification-badge');
-          
-          if (data.total_count > 0) {
-            if (badge) {
-              badge.textContent = data.total_count;
-              badge.className = `notification-badge ${data.has_urgent ? 'urgent' : ''}`;
+          const badge = document.getElementById('sorNotificationBadge');
+          const list = document.getElementById('sorNotificationList');
+          if (badge && list) {
+            if (data.count > 0) {
+              badge.textContent = data.count;
+              badge.style.display = '';
+              // Build notification items
+              let html = '';
+              data.notifications.forEach(n => {
+                html += `<div class="notification-item" onclick="window.location.href='/sor/accept/${n.sor_id}/'">
+                  <div class='notification-content'>
+                    <div class='notification-name'>${n.message}</div>
+                    <div class='notification-time'><i class='fas fa-clock me-1'></i> ${n.created_at}</div>
+                  </div>
+                </div>`;
+              });
+              list.innerHTML = html;
             } else {
-              const button = document.getElementById('notificationButton');
-              const newBadge = document.createElement('span');
-              newBadge.id = 'notificationBadge';
-              newBadge.className = `notification-badge ${data.has_urgent ? 'urgent' : ''}`;
-              newBadge.textContent = data.total_count;
-              button.appendChild(newBadge);
+              badge.style.display = 'none';
+              list.innerHTML = '<div class="no-notifications">No new SOR notifications.</div>';
             }
-            
-            sidebarBadges.forEach(badge => {
-              badge.textContent = data.total_count;
-              badge.style.display = 'inline';
-            });
-          } else {
-            if (badge) badge.remove();
-            sidebarBadges.forEach(badge => badge.style.display = 'none');
           }
         })
-        .catch(error => console.log('Notification refresh failed:', error));
-    }, 30000); // 30 seconds
+        .catch(error => console.log('SOR notification refresh failed:', error));
+    }
+    updateSORNotifications();
+    setInterval(updateSORNotifications, 30000);
     {% endif %}
 
     // Enhanced menu interactions
@@ -884,7 +865,6 @@
       // Highlight management driving privileges
       {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
       console.log('%c🔑 Management Access Enabled - Driving Privileges Granted', 'color: #28a745; font-weight: bold; font-size: 14px;');
-      
       // Add special indicator for management driving capability
       const tripSubmenu = document.querySelector('#tripSubmenu');
       if (tripSubmenu) {
@@ -894,9 +874,11 @@
           indicator.className = 'management-drive-indicator';
           {% if request.user.user_type == 'admin' %}
           indicator.innerHTML = '<small class="text-success"><i class="fas fa-crown me-1"></i>Admin can drive</small>';
-          {% elif request.user.user_type == 'manager' %}
+          {% endif %}
+          {% if request.user.user_type == 'manager' %}
           indicator.innerHTML = '<small class="text-primary"><i class="fas fa-users-cog me-1"></i>Manager can drive</small>';
-          {% elif request.user.user_type == 'vehicle_manager' %}
+          {% endif %}
+          {% if request.user.user_type == 'vehicle_manager' %}
           indicator.innerHTML = '<small class="text-info"><i class="fas fa-car-side me-1"></i>Vehicle Manager can drive</small>';
           {% endif %}
           startTripLink.appendChild(indicator);

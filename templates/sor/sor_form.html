@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-7 col-md-9">
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-white border-0 pb-0 d-flex align-items-center">
+          <i class="fas fa-clipboard-list fa-lg me-2 text-primary"></i>
+          <h4 class="mb-0">Create SOR Entry</h4>
+        </div>
+        <div class="card-body">
+          <form method="post" autocomplete="off">
+            {% csrf_token %}
+            {% for field in form %}
+              <div class="mb-3" id="field-wrapper-{{ field.name }}">
+                <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}{% if field.field.required %}<span class="text-danger ms-1">*</span>{% endif %}</label>
+                {% if field.name == 'from_location' %}
+                  {{ field }}
+                  <input type="text" name="from_location_other" id="from_location_other" class="form-control mt-2" style="display:none;" placeholder="Enter other location">
+                {% elif field.name == 'to_location' %}
+                  {{ field }}
+                  <input type="text" name="to_location_other" id="to_location_other" class="form-control mt-2" style="display:none;" placeholder="Enter other location">
+                {% else %}
+                  {{ field }}
+                {% endif %}
+                {% if field.help_text %}
+                  <div class="form-text">{{ field.help_text }}</div>
+                {% endif %}
+                {% for error in field.errors %}
+                  <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+<script>
+  function toggleOtherInput(selectId, inputId) {
+    const select = document.getElementById(selectId);
+    const input = document.getElementById(inputId);
+    if (select && input) {
+      select.addEventListener('change', function() {
+        if (this.value === 'Others') {
+          input.style.display = 'block';
+        } else {
+          input.style.display = 'none';
+          input.value = '';
+        }
+      });
+      // On page load
+      if (select.value === 'Others') {
+        input.style.display = 'block';
+      }
+    }
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    toggleOtherInput('id_from_location', 'from_location_other');
+    toggleOtherInput('id_to_location', 'to_location_other');
+  });
+</script>
+            <div class="d-flex justify-content-end">
+              <button type="submit" class="btn btn-primary px-4">
+                <i class="fas fa-plus-circle me-2"></i> Create
+              </button>
+              <a href="{% url 'sor_list' %}" class="btn btn-outline-secondary ms-2">
+                <i class="fas fa-arrow-left me-1"></i> Cancel
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
