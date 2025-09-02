@@ -45,8 +45,13 @@ class SORForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Only commercial vehicles
         self.fields['vehicle'].queryset = Vehicle.objects.filter(vehicle_type__category='commercial')
+        self.fields['vehicle'].widget.attrs.update({'class': 'form-select form-select-sm'})
         User = get_user_model()
         self.fields['driver'].queryset = User.objects.filter(user_type='driver', is_active=True)
+        self.fields['driver'].widget.attrs.update({'class': 'form-select form-select-sm'})
+        self.fields['goods_value'].widget.attrs.update({'class': 'form-control form-control-sm'})
+        self.fields['from_location'].widget.attrs.update({'class': 'form-select form-select-sm'})
+        self.fields['to_location'].widget.attrs.update({'class': 'form-select form-select-sm'})
 
     def clean_from_location(self):
         value = self.cleaned_data.get('from_location')
