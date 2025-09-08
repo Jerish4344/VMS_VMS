@@ -6,8 +6,14 @@ from django.shortcuts import render
 from django.contrib import messages
 from django.urls import path, reverse
 from django.utils.html import format_html
-from .models import VehicleType, Vehicle
+from .models import VehicleType, Vehicle, Firm
 from trips.models import Trip
+
+# Register Firm model for admin
+@admin.register(Firm)
+class FirmAdmin(admin.ModelAdmin):
+    list_display = ['name']
+    search_fields = ['name']
 
 @admin.register(VehicleType)
 class VehicleTypeAdmin(admin.ModelAdmin):
@@ -40,7 +46,7 @@ class VehicleAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Basic Information', {
             'fields': (
-                'vehicle_type', 'make', 'model', 'year', 
+                'vehicle_type', 'firms', 'make', 'model', 'year', 
                 'license_plate', 'vin', 'color'
             )
         }),

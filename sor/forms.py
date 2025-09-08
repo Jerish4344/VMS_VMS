@@ -1,9 +1,8 @@
-
 from django import forms
 from .models import SOR
 from vehicles.models import Vehicle
 from django.contrib.auth import get_user_model
-
+from trips.models import Trip
 
 # Custom ChoiceField that allows any value if 'Others' is selected
 class LocationChoiceField(forms.ChoiceField):
@@ -12,6 +11,31 @@ class LocationChoiceField(forms.ChoiceField):
         return True
 
 class SORForm(forms.ModelForm):
+    # Add custom widgets for new fields to match UI
+    number_of_crates = forms.IntegerField(
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Enter number of crates (optional)',
+            'min': 0
+        })
+    )
+    number_of_sac = forms.IntegerField(
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Enter number of sac (optional)',
+            'min': 0
+        })
+    )
+    description = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Describe contents of crates or sac (optional)',
+            'rows': 2
+        })
+    )
     LOCATION_CHOICES = [
         ("", "---------"),
         ("Attakulangara", "Attakulangara"),
@@ -43,8 +67,9 @@ class SORForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Only commercial vehicles
-        self.fields['vehicle'].queryset = Vehicle.objects.filter(vehicle_type__category='commercial')
+        # Only commercial vehicles that are not currently on an ongoing trip
+        ongoing_vehicle_ids = Trip.objects.filter(status='ongoing').values_list('vehicle_id', flat=True)
+        self.fields['vehicle'].queryset = Vehicle.objects.filter(vehicle_type__category='commercial').exclude(id__in=ongoing_vehicle_ids)
         self.fields['vehicle'].widget.attrs.update({'class': 'form-select form-select-sm'})
         User = get_user_model()
         self.fields['driver'].queryset = User.objects.filter(user_type='driver', is_active=True)
@@ -70,4 +95,7 @@ class SORForm(forms.ModelForm):
         return value
     class Meta:
         model = SOR
-        fields = ['goods_value', 'from_location', 'to_location', 'vehicle', 'driver']
+        fields = [
+            'goods_value', 'from_location', 'to_location', 'vehicle', 'driver',
+            'number_of_crates', 'number_of_sac', 'description'
+        ]

@@ -1,5 +1,18 @@
+
 from django.db import models
 from django.utils import timezone
+
+# Firm model to represent JIPL and Kannammal
+class Firm(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    class Meta:
+        verbose_name = 'Firm'
+        verbose_name_plural = 'Firms'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
 
 class VehicleType(models.Model):
     """
@@ -52,6 +65,8 @@ class Vehicle(models.Model):
     )
     
     vehicle_type = models.ForeignKey(VehicleType, on_delete=models.CASCADE)
+    # ManyToMany relation to Firm (JIPL, Kannammal, or both)
+    firms = models.ManyToManyField('Firm', related_name='vehicles', help_text='Select one or both firms for this vehicle')
     make = models.CharField(max_length=100)
     model = models.CharField(max_length=100)
     year = models.PositiveIntegerField()

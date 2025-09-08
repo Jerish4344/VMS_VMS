@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block title %}Firm Report{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <h2>Firm Report</h2>
+  <form method="get" class="row g-3 mb-4">
+    <div class="col-md-4">
+      <label for="firm" class="form-label">Select Firm</label>
+      <select name="firm" id="firm" class="form-select" onchange="this.form.submit()">
+        <option value="">-- Select Firm --</option>
+        {% for firm in firms %}
+          <option value="{{ firm.id }}" {% if selected_firm and firm.id == selected_firm.id %}selected{% endif %}>{{ firm.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+
+  {% if selected_firm %}
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">
+        Vehicles for {{ selected_firm.name }}
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for vehicle in vehicles %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <a href="?firm={{ selected_firm.id }}&vehicle={{ vehicle.id }}" class="fw-bold text-decoration-none">{{ vehicle }}</a>
+            <span class="badge bg-secondary">{{ vehicle.license_plate }}</span>
+          </li>
+        {% empty %}
+          <li class="list-group-item">No vehicles found for this firm.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if selected_vehicle %}
+    <div class="card mb-4">
+      <div class="card-header bg-success text-white">
+        Trips for {{ selected_vehicle }}
+      </div>
+      <div class="card-body">
+        <table class="table table-bordered table-hover">
+          <thead class="table-light">
+            <tr>
+              <th>Start Time</th>
+              <th>End Time</th>
+              <th>Start Odometer</th>
+              <th>End Odometer</th>
+              <th>Distance (km)</th>
+              <th>Cost (₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in trip_data %}
+            <tr>
+              <td>{{ item.trip.start_time }}</td>
+              <td>{{ item.trip.end_time }}</td>
+              <td>{{ item.trip.start_odometer }}</td>
+              <td>{{ item.trip.end_odometer }}</td>
+              <td>
+                {% if item.distance is not None %}
+                  {{ item.distance|floatformat:2 }}
+                {% else %}-{% endif %}
+              </td>
+              <td>
+                {% if item.cost is not None %}
+                  ₹{{ item.cost|floatformat:2 }}
+                {% else %}-{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6">No trips found for this vehicle.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if trips.has_other_pages %}
+        <nav aria-label="Trip pagination">
+          <ul class="pagination justify-content-center">
+            {% if trips.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?firm={{ selected_firm.id }}&vehicle={{ selected_vehicle.id }}&page={{ trips.previous_page_number }}" aria-label="Previous">
+                  <span aria-hidden="true">&laquo;</span>
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+            {% endif %}
+            {% for num in trips.paginator.page_range %}
+              {% if trips.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+              {% else %}
+                <li class="page-item"><a class="page-link" href="?firm={{ selected_firm.id }}&vehicle={{ selected_vehicle.id }}&page={{ num }}">{{ num }}</a></li>
+              {% endif %}
+            {% endfor %}
+            {% if trips.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?firm={{ selected_firm.id }}&vehicle={{ selected_vehicle.id }}&page={{ trips.next_page_number }}" aria-label="Next">
+                  <span aria-hidden="true">&raquo;</span>
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+            {% endif %}
+          </ul>
+        </nav>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

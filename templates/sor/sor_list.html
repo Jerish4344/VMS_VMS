@@ -24,6 +24,7 @@
                   <th>Rate/KM</th>
                   <th>Distance (km)</th>
                   <th>Transport Cost</th>
+                  <th>Transport % of Goods Value</th>
                   <th>Driver</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -42,6 +43,13 @@
                   <td>
                     {% if sor.distance_km and sor.vehicle.rate_per_km %}
                       <span class="text-success fw-semibold">{{ sor.transport_cost|floatformat:2 }}</span>
+                    {% else %}
+                      <span class="text-muted">--</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if sor.transport_cost_percentage %}
+                      <span class="fw-semibold text-primary">{{ sor.transport_cost_percentage|floatformat:2 }}%</span>
                     {% else %}
                       <span class="text-muted">--</span>
                     {% endif %}

@@ -12,8 +12,12 @@ from django.utils import timezone
 User = get_user_model()
 
 @login_required
-@permission_required('sor.add_sor', raise_exception=True)
 def sor_create(request):
+    # Allow only users with 'sor.add_sor' permission, managers, or vehicle managers
+    user_type = getattr(request.user, 'user_type', None)
+    if not (request.user.has_perm('sor.add_sor') or user_type in ['manager', 'vehicle_manager']):
+        messages.error(request, 'You do not have permission to create SOR entries.')
+        return redirect('sor_list')
     if request.method == 'POST':
         post_data = request.POST.copy()
         # If "Others" is selected, replace with the typed value

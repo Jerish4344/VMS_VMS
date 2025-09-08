@@ -46,20 +46,29 @@
     <div class="card mb-4">
         <div class="card-body">
             <form method="get" class="row">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label>Start Date</label>
                     <input type="date" class="form-control" name="start_date" value="{{ start_date|date:'Y-m-d' }}">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label>End Date</label>
                     <input type="date" class="form-control" name="end_date" value="{{ end_date|date:'Y-m-d' }}">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
+		    <label>Vehicle Type</label>
+                    <select class="form-control" name="vehicle_type">
+                        <option value="">All Types</option>
+                        {% for vtype in vehicle_types %}
+                            <option value="{{ vtype.id }}" {% if vtype.id == selected_vehicle_type %}selected{% endif %}>{{ vtype.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label>Vehicle</label>
                     <select class="form-control" name="vehicle">
                         <option value="">All Vehicles</option>
                         {% for vehicle in vehicles %}
-                            <option value="{{ vehicle.id }}">{{ vehicle.license_plate }} - {{ vehicle.make }} {{ vehicle.model }}</option>
+                            <option value="{{ vehicle.id }}" {% if vehicle.id == selected_vehicle.id %}selected{% endif %}>{{ vehicle.license_plate }} - {{ vehicle.make }} {{ vehicle.model }}</option>
                         {% endfor %}
                     </select>
                 </div>

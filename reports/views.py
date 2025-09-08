@@ -1230,17 +1230,25 @@ class DailyUsageCostView(ReportBaseView):
         context['start_date'] = start_date
         context['end_date'] = end_date
 
-        # Vehicle filter
+
+        # Vehicle and vehicle type filter
         vehicle_id = self.request.GET.get('vehicle')
+        vehicle_type_id = self.request.GET.get('vehicle_type')
         vehicle_filter = {}
         if vehicle_id:
             vehicle_filter['vehicle_id'] = vehicle_id
             context['selected_vehicle'] = Vehicle.objects.get(id=vehicle_id)
+        vehicle_type_filter = {}
+        if vehicle_type_id:
+            vehicle_type_filter['vehicle__vehicle_type_id'] = vehicle_type_id
+            context['selected_vehicle_type'] = int(vehicle_type_id)
 
         # Annotate and aggregate in DB (group by vehicle only)
+
         trip_qs = Trip.objects.filter(
             status='completed',
-            **vehicle_filter
+            **vehicle_filter,
+            **vehicle_type_filter
         ).filter(
             start_time__date__gte=start_date,
             start_time__date__lte=end_date
@@ -1282,6 +1290,7 @@ class DailyUsageCostView(ReportBaseView):
         # Summary statistics
         total_cost = sum(item['total_cost'] or 0 for item in daily_usage)
         total_distance = sum(item['total_distance'] or 0 for item in daily_usage)
+        from vehicles.models import VehicleType
         context.update({
             'daily_usage': daily_usage,
             'total_cost': total_cost,
@@ -1290,6 +1299,7 @@ class DailyUsageCostView(ReportBaseView):
             'total_days': None,
             'active_vehicles': len(daily_usage),
             'vehicles': Vehicle.objects.filter(status__in=['available', 'in_use']).order_by('license_plate'),
+            'vehicle_types': VehicleType.objects.all().order_by('name'),
         })
         return context
         return context

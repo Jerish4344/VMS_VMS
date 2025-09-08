@@ -14,7 +14,7 @@ class FuelTransactionAdmin(admin.ModelAdmin):
     """Admin configuration for FuelTransaction model."""
     
     list_display = (
-        'id', 'vehicle', 'driver', 'date', 'fuel_type', 'quantity', 'total_cost', 
+        'id', 'vehicle', 'driver', 'date', 'created_at', 'fuel_type', 'quantity', 'total_cost', 
         'company_invoice_number', 'station_invoice_number', 'odometer_reading'
     )
     list_filter = ('fuel_type', 'vehicle', 'driver', 'date', 'fuel_station')

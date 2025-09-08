@@ -29,7 +29,8 @@ class FuelTransaction(models.Model):
     driver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     fuel_station = models.ForeignKey(FuelStation, on_delete=models.SET_NULL, null=True, blank=True)
     date = models.DateField()
-    
+    created_at = models.DateTimeField(auto_now_add=True, help_text="Date and time when this entry was created in the system")
+
     # For regular fuel vehicles
     fuel_type = models.CharField(max_length=50, blank=True)
     quantity = models.DecimalField(
