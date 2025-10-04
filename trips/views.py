@@ -29,6 +29,8 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.units import inch
+from django.conf import settings
+from trips.zeptomail_utils import send_trip_alert_email
 
 # Conditional import of xlsxwriter
 try:
@@ -555,6 +557,12 @@ class EndTripView(LoginRequiredMixin, UpdateView):
                 sor.save()
             except SOR.DoesNotExist:
                 pass
+
+            # --- ZeptoMail alert for suspicious distance ---
+            if trip.distance_traveled() > 300:
+                recipients = getattr(settings, 'ZEPTO_ALERT_RECIPIENTS', [])
+                send_trip_alert_email(trip, recipients)
+
             # Success message with role indication
             user_role = self.request.user.get_user_type_display()
             ended_by = "you" if trip.driver == self.request.user else f"{user_role}"

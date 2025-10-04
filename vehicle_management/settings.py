@@ -1,3 +1,9 @@
+# ZeptoMail alert recipients for trip distance alerts
+ZEPTO_ALERT_RECIPIENTS = [
+    "jerish@jcrc.in",
+    "anubha@jeyarama.com",
+]
+
 # vehicle_management/settings.py
 
 import os
@@ -358,6 +364,10 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' # For developme
 # EMAIL_USE_TLS = True
 # EMAIL_HOST_USER = 'your-email@gmail.com'
 # EMAIL_HOST_USER_PASSWORD = 'your-email-password'
+
+# ZeptoMail API settings (add your actual API key below)
+ZEPTO_API_KEY = 'PHtE6r0PFuvsijYvoxIG5KLrRJalY9soruIzLQhA4o1GWKNWSU1cr48ow2WzqBwjUvETQPXOy44+tLqZs+uGJmnkNmkeVGqyqK3sx/VYSPOZsbq6x00Vs14bdk3eUoXtd9Jr1SDQvt7ZNA=='  # ZeptoMail API key
+ZEPTO_TEMPLATE_KEY = ''  # (Optional) Paste your ZeptoMail template key here if using templates
 
 # Document settings
 ALLOWED_DOCUMENT_TYPES = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx']

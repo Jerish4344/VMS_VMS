@@ -12,14 +12,29 @@
           </a>
         </div>
         <div class="card-body">
-          <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+          <style>
+            .swipe-scroll {
+              overflow-x: auto;
+              cursor: grab;
+              -webkit-overflow-scrolling: touch;
+            }
+            .swipe-scroll:active {
+              cursor: grabbing;
+            }
+            .swipe-scroll::-webkit-scrollbar {
+              height: 8px;
+            }
+          </style>
+          <div class="table-responsive swipe-scroll" id="sor-table-scroll">
+            <table class="table table-hover align-middle mb-0" style="min-width:1200px;">
               <thead class="table-light">
                 <tr>
                   <th>#</th>
                   <th>Goods Value</th>
-                  <th>From</th>
-                  <th>To</th>
+                    <th>Created By</th>
+                    <th>Created At</th>
+                    <th>From</th>
+                    <th>To</th>
                   <th>Vehicle</th>
                   <th>Rate/KM</th>
                   <th>Distance (km)</th>
@@ -35,8 +50,10 @@
                 <tr>
                   <td class="fw-bold">#{{ sor.id }}</td>
                   <td><span class="badge bg-info bg-opacity-10 text-info fw-semibold"><i class="fas fa-rupee-sign me-1"></i>{{ sor.goods_value }}</span></td>
-                  <td>{{ sor.from_location }}</td>
-                  <td>{{ sor.to_location }}</td>
+                    <td>{% if sor.created_by %}{{ sor.created_by.get_full_name|default:sor.created_by.username }}{% else %}<span class="text-muted">--</span>{% endif %}</td>
+                    <td>{% if sor.created_at %}{{ sor.created_at|date:'d M Y, H:i' }}{% else %}<span class="text-muted">--</span>{% endif %}</td>
+                    <td>{{ sor.from_location }}</td>
+                    <td>{{ sor.to_location }}</td>
                   <td><i class="fas fa-truck me-1 text-secondary"></i>{{ sor.vehicle }}</td>
                   <td>{{ sor.vehicle.rate_per_km }}</td>
                   <td>{% if sor.distance_km %}{{ sor.distance_km|floatformat:2 }}{% else %}<span class="text-muted">--</span>{% endif %}</td>
@@ -47,6 +64,7 @@
                       <span class="text-muted">--</span>
                     {% endif %}
                   </td>
+                  
                   <td>
                     {% if sor.transport_cost_percentage %}
                       <span class="fw-semibold text-primary">{{ sor.transport_cost_percentage|floatformat:2 }}%</span>
@@ -67,13 +85,21 @@
                     </span>
                   </td>
                   <td>
-                    {% if sor.status == 'pending' and request.user == sor.driver %}
-                      <a href="{% url 'sor_accept' sor.id %}" class="btn btn-success btn-sm">
-                        <i class="fas fa-check-circle me-1"></i>Accept & Start
+                    <div class="btn-group" role="group">
+                      <a href="{% url 'sor_view' sor.id %}" class="btn btn-outline-primary btn-sm" title="View">
+                        <i class="fas fa-eye"></i>
                       </a>
-                    {% else %}
-                      <span class="text-muted">-</span>
-                    {% endif %}
+                      {% if request.user.user_type in 'admin sor_team manager vehicle_manager' %}
+                        <a href="{% url 'sor_edit' sor.id %}" class="btn btn-outline-warning btn-sm ms-1" title="Edit">
+                          <i class="fas fa-edit"></i>
+                        </a>
+                      {% endif %}
+                      {% if request.user.user_type == 'admin' %}
+                        <a href="{% url 'sor_delete' sor.id %}" class="btn btn-outline-danger btn-sm ms-1" title="Delete">
+                          <i class="fas fa-trash"></i>
+                        </a>
+                      {% endif %}
+                    </div>
                   </td>
                 </tr>
                 {% endfor %}
@@ -85,4 +111,34 @@
     </div>
   </div>
 </div>
+<script>
+// Enable mouse drag/swipe to scroll horizontally
+const el = document.getElementById('sor-table-scroll');
+let isDown = false;
+let startX;
+let scrollLeft;
+if (el) {
+  el.addEventListener('mousedown', (e) => {
+    isDown = true;
+    el.classList.add('active');
+    startX = e.pageX - el.offsetLeft;
+    scrollLeft = el.scrollLeft;
+  });
+  el.addEventListener('mouseleave', () => {
+    isDown = false;
+    el.classList.remove('active');
+  });
+  el.addEventListener('mouseup', () => {
+    isDown = false;
+    el.classList.remove('active');
+  });
+  el.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    const walk = (x - startX) * 1.5; //scroll-fast
+    el.scrollLeft = scrollLeft - walk;
+  });
+}
+</script>
 {% endblock %}

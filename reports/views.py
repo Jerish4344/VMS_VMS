@@ -1041,8 +1041,8 @@ class FuelReportView(ReportBaseView):
         for vehicle in summary['vehicle_breakdown']:
             vehicle_id = vehicle['vehicle__id']
             distance = trip_distances.get(vehicle_id, 0)
-            fuel_quantity = vehicle['total_quantity'] or 0
-            energy_consumed = vehicle['total_energy'] or 0
+            fuel_quantity = vehicle.get('total_quantity', 0)
+            energy_consumed = vehicle.get('total_energy', 0)
             
             vehicle_data = {
                 'vehicle': f"{vehicle['vehicle__license_plate']} ({vehicle['vehicle__make']} {vehicle['vehicle__model']})",
@@ -1055,13 +1055,19 @@ class FuelReportView(ReportBaseView):
             }
             
             # Calculate fuel efficiency if applicable
-            if fuel_quantity > 0 and distance > 0:
+            if (
+                fuel_quantity is not None and distance is not None and
+                fuel_quantity > 0 and distance > 0
+            ):
                 vehicle_data['fuel_efficiency'] = round(distance / fuel_quantity, 2)
             else:
                 vehicle_data['fuel_efficiency'] = 0
             
             # Calculate energy efficiency if applicable
-            if energy_consumed > 0 and distance > 0:
+            if (
+                energy_consumed is not None and distance is not None and
+                energy_consumed > 0 and distance > 0
+            ):
                 vehicle_data['energy_efficiency'] = round(distance / energy_consumed, 2)
             else:
                 vehicle_data['energy_efficiency'] = 0

@@ -48,8 +48,64 @@ def sor_create(request):
 
 @login_required
 def sor_list(request):
-    sors = SOR.objects.all().order_by('-created_at')
+    # Only show SORs created by the user unless privileged
+    privileged_types = ['admin', 'manager', 'vehicle_manager']  # 'sor_team' removed
+    if hasattr(request.user, 'user_type') and request.user.user_type in privileged_types:
+        sors = SOR.objects.all().order_by('-created_at')
+    else:
+        sors = SOR.objects.filter(created_by=request.user).order_by('-created_at')
     return render(request, 'sor/sor_list.html', {'sors': sors})
+
+# --- SOR View, Edit, Delete Placeholder Views ---
+from django.http import HttpResponseForbidden
+
+@login_required
+def sor_view(request, pk):
+    sor = get_object_or_404(SOR, pk=pk)
+    # You can add more permission logic here if needed
+    return render(request, 'sor/sor_form.html', {'form': None, 'sor': sor, 'view_only': True})
+
+@login_required
+def sor_edit(request, pk):
+    sor = get_object_or_404(SOR, pk=pk)
+    # Only admin or sor_team can edit
+    if request.user.user_type not in ['admin', 'sor_team', 'manager', 'vehicle_manager']:
+        return HttpResponseForbidden('You do not have permission to edit this SOR.')
+    if request.method == 'POST':
+        form = SORForm(request.POST, instance=sor)
+        if form.is_valid():
+            updated_sor = form.save()
+            # Update or create notification for driver
+            from .notification import SORNotification
+            notif_message = f"SOR assignment updated: {updated_sor.from_location} to {updated_sor.to_location}. Please check details."
+            notif_qs = SORNotification.objects.filter(sor=updated_sor, driver=updated_sor.driver, is_read=False).order_by('-created_at')
+            if notif_qs.exists():
+                notif = notif_qs.first()
+                notif.message = notif_message
+                notif.save()
+            else:
+                SORNotification.objects.create(
+                    sor=updated_sor,
+                    driver=updated_sor.driver,
+                    message=notif_message
+                )
+            messages.success(request, 'SOR entry updated successfully and driver notified.')
+            return redirect('sor_list')
+    else:
+        form = SORForm(instance=sor)
+    return render(request, 'sor/sor_form.html', {'form': form, 'sor': sor, 'edit_mode': True})
+
+@login_required
+def sor_delete(request, pk):
+    sor = get_object_or_404(SOR, pk=pk)
+    # Only admin can delete
+    if request.user.user_type != 'admin':
+        return HttpResponseForbidden('You do not have permission to delete this SOR.')
+    if request.method == 'POST':
+        sor.delete()
+        messages.success(request, 'SOR entry deleted.')
+        return redirect('sor_list')
+    return render(request, 'sor/sor_confirm_delete.html', {'sor': sor})
 
 @login_required
 def sor_accept(request, pk):
