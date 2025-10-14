@@ -299,6 +299,30 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         # Vehicle availability
         context['available_vehicles'] = Vehicle.objects.filter(status='available').count()
         context['unavailable_vehicles'] = Vehicle.objects.exclude(status='available').count()
+
+        # Ongoing trips
+        context['ongoing_trips'] = Trip.objects.filter(status='ongoing', is_deleted=False).select_related('vehicle', 'driver')
+        
+        # Group ongoing trips by vehicle type for the grouped view
+        ongoing_trips = Trip.objects.filter(status='ongoing', is_deleted=False).select_related('vehicle', 'driver', 'vehicle__vehicle_type')
+        ongoing_trips_by_type = {}
+        ongoing_trips_summary = {}
+        
+        for trip in ongoing_trips:
+            vehicle_type = trip.vehicle.vehicle_type.name
+            
+            # For grouped view
+            if vehicle_type not in ongoing_trips_by_type:
+                ongoing_trips_by_type[vehicle_type] = []
+            ongoing_trips_by_type[vehicle_type].append(trip)
+            
+            # For summary cards
+            if vehicle_type not in ongoing_trips_summary:
+                ongoing_trips_summary[vehicle_type] = 0
+            ongoing_trips_summary[vehicle_type] += 1
+        
+        context['ongoing_trips_by_type'] = ongoing_trips_by_type
+        context['ongoing_trips_summary'] = ongoing_trips_summary
         
         # Document renewals
         today = timezone.now().date()

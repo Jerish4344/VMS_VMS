@@ -1,14 +1,17 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db.models import Q
+from datetime import datetime, time
+from django.utils import timezone
 
 from .models import SOR
-from .forms import SORForm
+from .forms import SORForm, SORFilterForm
 from .notification import SORNotification
 from django.contrib.auth import get_user_model
 from trips.models import Trip
 from vehicles.models import Vehicle
-from django.utils import timezone
 User = get_user_model()
 
 @login_required
@@ -49,12 +52,92 @@ def sor_create(request):
 @login_required
 def sor_list(request):
     # Only show SORs created by the user unless privileged
-    privileged_types = ['admin', 'manager', 'vehicle_manager']  # 'sor_team' removed
+    privileged_types = ['admin', 'manager', 'vehicle_manager']
     if hasattr(request.user, 'user_type') and request.user.user_type in privileged_types:
-        sors = SOR.objects.all().order_by('-created_at')
+        sors = SOR.objects.all()
     else:
-        sors = SOR.objects.filter(created_by=request.user).order_by('-created_at')
-    return render(request, 'sor/sor_list.html', {'sors': sors})
+        sors = SOR.objects.filter(created_by=request.user)
+    
+    # Initialize filter form
+    filter_form = SORFilterForm(request.GET or None)
+    
+    # Apply filters if form is valid
+    if filter_form.is_valid():
+        # Search filter
+        search = filter_form.cleaned_data.get('search')
+        if search:
+            sors = sors.filter(
+                Q(id__icontains=search) |
+                Q(goods_value__icontains=search) |
+                Q(from_location__icontains=search) |
+                Q(to_location__icontains=search) |
+                Q(driver__first_name__icontains=search) |
+                Q(driver__last_name__icontains=search) |
+                Q(vehicle__license_plate__icontains=search)
+            )
+        
+        # Status filter
+        status = filter_form.cleaned_data.get('status')
+        if status:
+            sors = sors.filter(status=status)
+        
+        # From location filter
+        from_location = filter_form.cleaned_data.get('from_location')
+        if from_location:
+            sors = sors.filter(from_location=from_location)
+        
+        # To location filter
+        to_location = filter_form.cleaned_data.get('to_location')
+        if to_location:
+            sors = sors.filter(to_location=to_location)
+        
+        # Vehicle filter
+        vehicle = filter_form.cleaned_data.get('vehicle')
+        if vehicle:
+            sors = sors.filter(vehicle=vehicle)
+        
+        # Driver filter
+        driver = filter_form.cleaned_data.get('driver')
+        if driver:
+            sors = sors.filter(driver=driver)
+        
+        # Date range filters
+        date_from = filter_form.cleaned_data.get('date_from')
+        if date_from:
+            # Filter from start of the selected date
+            start_datetime = timezone.make_aware(datetime.combine(date_from, time.min))
+            sors = sors.filter(created_at__gte=start_datetime)
+        
+        date_to = filter_form.cleaned_data.get('date_to')
+        if date_to:
+            # Filter until end of the selected date
+            end_datetime = timezone.make_aware(datetime.combine(date_to, time.max))
+            sors = sors.filter(created_at__lte=end_datetime)
+    
+    # Order by created_at descending
+    sors = sors.order_by('-created_at')
+    
+    # Pagination - 30 items per page
+    paginator = Paginator(sors, 30)
+    page = request.GET.get('page')
+    
+    try:
+        sors_page = paginator.page(page)
+    except PageNotAnInteger:
+        # If page is not an integer, deliver first page
+        sors_page = paginator.page(1)
+    except EmptyPage:
+        # If page is out of range, deliver last page
+        sors_page = paginator.page(paginator.num_pages)
+    
+    context = {
+        'sors': sors_page,
+        'filter_form': filter_form,
+        'total_count': paginator.count,
+        'has_filters': any(filter_form.cleaned_data.values()) if filter_form.is_valid() else False,
+    }
+    
+    return render(request, 'sor/sor_list.html', context)
 
 # --- SOR View, Edit, Delete Placeholder Views ---
 from django.http import HttpResponseForbidden

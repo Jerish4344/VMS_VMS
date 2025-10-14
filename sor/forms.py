@@ -99,3 +99,103 @@ class SORForm(forms.ModelForm):
             'goods_value', 'from_location', 'to_location', 'vehicle', 'driver',
             'number_of_crates', 'number_of_sac', 'description'
         ]
+
+
+class SORFilterForm(forms.Form):
+    """Form for filtering SOR entries"""
+    
+    LOCATION_CHOICES = [
+        ("", "All Locations"),
+        ("Attakulangara", "Attakulangara"),
+        ("Pazhavangadi", "Pazhavangadi"),
+        ("Enchakkal", "Enchakkal"),
+        ("Ulloor", "Ulloor"),
+        ("Attingal", "Attingal"),
+        ("Vellayamvbalam", "Vellayamvbalam"),
+        ("Mall Of Travancore", "Mall Of Travancore"),
+        ("Neyyatinkara", "Neyyatinkara"),
+        ("Courtallam", "Courtallam"),
+        ("Thirumala", "Thirumala"),
+        ("Nedumangadu", "Nedumangadu"),
+        ("Karakkamandapam", "Karakkamandapam"),
+        ("Marthandam", "Marthandam"),
+        ("Panachamoodu", "Panachamoodu"),
+        ("kattakada", "kattakada"),
+        ("Kodapanamkunnu", "Kodapanamkunnu"),
+        ("Kaval Kinaru", "Kaval Kinaru"),
+        ("Ooty", "Ooty"),
+        ("Enchakal Warehouse", "Enchakal Warehouse"),
+        ("Muthoot Warehouse", "Muthoot Warehouse"),
+        ("Hindu Warehouse", "Hindu Warehouse"),
+    ]
+    
+    STATUS_CHOICES = [
+        ("", "All Status"),
+        ("pending", "Pending"),
+        ("driver_accepted", "Driver Accepted"),
+        ("in_progress", "In Progress"),
+        ("completed", "Completed"),
+        ("rejected", "Rejected"),
+    ]
+    
+    # Filter fields
+    search = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Search by SOR ID, goods value...'
+        })
+    )
+    
+    status = forms.ChoiceField(
+        choices=STATUS_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )
+    
+    from_location = forms.ChoiceField(
+        choices=LOCATION_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )
+    
+    to_location = forms.ChoiceField(
+        choices=LOCATION_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )
+    
+    vehicle = forms.ModelChoiceField(
+        queryset=Vehicle.objects.filter(vehicle_type__category='commercial'),
+        required=False,
+        empty_label="All Vehicles",
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )
+    
+    driver = forms.ModelChoiceField(
+        queryset=None,  # Will be set in __init__
+        required=False,
+        empty_label="All Drivers",
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )
+    
+    date_from = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control form-control-sm',
+            'type': 'date'
+        })
+    )
+    
+    date_to = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control form-control-sm',
+            'type': 'date'
+        })
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        User = get_user_model()
+        self.fields['driver'].queryset = User.objects.filter(user_type='driver', is_active=True)
