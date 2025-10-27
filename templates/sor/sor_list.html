@@ -9,14 +9,43 @@
           <i class="fas fa-clipboard-list fa-lg me-2 text-primary"></i>
           <h4 class="mb-0">SOR Entries</h4>
           <span class="badge bg-secondary ms-2">{{ total_count }} total</span>
-          <a href="{% url 'sor_create' %}" class="btn btn-primary btn-sm ms-auto">
-            <i class="fas fa-plus-circle me-1"></i> New SOR
-          </a>
+          <div class="ms-auto d-flex gap-2">
+            <!-- Export Dropdown -->
+            <div class="btn-group">
+              <button type="button" class="btn btn-success btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-download me-1"></i> Export
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                  <a class="dropdown-item" href="#" onclick="exportData('csv')">
+                    <i class="fas fa-file-csv me-2 text-success"></i> CSV
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="#" onclick="exportData('excel')">
+                    <i class="fas fa-file-excel me-2 text-success"></i> Excel
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="#" onclick="exportData('pdf')">
+                    <i class="fas fa-file-pdf me-2 text-danger"></i> PDF
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <a href="{% url 'sor_create' %}" class="btn btn-primary btn-sm">
+              <i class="fas fa-plus-circle me-1"></i> New SOR
+            </a>
+          </div>
         </div>
         
         <!-- Filter Section -->
         <div class="card-body border-bottom">
           <form method="get" id="filter-form">
+            <!-- Hidden fields to preserve sorting -->
+            <input type="hidden" name="sort" value="{{ current_sort|default:'created_at' }}">
+            <input type="hidden" name="order" value="{{ current_order|default:'desc' }}">
+            
             <div class="row g-2">
               <!-- Search -->
               <div class="col-md-3">
@@ -97,6 +126,22 @@
             .swipe-scroll::-webkit-scrollbar {
               height: 8px;
             }
+            .sortable-header {
+              cursor: pointer;
+              user-select: none;
+              transition: background-color 0.2s ease;
+            }
+            .sortable-header:hover {
+              background-color: #f8f9fa;
+            }
+            .sort-icon {
+              margin-left: 5px;
+              opacity: 0.5;
+            }
+            .sort-icon.active {
+              opacity: 1;
+              color: #007bff;
+            }
           </style>
           
           {% if sors %}
@@ -104,19 +149,55 @@
             <table class="table table-hover align-middle mb-0" style="min-width:1200px;">
               <thead class="table-light">
                 <tr>
-                  <th>#</th>
-                  <th>Goods Value</th>
+                  <th class="sortable-header" onclick="sortTable('id')">
+                    #
+                    <i class="fas fa-sort{% if current_sort == 'id' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                  </th>
+                  <th class="sortable-header" onclick="sortTable('goods_value')">
+                    Goods Value
+                    <i class="fas fa-sort{% if current_sort == 'goods_value' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                  </th>
                     <th>Created By</th>
-                    <th>Created At</th>
-                    <th>From</th>
-                    <th>To</th>
-                  <th>Vehicle</th>
-                  <th>Rate/KM</th>
-                  <th>Distance (km)</th>
-                  <th>Transport Cost</th>
-                  <th>Transport % of Goods Value</th>
-                  <th>Driver</th>
-                  <th>Status</th>
+                    <th class="sortable-header" onclick="sortTable('created_at')">
+                      Created At
+                      <i class="fas fa-sort{% if current_sort == 'created_at' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                    </th>
+                    <th class="sortable-header" onclick="sortTable('from_location')">
+                      From
+                      <i class="fas fa-sort{% if current_sort == 'from_location' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                    </th>
+                    <th class="sortable-header" onclick="sortTable('to_location')">
+                      To
+                      <i class="fas fa-sort{% if current_sort == 'to_location' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                    </th>
+                  <th class="sortable-header" onclick="sortTable('vehicle')">
+                    Vehicle
+                    <i class="fas fa-sort{% if current_sort == 'vehicle' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                  </th>
+                  <th class="sortable-header" onclick="sortTable('rate_per_km')">
+                    Rate/KM
+                    <i class="fas fa-sort{% if current_sort == 'rate_per_km' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                  </th>
+                  <th class="sortable-header" onclick="sortTable('distance_km')">
+                    Distance (km)
+                    <i class="fas fa-sort{% if current_sort == 'distance_km' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                  </th>
+                  <th class="sortable-header" onclick="sortTable('transport_cost')">
+                    Transport Cost
+                    <i class="fas fa-sort{% if current_sort == 'transport_cost' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                  </th>
+                  <th class="sortable-header" onclick="sortTable('transport_cost_percentage')">
+                    Transport % of Goods Value
+                    <i class="fas fa-sort{% if current_sort == 'transport_cost_percentage' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                  </th>
+                  <th class="sortable-header" onclick="sortTable('driver')">
+                    Driver
+                    <i class="fas fa-sort{% if current_sort == 'driver' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                  </th>
+                  <th class="sortable-header" onclick="sortTable('status')">
+                    Status
+                    <i class="fas fa-sort{% if current_sort == 'status' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                  </th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -278,6 +359,29 @@ if (el) {
   });
 }
 
+// Sorting function
+function sortTable(column) {
+  const currentSort = '{{ current_sort|default:"created_at" }}';
+  const currentOrder = '{{ current_order|default:"desc" }}';
+  
+  let newOrder = 'asc';
+  if (currentSort === column) {
+    // Toggle order if same column
+    newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+  }
+  
+  // Get current URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  urlParams.set('sort', column);
+  urlParams.set('order', newOrder);
+  
+  // Reset to first page when sorting
+  urlParams.delete('page');
+  
+  // Navigate to new URL
+  window.location.href = '?' + urlParams.toString();
+}
+
 // Auto-submit form on filter change (optional)
 document.addEventListener('DOMContentLoaded', function() {
   const filterSelects = document.querySelectorAll('#filter-form select');
@@ -302,5 +406,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 });
+
+// Export function
+function exportData(format) {
+  // Get current URL parameters to preserve filters and sorting
+  const urlParams = new URLSearchParams(window.location.search);
+  urlParams.set('format', format);
+  
+  // Create export URL
+  const exportUrl = '{% url "sor_export" %}?' + urlParams.toString();
+  
+  // Open in new tab for download
+  window.open(exportUrl, '_blank');
+}
 </script>
 {% endblock %}

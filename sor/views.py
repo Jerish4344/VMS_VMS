@@ -2,9 +2,18 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from django.db.models import Q
+from django.db.models import Q, F, Case, When, DecimalField
+from django.http import HttpResponse
 from datetime import datetime, time
 from django.utils import timezone
+import csv
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib import colors
 
 from .models import SOR
 from .forms import SORForm, SORFilterForm
@@ -114,9 +123,64 @@ def sor_list(request):
             end_datetime = timezone.make_aware(datetime.combine(date_to, time.max))
             sors = sors.filter(created_at__lte=end_datetime)
     
-    # Order by created_at descending
-    sors = sors.order_by('-created_at')
+    # Handle sorting
+    sort_by = request.GET.get('sort', 'created_at')
+    order = request.GET.get('order', 'desc')
     
+    # Define allowed sort fields
+    allowed_sort_fields = {
+        'id': 'id',
+        'goods_value': 'goods_value',
+        'created_at': 'created_at',
+        'from_location': 'from_location',
+        'to_location': 'to_location',
+        'vehicle': 'vehicle__license_plate',
+        'rate_per_km': 'vehicle__rate_per_km',
+        'distance_km': 'distance_km',
+        'driver': 'driver__first_name',
+        'status': 'status',
+    }
+    
+    # For computed fields, we need to annotate the queryset
+    if sort_by in ['transport_cost', 'transport_cost_percentage']:
+        # Annotate with computed transport cost
+        sors = sors.annotate(
+            computed_transport_cost=Case(
+                When(distance_km__isnull=False, vehicle__rate_per_km__isnull=False,
+                     then=F('distance_km') * F('vehicle__rate_per_km')),
+                default=None,
+                output_field=DecimalField(max_digits=12, decimal_places=2)
+            )
+        )
+        
+        if sort_by == 'transport_cost':
+            sort_field = 'computed_transport_cost'
+        elif sort_by == 'transport_cost_percentage':
+            # Annotate with computed transport cost percentage
+            sors = sors.annotate(
+                computed_transport_cost_percentage=Case(
+                    When(computed_transport_cost__isnull=False, goods_value__gt=0,
+                         then=(F('computed_transport_cost') / F('goods_value')) * 100),
+                    default=None,
+                    output_field=DecimalField(max_digits=8, decimal_places=2)
+                )
+            )
+            sort_field = 'computed_transport_cost_percentage'
+            
+        if order == 'desc':
+            sort_field = '-' + sort_field
+        sors = sors.order_by(sort_field)
+        
+    # Validate sort field for regular database fields
+    elif sort_by in allowed_sort_fields:
+        sort_field = allowed_sort_fields[sort_by]
+        if order == 'desc':
+            sort_field = '-' + sort_field
+        sors = sors.order_by(sort_field)
+    else:
+        # Default ordering
+        sors = sors.order_by('-created_at')
+
     # Pagination - 30 items per page
     paginator = Paginator(sors, 30)
     page = request.GET.get('page')
@@ -135,6 +199,8 @@ def sor_list(request):
         'filter_form': filter_form,
         'total_count': paginator.count,
         'has_filters': any(filter_form.cleaned_data.values()) if filter_form.is_valid() else False,
+        'current_sort': sort_by,
+        'current_order': order,
     }
     
     return render(request, 'sor/sor_list.html', context)
@@ -218,3 +284,322 @@ def sor_accept(request, pk):
         SORNotification.objects.filter(sor=sor, driver=request.user, is_read=False).update(is_read=True)
         messages.success(request, 'SOR accepted and trip started.')
     return redirect('sor_list')
+
+@login_required
+def sor_export(request):
+    """Export SOR data with current filters applied"""
+    export_format = request.GET.get('format', 'csv').lower()
+    
+    # Only show SORs created by the user unless privileged
+    privileged_types = ['admin', 'manager', 'vehicle_manager']
+    if hasattr(request.user, 'user_type') and request.user.user_type in privileged_types:
+        sors = SOR.objects.all()
+    else:
+        sors = SOR.objects.filter(created_by=request.user)
+    
+    # Apply the same filters as in sor_list view
+    filter_form = SORFilterForm(request.GET or None)
+    
+    if filter_form.is_valid():
+        # Search filter
+        search = filter_form.cleaned_data.get('search')
+        if search:
+            sors = sors.filter(
+                Q(id__icontains=search) |
+                Q(goods_value__icontains=search) |
+                Q(from_location__icontains=search) |
+                Q(to_location__icontains=search) |
+                Q(driver__first_name__icontains=search) |
+                Q(driver__last_name__icontains=search) |
+                Q(vehicle__license_plate__icontains=search)
+            )
+        
+        # Status filter
+        status = filter_form.cleaned_data.get('status')
+        if status:
+            sors = sors.filter(status=status)
+        
+        # From location filter
+        from_location = filter_form.cleaned_data.get('from_location')
+        if from_location:
+            sors = sors.filter(from_location=from_location)
+        
+        # To location filter
+        to_location = filter_form.cleaned_data.get('to_location')
+        if to_location:
+            sors = sors.filter(to_location=to_location)
+        
+        # Vehicle filter
+        vehicle = filter_form.cleaned_data.get('vehicle')
+        if vehicle:
+            sors = sors.filter(vehicle=vehicle)
+        
+        # Driver filter
+        driver = filter_form.cleaned_data.get('driver')
+        if driver:
+            sors = sors.filter(driver=driver)
+        
+        # Date range filters
+        date_from = filter_form.cleaned_data.get('date_from')
+        if date_from:
+            start_datetime = timezone.make_aware(datetime.combine(date_from, time.min))
+            sors = sors.filter(created_at__gte=start_datetime)
+        
+        date_to = filter_form.cleaned_data.get('date_to')
+        if date_to:
+            end_datetime = timezone.make_aware(datetime.combine(date_to, time.max))
+            sors = sors.filter(created_at__lte=end_datetime)
+    
+    # Handle sorting (same as sor_list)
+    sort_by = request.GET.get('sort', 'created_at')
+    order = request.GET.get('order', 'desc')
+    
+    allowed_sort_fields = {
+        'id': 'id',
+        'goods_value': 'goods_value',
+        'created_at': 'created_at',
+        'from_location': 'from_location',
+        'to_location': 'to_location',
+        'vehicle': 'vehicle__license_plate',
+        'rate_per_km': 'vehicle__rate_per_km',
+        'distance_km': 'distance_km',
+        'driver': 'driver__first_name',
+        'status': 'status',
+    }
+    
+    # For computed fields, annotate the queryset
+    if sort_by in ['transport_cost', 'transport_cost_percentage']:
+        sors = sors.annotate(
+            computed_transport_cost=Case(
+                When(distance_km__isnull=False, vehicle__rate_per_km__isnull=False,
+                     then=F('distance_km') * F('vehicle__rate_per_km')),
+                default=None,
+                output_field=DecimalField(max_digits=12, decimal_places=2)
+            )
+        )
+        
+        if sort_by == 'transport_cost':
+            sort_field = 'computed_transport_cost'
+        elif sort_by == 'transport_cost_percentage':
+            sors = sors.annotate(
+                computed_transport_cost_percentage=Case(
+                    When(computed_transport_cost__isnull=False, goods_value__gt=0,
+                         then=(F('computed_transport_cost') / F('goods_value')) * 100),
+                    default=None,
+                    output_field=DecimalField(max_digits=8, decimal_places=2)
+                )
+            )
+            sort_field = 'computed_transport_cost_percentage'
+            
+        if order == 'desc':
+            sort_field = '-' + sort_field
+        sors = sors.order_by(sort_field)
+        
+    elif sort_by in allowed_sort_fields:
+        sort_field = allowed_sort_fields[sort_by]
+        if order == 'desc':
+            sort_field = '-' + sort_field
+        sors = sors.order_by(sort_field)
+    else:
+        sors = sors.order_by('-created_at')
+    
+    # Ensure export uses SOR ID ascending order regardless of current sort
+    # Get all SOR data for export (no pagination)
+    sors_data = sors.order_by('id').select_related('vehicle', 'driver', 'created_by')
+    
+    if export_format == 'csv':
+        return _export_csv(sors_data)
+    elif export_format == 'excel':
+        return _export_excel(sors_data)
+    elif export_format == 'pdf':
+        return _export_pdf(sors_data)
+    else:
+        messages.error(request, 'Invalid export format.')
+        return redirect('sor_list')
+
+def _export_csv(sors_data):
+    """Export SOR data as CSV"""
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="sor_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+    
+    writer = csv.writer(response)
+    
+    # Write headers
+    headers = [
+        'Sr. No.', 'SOR ID', 'Goods Value', 'Created By', 'Created At', 'From Location', 'To Location',
+        'Vehicle', 'Rate per KM', 'Distance (km)', 'Transport Cost', 'Transport % of Goods Value',
+        'Driver', 'Status'
+    ]
+    writer.writerow(headers)
+    
+    # Write data with serial numbers
+    for index, sor in enumerate(sors_data, 1):
+        transport_cost = ''
+        transport_percentage = ''
+        
+        if sor.distance_km and sor.vehicle.rate_per_km:
+            transport_cost = f"{sor.distance_km * sor.vehicle.rate_per_km:.2f}"
+            if sor.goods_value and sor.goods_value > 0:
+                transport_percentage = f"{(sor.distance_km * sor.vehicle.rate_per_km / sor.goods_value * 100):.2f}%"
+        
+        row = [
+            index,  # Serial number
+            sor.id,  # Original SOR ID
+            sor.goods_value,
+            sor.created_by.get_full_name() if sor.created_by else '--',
+            sor.created_at.strftime('%d %b %Y, %H:%M') if sor.created_at else '--',
+            sor.from_location,
+            sor.to_location,
+            str(sor.vehicle),
+            sor.vehicle.rate_per_km,
+            f"{sor.distance_km:.2f}" if sor.distance_km else '--',
+            transport_cost or '--',
+            transport_percentage or '--',
+            str(sor.driver),
+            sor.get_status_display()
+        ]
+        writer.writerow(row)
+    
+    return response
+
+def _export_excel(sors_data):
+    """Export SOR data as Excel"""
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="sor_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+    
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
+    worksheet.title = 'SOR Export'
+    
+    # Define styles
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    header_alignment = Alignment(horizontal='center', vertical='center')
+    
+    # Headers
+    headers = [
+        'Sr. No.', 'SOR ID', 'Goods Value', 'Created By', 'Created At', 'From Location', 'To Location',
+        'Vehicle', 'Rate per KM', 'Distance (km)', 'Transport Cost', 'Transport % of Goods Value',
+        'Driver', 'Status'
+    ]
+    
+    # Write headers with styling
+    for col, header in enumerate(headers, 1):
+        cell = worksheet.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+    
+    # Write data with serial numbers
+    for row_num, sor in enumerate(sors_data, 2):
+        transport_cost = ''
+        transport_percentage = ''
+        
+        if sor.distance_km and sor.vehicle.rate_per_km:
+            transport_cost = f"{sor.distance_km * sor.vehicle.rate_per_km:.2f}"
+            if sor.goods_value and sor.goods_value > 0:
+                transport_percentage = f"{(sor.distance_km * sor.vehicle.rate_per_km / sor.goods_value * 100):.2f}%"
+        
+        data = [
+            row_num - 1,  # Serial number (row_num starts from 2, so subtract 1)
+            sor.id,  # Original SOR ID
+            sor.goods_value,
+            sor.created_by.get_full_name() if sor.created_by else '--',
+            sor.created_at.strftime('%d %b %Y, %H:%M') if sor.created_at else '--',
+            sor.from_location,
+            sor.to_location,
+            str(sor.vehicle),
+            sor.vehicle.rate_per_km,
+            f"{sor.distance_km:.2f}" if sor.distance_km else '--',
+            transport_cost or '--',
+            transport_percentage or '--',
+            str(sor.driver),
+            sor.get_status_display()
+        ]
+        
+        for col, value in enumerate(data, 1):
+            worksheet.cell(row=row_num, column=col, value=value)
+    
+    # Auto-adjust column widths
+    for column in worksheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        worksheet.column_dimensions[column_letter].width = adjusted_width
+    
+    workbook.save(response)
+    return response
+
+def _export_pdf(sors_data):
+    """Export SOR data as PDF"""
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="sor_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+    
+    doc = SimpleDocTemplate(response, pagesize=landscape(letter), topMargin=0.5*inch)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Title
+    title = Paragraph("SOR Export Report", styles['Title'])
+    elements.append(title)
+    elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%d %B %Y at %H:%M')}", styles['Normal']))
+    elements.append(Paragraph("<br/><br/>", styles['Normal']))
+    
+    # Prepare table data
+    headers = [
+        'Sr.', 'SOR ID', 'Goods Value', 'Created At', 'From', 'To',
+        'Vehicle', 'Rate/KM', 'Distance', 'Transport Cost', 'Transport %', 'Driver', 'Status'
+    ]
+    
+    table_data = [headers]
+    
+    for index, sor in enumerate(sors_data, 1):
+        transport_cost = ''
+        transport_percentage = ''
+        
+        if sor.distance_km and sor.vehicle.rate_per_km:
+            transport_cost = f"{sor.distance_km * sor.vehicle.rate_per_km:.2f}"
+            if sor.goods_value and sor.goods_value > 0:
+                transport_percentage = f"{(sor.distance_km * sor.vehicle.rate_per_km / sor.goods_value * 100):.1f}%"
+        
+        row = [
+            str(index),  # Serial number
+            str(sor.id),  # Original SOR ID
+            str(sor.goods_value),
+            sor.created_at.strftime('%d/%m/%Y') if sor.created_at else '--',
+            sor.from_location[:15] + '...' if len(sor.from_location) > 15 else sor.from_location,
+            sor.to_location[:15] + '...' if len(sor.to_location) > 15 else sor.to_location,
+            str(sor.vehicle)[:12] + '...' if len(str(sor.vehicle)) > 12 else str(sor.vehicle),
+            str(sor.vehicle.rate_per_km),
+            f"{sor.distance_km:.1f}" if sor.distance_km else '--',
+            transport_cost or '--',
+            transport_percentage or '--',
+            str(sor.driver)[:12] + '...' if len(str(sor.driver)) > 12 else str(sor.driver),
+            sor.get_status_display()[:8] + '...' if len(sor.get_status_display()) > 8 else sor.get_status_display()
+        ]
+        table_data.append(row)
+    
+    # Create table
+    table = Table(table_data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    
+    elements.append(table)
+    doc.build(elements)
+    return response

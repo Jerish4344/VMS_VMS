@@ -194,7 +194,18 @@ class SORFilterForm(forms.Form):
             'type': 'date'
         })
     )
+
+    # Hidden fields for sorting
+    sort = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput()
+    )
     
+    order = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput()
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         User = get_user_model()
