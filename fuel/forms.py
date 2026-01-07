@@ -45,20 +45,20 @@ class FuelTransactionForm(forms.ModelForm):
         if not self.instance.pk:
             self.fields['date'].initial = timezone.now().date()
         
-        # Restrict access for drivers - they should not be able to add transactions manually
-        if self.user and self.user.user_type == 'driver':
-            # Hide all fields for drivers since they shouldn't add transactions manually
+        # Restrict access for users without add permission
+        if self.user and not self.user.has_module_permission('fuel', 'add'):
+            # Hide all fields for users without permission
             for field_name in self.fields:
                 self.fields[field_name].widget = forms.HiddenInput()
             
-            # Add a note for drivers
+            # Add a note for users without permission
             self.fields['notes'].widget = forms.Textarea(attrs={
                 'readonly': True,
-                'placeholder': 'Fuel transactions are added by admin/manager only. Please contact your manager for fuel transaction entries.',
+                'placeholder': 'You do not have permission to add fuel transactions. Please contact your manager.',
                 'rows': 2
             })
         else:
-            # For admin/managers, show all fields properly
+            # For users with permission, show all fields properly
             
             # Make invoice fields more prominent for finance tracking
             self.fields['company_invoice_number'].help_text = "Internal company invoice number for finance department tracking"
@@ -72,18 +72,26 @@ class FuelTransactionForm(forms.ModelForm):
         self.fields['cost_per_kwh'].required = False
         self.fields['total_cost'].required = False
         
-        # Invoice fields are optional but helpful for finance
-        self.fields['company_invoice_number'].required = True
-        self.fields['station_invoice_number'].required = True
+        # Invoice fields - required for managers, optional for users with add permission
+        if self.user and self.user.has_module_permission('fuel', 'manage'):
+            self.fields['company_invoice_number'].required = True
+            self.fields['station_invoice_number'].required = True
+        elif self.user and self.user.has_module_permission('fuel', 'add'):
+            self.fields['company_invoice_number'].required = False
+            self.fields['station_invoice_number'].required = False
+        else:
+            # Hide these fields for users without permission
+            self.fields['company_invoice_number'].widget = forms.HiddenInput()
+            self.fields['station_invoice_number'].widget = forms.HiddenInput()
     
     def clean(self):
         """Enhanced validation with invoice number recommendations."""
         cleaned_data = super().clean()
         vehicle = cleaned_data.get('vehicle')
         
-        # Block drivers from submitting if they somehow access the form
-        if self.user and self.user.user_type == 'driver':
-            raise forms.ValidationError("Drivers are not authorized to add fuel transactions. Please contact your manager.")
+        # Block users without permission from submitting
+        if self.user and not self.user.has_module_permission('fuel', 'add'):
+            raise forms.ValidationError("You do not have permission to add fuel transactions. Please contact your manager.")
         
         # Basic validation - just ensure we have minimum required data
         if not vehicle:

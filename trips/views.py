@@ -1300,6 +1300,7 @@ def export_manual_trips(request):
     status = request.GET.get('status')
     search = request.GET.get('search')
     trip_ids = request.GET.get('trip_ids')
+    vehicle_type_id = request.GET.get('vehicle_type')
     
     # Build queryset
     queryset = Trip.objects.filter(is_deleted=False).select_related('vehicle', 'driver').order_by('-start_time')
@@ -1359,6 +1360,8 @@ def export_manual_trips(request):
                 
         if status:
             queryset = queryset.filter(status=status)
+        if vehicle_type_id and vehicle_type_id.isdigit():
+            queryset = queryset.filter(vehicle__vehicle_type_id=int(vehicle_type_id))
         if search:
             queryset = queryset.filter(
                 Q(vehicle__license_plate__icontains=search) |
@@ -1396,7 +1399,10 @@ def export_trips_csv(queryset, include_notes, include_driver, include_vehicle):
     if include_driver:
         headers.extend(['Driver Name', 'Driver Email'])
     if include_vehicle:
-        headers.extend(['Vehicle License Plate', 'Vehicle Make', 'Vehicle Model'])
+        headers.extend(['Vehicle License Plate', 'Vehicle Make', 'Vehicle Model', 'Rate per KM (₹)'])
+    
+    headers.append('Cost (₹)')  # Always include cost column
+    
     if include_notes:
         headers.append('Notes')
     
@@ -1404,6 +1410,16 @@ def export_trips_csv(queryset, include_notes, include_driver, include_vehicle):
     
     # Write data rows
     for trip in queryset:
+        # Calculate cost
+        distance = trip.distance_traveled() if trip.end_odometer and trip.start_odometer else None
+        cost = ''
+        if distance and trip.vehicle.rate_per_km:
+            cost = f'{float(distance) * float(trip.vehicle.rate_per_km):.2f}'
+        elif distance and not trip.vehicle.rate_per_km:
+            cost = 'Rate not set'
+        else:
+            cost = 'N/A'
+        
         row = [
             trip.id,
             trip.origin,
@@ -1414,7 +1430,7 @@ def export_trips_csv(queryset, include_notes, include_driver, include_vehicle):
             trip.end_time.time().strftime('%H:%M') if trip.end_time else '',
             trip.start_odometer,
             trip.end_odometer or '',
-            trip.distance_traveled() if trip.end_odometer and trip.start_odometer else '',
+            distance if distance else '',
             trip.status.title(),
             trip.purpose,
         ]
@@ -1422,7 +1438,11 @@ def export_trips_csv(queryset, include_notes, include_driver, include_vehicle):
         if include_driver:
             row.extend([trip.driver.get_full_name(), trip.driver.email])
         if include_vehicle:
-            row.extend([trip.vehicle.license_plate, trip.vehicle.make, trip.vehicle.model])
+            rate_display = f'{float(trip.vehicle.rate_per_km):.2f}' if trip.vehicle.rate_per_km else 'Not set'
+            row.extend([trip.vehicle.license_plate, trip.vehicle.make, trip.vehicle.model, rate_display])
+        
+        row.append(cost)  # Add cost column
+        
         if include_notes:
             row.append(trip.notes or '')
         
@@ -1476,9 +1496,19 @@ def export_trips_excel(queryset, include_notes, include_driver, include_vehicle)
     if include_driver:
         headers.extend(['Driver Name', 'Driver Email'])
     if include_vehicle:
-        headers.extend(['Vehicle License Plate', 'Vehicle Make', 'Vehicle Model'])
+        headers.extend(['Vehicle License Plate', 'Vehicle Make', 'Vehicle Model', 'Rate per KM (₹)'])
+    
+    headers.append('Cost (₹)')  # Always include cost column
+    
     if include_notes:
         headers.append('Notes')
+    
+    # Define currency format
+    currency_format = workbook.add_format({
+        'border': 1,
+        'num_format': '₹#,##0.00',
+        'valign': 'top'
+    })
     
     # Write headers
     for col, header in enumerate(headers):
@@ -1507,8 +1537,12 @@ def export_trips_excel(queryset, include_notes, include_driver, include_vehicle)
         col += 1
         worksheet.write(row_num, col, trip.end_odometer or '', cell_format)
         col += 1
-        worksheet.write(row_num, col, trip.distance_traveled() if trip.end_odometer and trip.start_odometer else '', cell_format)
+        
+        # Calculate distance
+        distance = trip.distance_traveled() if trip.end_odometer and trip.start_odometer else None
+        worksheet.write(row_num, col, distance if distance else '', cell_format)
         col += 1
+        
         worksheet.write(row_num, col, trip.status.title(), cell_format)
         col += 1
         worksheet.write(row_num, col, trip.purpose, cell_format)
@@ -1527,6 +1561,23 @@ def export_trips_excel(queryset, include_notes, include_driver, include_vehicle)
             col += 1
             worksheet.write(row_num, col, trip.vehicle.model, cell_format)
             col += 1
+            # Rate per km
+            if trip.vehicle.rate_per_km:
+                worksheet.write(row_num, col, float(trip.vehicle.rate_per_km), currency_format)
+            else:
+                worksheet.write(row_num, col, 'Not set', cell_format)
+            col += 1
+        
+        # Calculate and write cost
+        if distance and trip.vehicle.rate_per_km:
+            cost = float(distance) * float(trip.vehicle.rate_per_km)
+            worksheet.write(row_num, col, cost, currency_format)
+        elif distance and not trip.vehicle.rate_per_km:
+            worksheet.write(row_num, col, 'Rate not set', cell_format)
+        else:
+            worksheet.write(row_num, col, 'N/A', cell_format)
+        col += 1
+        
         if include_notes:
             worksheet.write(row_num, col, trip.notes or '', cell_format)
     
@@ -1572,16 +1623,29 @@ def export_trips_pdf(queryset, include_notes, include_driver, include_vehicle):
         headers.append('Driver')
     if include_vehicle:
         headers.append('Vehicle')
+    headers.append('Cost (₹)')  # Always include cost
     
     data = [headers]
     
     for trip in queryset:
+        # Calculate distance and cost
+        distance = trip.distance_traveled() if trip.end_odometer and trip.start_odometer else None
+        distance_text = f"{distance} km" if distance else 'N/A'
+        
+        if distance and trip.vehicle.rate_per_km:
+            cost = float(distance) * float(trip.vehicle.rate_per_km)
+            cost_text = f"₹{cost:,.2f}"
+        elif distance and not trip.vehicle.rate_per_km:
+            cost_text = 'Rate not set'
+        else:
+            cost_text = 'N/A'
+        
         row = [
             str(trip.id),
             f"{trip.origin} → {trip.destination}",
             trip.start_time.strftime('%Y-%m-%d') if trip.start_time else 'N/A',
             trip.status.title(),
-            f"{trip.distance_traveled()} km" if trip.end_odometer and trip.start_odometer else 'N/A'
+            distance_text
         ]
         
         if include_driver:
@@ -1589,6 +1653,7 @@ def export_trips_pdf(queryset, include_notes, include_driver, include_vehicle):
         if include_vehicle:
             row.append(f"{trip.vehicle.license_plate}\n{trip.vehicle.make} {trip.vehicle.model}")
         
+        row.append(cost_text)  # Add cost
         data.append(row)
     
     # Create table
@@ -1639,6 +1704,7 @@ def export_trips(request):
     status = request.GET.get('status')
     search = request.GET.get('search')
     vehicle_id = request.GET.get('vehicle')
+    vehicle_type_id = request.GET.get('vehicle_type')
     
     # Build queryset based on user permissions
     if request.user.user_type == 'driver':
@@ -1663,6 +1729,9 @@ def export_trips(request):
     
     if vehicle_id and vehicle_id.isdigit():
         queryset = queryset.filter(vehicle_id=int(vehicle_id))
+    
+    if vehicle_type_id and vehicle_type_id.isdigit():
+        queryset = queryset.filter(vehicle__vehicle_type_id=int(vehicle_type_id))
     
     if status:
         queryset = queryset.filter(status=status)

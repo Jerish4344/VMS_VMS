@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 
 
-class VehiclesConfig(AppConfig):
+class ChatbotConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'vehicles'
+    name = 'chatbot'
+    verbose_name = 'VMS Chatbot'

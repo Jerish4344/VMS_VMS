@@ -707,7 +707,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         # Add trip purpose distribution
         trip_purposes = Trip.objects.filter(
             driver=driver,
-            status='completed'
+            status='completed',
+            is_deleted=False
         ).values('purpose').annotate(
             count=Count('id')
         ).order_by('-count')
@@ -888,7 +889,7 @@ def ongoing_trips_by_type_api(request):
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
     # Get ongoing trips with vehicle type information
-    ongoing_trips = Trip.objects.filter(status='ongoing').select_related(
+    ongoing_trips = Trip.objects.filter(status='ongoing', is_deleted=False).select_related(
         'vehicle', 'driver', 'vehicle__vehicle_type'
     )
     

@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q, F, Case, When, DecimalField
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseForbidden
 from datetime import datetime, time
 from django.utils import timezone
 import csv
@@ -15,6 +15,24 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib import colors
 
+# Import permission mixins
+try:
+    from accounts.permissions import (
+        SorViewPermissionMixin, SorAddPermissionMixin, 
+        SorEditPermissionMixin, SorDeletePermissionMixin
+    )
+except ImportError:
+    # Fallback mixins if permissions not available
+    from django.contrib.auth.mixins import LoginRequiredMixin
+    class SorViewPermissionMixin(LoginRequiredMixin):
+        pass
+    class SorAddPermissionMixin(LoginRequiredMixin):
+        pass
+    class SorEditPermissionMixin(LoginRequiredMixin):
+        pass
+    class SorDeletePermissionMixin(LoginRequiredMixin):
+        pass
+
 from .models import SOR
 from .forms import SORForm, SORFilterForm
 from .notification import SORNotification
@@ -25,9 +43,8 @@ User = get_user_model()
 
 @login_required
 def sor_create(request):
-    # Allow only users with 'sor.add_sor' permission, managers, or vehicle managers
-    user_type = getattr(request.user, 'user_type', None)
-    if not (request.user.has_perm('sor.add_sor') or user_type in ['manager', 'vehicle_manager']):
+    # Check permission using the new permission system
+    if not request.user.has_module_permission('sor', 'add'):
         messages.error(request, 'You do not have permission to create SOR entries.')
         return redirect('sor_list')
     if request.method == 'POST':
@@ -60,11 +77,20 @@ def sor_create(request):
 
 @login_required
 def sor_list(request):
-    # Only show SORs created by the user unless privileged
-    privileged_types = ['admin', 'manager', 'vehicle_manager']
-    if hasattr(request.user, 'user_type') and request.user.user_type in privileged_types:
+    # Check permission to view SOR entries
+    if not request.user.has_module_permission('sor', 'view'):
+        messages.error(request, 'You do not have permission to view SOR entries.')
+        return redirect('dashboard')
+    
+    # Filter SORs based on user type (not permissions)
+    if request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
+        # Management users can see all SORs
         sors = SOR.objects.all()
+    elif request.user.user_type == 'driver':
+        # Drivers can only see SORs where they are the assigned driver
+        sors = SOR.objects.filter(driver=request.user)
     else:
+        # Other user types (sor_team, generator_user) see SORs they created
         sors = SOR.objects.filter(created_by=request.user)
     
     # Initialize filter form
@@ -211,15 +237,46 @@ from django.http import HttpResponseForbidden
 @login_required
 def sor_view(request, pk):
     sor = get_object_or_404(SOR, pk=pk)
-    # You can add more permission logic here if needed
+    
+    # Check permission to view SOR entries
+    if not request.user.has_module_permission('sor', 'view'):
+        return HttpResponseForbidden('You do not have permission to view this SOR.')
+    
+    # Check if user can view this specific SOR (based on user type)
+    if request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
+        # Management users can view any SOR
+        pass
+    elif request.user.user_type == 'driver':
+        # Drivers can only view SORs where they are the assigned driver
+        if sor.driver != request.user:
+            return HttpResponseForbidden('You can only view SORs where you are the assigned driver.')
+    else:
+        # Other user types can only view SORs they created
+        if sor.created_by != request.user:
+            return HttpResponseForbidden('You can only view SORs you created.')
+    
     return render(request, 'sor/sor_form.html', {'form': None, 'sor': sor, 'view_only': True})
 
 @login_required
 def sor_edit(request, pk):
     sor = get_object_or_404(SOR, pk=pk)
-    # Only admin or sor_team can edit
-    if request.user.user_type not in ['admin', 'sor_team', 'manager', 'vehicle_manager']:
+    # Check permission using the new permission system
+    if not request.user.has_module_permission('sor', 'edit'):
         return HttpResponseForbidden('You do not have permission to edit this SOR.')
+    
+    # Check if user can edit this specific SOR (based on user type)
+    if request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
+        # Management users can edit any SOR
+        pass
+    elif request.user.user_type == 'driver':
+        # Drivers can only edit SORs where they are the assigned driver
+        if sor.driver != request.user:
+            return HttpResponseForbidden('You can only edit SORs where you are the assigned driver.')
+    else:
+        # Other user types can only edit SORs they created
+        if sor.created_by != request.user:
+            return HttpResponseForbidden('You can only edit SORs you created.')
+    
     if request.method == 'POST':
         form = SORForm(request.POST, instance=sor)
         if form.is_valid():
@@ -247,9 +304,23 @@ def sor_edit(request, pk):
 @login_required
 def sor_delete(request, pk):
     sor = get_object_or_404(SOR, pk=pk)
-    # Only admin can delete
-    if request.user.user_type != 'admin':
+    # Check permission using the new permission system
+    if not request.user.has_module_permission('sor', 'delete'):
         return HttpResponseForbidden('You do not have permission to delete this SOR.')
+    
+    # Check if user can delete this specific SOR (based on user type)
+    if request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
+        # Management users can delete any SOR
+        pass
+    elif request.user.user_type == 'driver':
+        # Drivers can only delete SORs where they are the assigned driver
+        if sor.driver != request.user:
+            return HttpResponseForbidden('You can only delete SORs where you are the assigned driver.')
+    else:
+        # Other user types can only delete SORs they created
+        if sor.created_by != request.user:
+            return HttpResponseForbidden('You can only delete SORs you created.')
+    
     if request.method == 'POST':
         sor.delete()
         messages.success(request, 'SOR entry deleted.')
@@ -290,11 +361,15 @@ def sor_export(request):
     """Export SOR data with current filters applied"""
     export_format = request.GET.get('format', 'csv').lower()
     
-    # Only show SORs created by the user unless privileged
-    privileged_types = ['admin', 'manager', 'vehicle_manager']
-    if hasattr(request.user, 'user_type') and request.user.user_type in privileged_types:
+    # Filter SORs based on user type (same logic as sor_list)
+    if request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
+        # Management users can export all SORs
         sors = SOR.objects.all()
+    elif request.user.user_type == 'driver':
+        # Drivers can only export SORs where they are the assigned driver
+        sors = SOR.objects.filter(driver=request.user)
     else:
+        # Other user types can only export SORs they created
         sors = SOR.objects.filter(created_by=request.user)
     
     # Apply the same filters as in sor_list view

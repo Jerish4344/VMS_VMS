@@ -43,5 +43,15 @@ class SOR(models.Model):
                 return None
         return None
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['driver', 'status']),
+            models.Index(fields=['vehicle', 'status']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['status', 'created_at']),
+        ]
+        ordering = ['-created_at']
+
     def __str__(self):
         return f"SOR #{self.id} - {self.vehicle} ({self.from_location} → {self.to_location})"

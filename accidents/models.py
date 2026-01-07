@@ -77,6 +77,12 @@ class Accident(models.Model):
     
     class Meta:
         ordering = ['-date_time']
+        indexes = [
+            models.Index(fields=['date_time']),
+            models.Index(fields=['vehicle', 'date_time']),
+            models.Index(fields=['driver', 'date_time']),
+            models.Index(fields=['status']),
+        ]
     
     def __str__(self):
         return f"Accident involving {self.vehicle} on {self.date_time.date()}"

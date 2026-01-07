@@ -1,5 +1,6 @@
 {% load static %}
 {% load approval_tags %}
+{% load custom_filters %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -320,7 +321,7 @@
             </ul>
           </li>
         {% elif request.user.user_type == 'sor_team' %}
-          <!-- SOR Team - Only SOR Section -->
+          <!-- SOR Team - SOR Section -->
           <li>
             <a href="#sorSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
               <i class="fas fa-file-invoice"></i> SOR
@@ -334,42 +335,384 @@
               </li>
             </ul>
           </li>
-        {% else %}
-          <!-- Regular Users - All Modules -->
           
-          <!-- Employee Approval Section for Managers -->
-          {% if request.user.has_approval_permissions %}
+          <!-- SOR Team - Other Modules (if has permissions) -->
+          
+          <!-- Vehicles Section -->
+          {% has_permission_tag request.user 'vehicles' 'view' as can_view_vehicles %}
+          {% if can_view_vehicles %}
+          <li>
+            <a href="#vehiclesSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-truck"></i> Vehicles
+            </a>
+            <ul class="collapse list-unstyled {% if request.resolver_match.url_name == 'vehicle_list' or request.resolver_match.url_name == 'vehicle_create' or request.resolver_match.url_name == 'vehicle_update' %}show{% endif %}" id="vehiclesSubmenu">
+              {% has_permission_tag request.user 'vehicles' 'view' as can_view %}
+              {% if can_view %}
+              <li>
+                <a href="{% url 'vehicle_list' %}" class="menu-item-enhanced">All Vehicles</a>
+              </li>
+              {% endif %}
+              {% has_permission_tag request.user 'vehicles' 'add' as can_add %}
+              {% if can_add %}
+              <li>
+                <a href="{% url 'vehicle_create' %}" class="menu-item-enhanced">Add Vehicle</a>
+              </li>
+              {% endif %}
+              {% has_permission_tag request.user 'vehicles' 'manage' as can_manage %}
+              {% if can_manage %}
+              <li>
+                <a href="{% url 'vehicle_list' %}" class="menu-item-enhanced">Manage All Vehicles</a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Trips Section -->
+          {% if request.user|has_permission:'trips,view' %}
+          <li>
+            <a href="#tripSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-route"></i> Trips
+            </a>
+            <ul class="collapse list-unstyled {% if 'trip' in request.resolver_match.url_name %}show{% endif %}" id="tripSubmenu">
+              {% if request.user|has_permission:'trips,view' %}
+              <li>
+                <a href="{% url 'trip_list' %}" class="menu-item-enhanced"><i class="fas fa-list-alt me-2"></i>All Trips</a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'trips,add' %}
+              <li>
+                <a href="{% url 'start_trip' %}" class="menu-item-enhanced">
+                  <i class="fas fa-play me-2"></i>Start Trip
+                </a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'trips,manage' %}
+              <li>
+                <a href="{% url 'manual_trip_create' %}" class="menu-item-enhanced">
+                  <i class="fas fa-plus-circle me-2"></i>Add Single Trip
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'consultant_rate_list' %}" class="menu-item-enhanced">
+                  <i class="fas fa-money-bill-wave me-2"></i>Consultant Rates
+                </a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Fuel Section -->
+          {% if request.user|has_permission:'fuel,view' %}
+          <li>
+            <a href="#fuelSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-gas-pump"></i> Fuel
+            </a>
+            <ul class="collapse list-unstyled {% if 'fuel' in request.resolver_match.url_name %}show{% endif %}" id="fuelSubmenu">
+              {% if request.user|has_permission:'fuel,view' %}
+              <li>
+                <a href="{% url 'fuel_transaction_list' %}" class="menu-item-enhanced">Transactions</a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'fuel,add' %}
+              <li>
+                <a href="{% url 'fuel_transaction_create' %}" class="menu-item-enhanced">Add Transaction</a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'fuel,manage' %}
+              <li>
+                <a href="{% url 'fuel_station_list' %}" class="menu-item-enhanced">Fuel Stations</a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Tracking Section -->
+          {% if request.user|has_permission:'tracking,view' %}
+          <li>
+            <a href="#trackingSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-satellite-dish"></i> Tracking
+            </a>
+            <ul class="collapse list-unstyled {% if 'tracking' in request.resolver_match.url_name or 'map' in request.resolver_match.url_name %}show{% endif %}" id="trackingSubmenu">
+              {% if request.user|has_permission:'tracking,view' %}
+              <li>
+                <a href="{% url 'tracking_dashboard' %}" class="menu-item-enhanced">
+                  <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'map_view' %}" class="menu-item-enhanced">
+                  <i class="fas fa-map-marked-alt me-2"></i>Live Map
+                </a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'tracking,manage' %}
+              <li>
+                <a href="{% url 'device_list' %}" class="menu-item-enhanced">
+                  <i class="fas fa-microchip me-2"></i>Devices
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'sync_airotrack' %}" class="menu-item-enhanced" onclick="event.preventDefault(); document.getElementById('syncForm').submit();">
+                  <i class="fas fa-sync-alt me-2"></i>Sync Now
+                </a>
+                <form id="syncForm" method="post" action="{% url 'sync_airotrack' %}" style="display:none;">
+                  {% csrf_token %}
+                </form>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Generators Section -->
+          {% if request.user|has_permission:'generators,view' %}
+          <li>
+            <a href="#generatorSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-dharmachakra"></i> Generators
+            </a>
+            <ul class="collapse list-unstyled {% if request.resolver_match.url_name == 'store_list' or request.resolver_match.url_name == 'store_create' or request.resolver_match.url_name == 'generator_list' or request.resolver_match.url_name == 'generator_create' or request.resolver_match.url_name == 'usage_tracking_list' or request.resolver_match.url_name == 'fuel_entry_list' or request.resolver_match.url_name == 'maintenance_log_list' %}show{% endif %}" id="generatorSubmenu">
+              {% if request.user|has_permission:'generators,view' %}
+              <li>
+                <a href="{% url 'generators:store_list' %}" class="menu-item-enhanced">Stores</a>
+              </li>
+              <li>
+                <a href="{% url 'generators:generator_list' %}" class="menu-item-enhanced">Generators</a>
+              </li>
+              <li>
+                <a href="{% url 'generators:usage_tracking_list' %}" class="menu-item-enhanced">Usage Tracking</a>
+              </li>
+              <li>
+                <a href="{% url 'generators:fuel_entry_list' %}" class="menu-item-enhanced">Fuel Entries</a>
+              </li>
+              <li>
+                <a href="{% url 'generators:maintenance_log_list' %}" class="menu-item-enhanced">Maintenance Logs</a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'generators,add' %}
+              <li>
+                <a href="{% url 'generators:store_create' %}" class="menu-item-enhanced">Add Store</a>
+              </li>
+              <li>
+                <a href="{% url 'generators:generator_create' %}" class="menu-item-enhanced">Add Generator</a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Maintenance Section -->
+          {% if request.user|has_permission:'maintenance,view' %}
+          <li>
+            <a href="#maintenanceSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-tools"></i> Maintenance
+            </a>
+            <ul class="collapse list-unstyled {% if 'maintenance' in request.resolver_match.url_name %}show{% endif %}" id="maintenanceSubmenu">
+              {% if request.user|has_permission:'maintenance,view' %}
+              <li>
+                <a href="{% url 'maintenance_list' %}" class="menu-item-enhanced">All Records</a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'maintenance,add' %}
+              <li>
+                <a href="{% url 'maintenance_create' %}" class="menu-item-enhanced">Add Record</a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'maintenance,manage' %}
+              <li>
+                <a href="{% url 'maintenance_type_list' %}" class="menu-item-enhanced">Maintenance Types</a>
+              </li>
+              <li>
+                <a href="{% url 'maintenance_provider_list' %}" class="menu-item-enhanced">Service Providers</a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Documents Section -->
+          {% if request.user|has_permission:'documents,view' %}
+          <li>
+            <a href="#documentSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-file-alt"></i> Documents
+            </a>
+            <ul class="collapse list-unstyled {% if 'document' in request.resolver_match.url_name %}show{% endif %}" id="documentSubmenu">
+              {% if request.user|has_permission:'documents,view' %}
+              <li>
+                <a href="{% url 'document_list' %}" class="menu-item-enhanced">All Documents</a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'documents,add' %}
+              <li>
+                <a href="{% url 'document_create' %}" class="menu-item-enhanced">Add Document</a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'documents,manage' %}
+              <li>
+                <a href="{% url 'document_type_list' %}" class="menu-item-enhanced">Document Types</a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Accidents Section -->
+          {% if request.user|has_permission:'accidents,view' %}
+          <li>
+            <a href="#accidentSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-car-crash"></i> Accidents
+            </a>
+            <ul class="collapse list-unstyled {% if 'accident' in request.resolver_match.url_name %}show{% endif %}" id="accidentSubmenu">
+              {% if request.user|has_permission:'accidents,view' %}
+              <li>
+                <a href="{% url 'accident_list' %}" class="menu-item-enhanced">All Accidents</a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'accidents,add' %}
+              <li>
+                <a href="{% url 'accident_create' %}" class="menu-item-enhanced">Report Accident</a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Users Section -->
+          {% if request.user|has_permission:'users,view' %}
+          <li>
+            <a href="#userSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-users"></i> Users
+            </a>
+            <ul class="collapse list-unstyled {% if 'user' in request.resolver_match.url_name %}show{% endif %}" id="userSubmenu">
+              {% if request.user|has_permission:'users,view' %}
+              <li>
+                <a href="{% url 'user_list' %}" class="menu-item-enhanced">All Users</a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'users,add' %}
+              <li>
+                <a href="{% url 'user_create' %}" class="menu-item-enhanced">Add User</a>
+              </li>
+              {% endif %}
+              {% if request.user|has_permission:'users,user_rights' %}
+              <li><hr class="dropdown-divider my-2"></li>
+              <li>
+                <a href="{% url 'user_rights_list' %}" class="menu-item-enhanced">
+                  <i class="fas fa-key me-2"></i>User Rights
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'bulk_user_rights' %}" class="menu-item-enhanced">
+                  <i class="fas fa-users-cog me-2"></i>Bulk Rights Management
+                </a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Reports Section -->
+          {% has_permission_tag request.user 'reports' 'vehicle_report' as can_vehicle_report %}
+          {% has_permission_tag request.user 'reports' 'firm_report' as can_firm_report %}
+          {% has_permission_tag request.user 'reports' 'driver_report' as can_driver_report %}
+          {% has_permission_tag request.user 'reports' 'maintenance_report' as can_maintenance_report %}
+          {% has_permission_tag request.user 'reports' 'fuel_report' as can_fuel_report %}
+          {% has_permission_tag request.user 'reports' 'consultant_report' as can_consultant_report %}
+          {% has_permission_tag request.user 'reports' 'daily_usage_cost' as can_daily_usage_cost %}
+          
+          {% if can_vehicle_report or can_firm_report or can_driver_report or can_maintenance_report or can_fuel_report or can_consultant_report or can_daily_usage_cost %}
+          <li>
+            <a href="#reportSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-chart-bar"></i> Reports
+            </a>
+            <ul class="collapse list-unstyled {% if 'report' in request.resolver_match.url_name %}show{% endif %}" id="reportSubmenu">
+              {% if can_vehicle_report %}
+              <li>
+                <a href="{% url 'vehicle_report' %}" class="menu-item-enhanced">Vehicle Report</a>
+              </li>
+              {% endif %}
+              {% if can_firm_report %}
+              <li>
+                <a href="{% url 'firm_report' %}" class="menu-item-enhanced">Firm Report</a>
+              </li>
+              {% endif %}
+              {% if can_driver_report %}
+              <li>
+                <a href="{% url 'driver_report' %}" class="menu-item-enhanced">Driver Report</a>
+              </li>
+              {% endif %}
+              {% if can_maintenance_report %}
+              <li>
+                <a href="{% url 'maintenance_report' %}" class="menu-item-enhanced">Maintenance Report</a>
+              </li>
+              {% endif %}
+              {% if can_fuel_report %}
+              <li>
+                <a href="{% url 'fuel_report' %}" class="menu-item-enhanced">Fuel Report</a>
+              </li>
+              {% endif %}
+              {% if can_consultant_report %}
+              <li>
+                <a href="{% url 'consultant_report' %}" class="menu-item-enhanced">Consultant Report</a>
+              </li>
+              {% endif %}
+              {% if can_daily_usage_cost %}
+              <li>
+                <a href="{% url 'daily_usage_cost' %}" class="menu-item-enhanced">Daily Usage Cost</a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Employee Access Section for SOR Team -->
+          {% has_permission_tag request.user 'employee_management' 'pending_approvals' as can_pending_employees %}
+          {% has_permission_tag request.user 'employee_management' 'all_employees' as can_all_employees %}
+          
+          {% if can_pending_employees or can_all_employees %}
           <li>
             <a href="#employeeSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
-              <i class="fas fa-user-check"></i> Employee Access
+              <i class="fas fa-user-tie"></i> Employee Access
               {% if pending_approvals_count > 0 %}
                 <span class="sidebar-notification-badge">{{ pending_approvals_count }}</span>
               {% endif %}
             </a>
-            <ul class="collapse list-unstyled {% if 'pending' in request.resolver_match.url_name or 'employee' in request.resolver_match.url_name %}show{% endif %}" id="employeeSubmenu">
+            <ul class="collapse list-unstyled {% if 'pending_approvals' in request.resolver_match.url_name or 'all_employees' in request.resolver_match.url_name %}show{% endif %}" id="employeeSubmenu">
+              {% if can_pending_employees %}
               <li>
-                <a href="{% url 'pending_employees' %}" class="menu-item-enhanced">
+                <a href="{% url 'pending_approvals' %}" class="menu-item-enhanced">
                   Pending Approvals
                   {% if pending_approvals_count > 0 %}
                     <span class="sidebar-notification-badge">{{ pending_approvals_count }}</span>
                   {% endif %}
                 </a>
               </li>
+              {% endif %}
+              {% if can_all_employees %}
               <li>
                 <a href="{% url 'all_employees' %}" class="menu-item-enhanced">All Employees</a>
               </li>
+              {% endif %}
             </ul>
           </li>
+          {% endif %}
           
-          <!-- Generator User Management Section for Managers -->
+          <!-- Generator User Management Section for SOR Team -->
+          {% has_permission_tag request.user 'generator_management' 'all_generator_users' as can_generator_users %}
+          {% has_permission_tag request.user 'generator_management' 'store_access' as can_store_access %}
+          
+          {% if can_generator_users or can_store_access %}
           <li>
             <a href="#generatorUserSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
-              <i class="fas fa-dharmachakra"></i> Generator Users
+              <i class="fas fa-users-cog"></i> Generator Users
               {% if pending_generator_users_count > 0 %}
                 <span class="sidebar-notification-badge">{{ pending_generator_users_count }}</span>
               {% endif %}
             </a>
             <ul class="collapse list-unstyled {% if 'generator_user' in request.resolver_match.url_name or 'store_access' in request.resolver_match.url_name %}show{% endif %}" id="generatorUserSubmenu">
+              {% if can_generator_users %}
               <li>
                 <a href="{% url 'generator_user_management' %}" class="menu-item-enhanced">
                   All Generator Users
@@ -378,9 +721,79 @@
                   {% endif %}
                 </a>
               </li>
+              {% endif %}
+              {% if can_store_access %}
               <li>
                 <a href="{% url 'store_access_management' %}" class="menu-item-enhanced">Store Access Management</a>
               </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+        {% else %}
+          <!-- Regular Users - All Modules -->
+          
+          <!-- Employee Approval Section for Managers -->
+          {% has_permission_tag request.user 'employee_management' 'pending_approvals' as can_pending_employees %}
+          {% has_permission_tag request.user 'employee_management' 'all_employees' as can_all_employees %}
+          
+          {% if can_pending_employees or can_all_employees %}
+          <li>
+            <a href="#employeeSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-user-tie"></i> Employee Access
+              {% if pending_approvals_count > 0 %}
+                <span class="sidebar-notification-badge">{{ pending_approvals_count }}</span>
+              {% endif %}
+            </a>
+            <ul class="collapse list-unstyled {% if 'pending' in request.resolver_match.url_name or 'employee' in request.resolver_match.url_name %}show{% endif %}" id="employeeSubmenu">
+              {% if can_pending_employees %}
+              <li>
+                <a href="{% url 'pending_employees' %}" class="menu-item-enhanced">
+                  Pending Approvals
+                  {% if pending_approvals_count > 0 %}
+                    <span class="sidebar-notification-badge">{{ pending_approvals_count }}</span>
+                  {% endif %}
+                </a>
+              </li>
+              {% endif %}
+              {% if can_all_employees %}
+              <li>
+                <a href="{% url 'all_employees' %}" class="menu-item-enhanced">All Employees</a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Generator User Management Section for Managers -->
+          {% has_permission_tag request.user 'generator_management' 'all_generator_users' as can_generator_users %}
+          {% has_permission_tag request.user 'generator_management' 'store_access' as can_store_access %}
+          
+          {% if can_generator_users or can_store_access %}
+          <li>
+            <a href="#generatorUserSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-users-cog"></i> Generator Users
+              {% if pending_generator_users_count > 0 %}
+                <span class="sidebar-notification-badge">{{ pending_generator_users_count }}</span>
+              {% endif %}
+            </a>
+            <ul class="collapse list-unstyled {% if 'generator_user' in request.resolver_match.url_name or 'store_access' in request.resolver_match.url_name %}show{% endif %}" id="generatorUserSubmenu">
+              {% if can_generator_users %}
+              <li>
+                <a href="{% url 'generator_user_management' %}" class="menu-item-enhanced">
+                  All Generator Users
+                  {% if pending_generator_users_count > 0 %}
+                    <span class="sidebar-notification-badge">{{ pending_generator_users_count }}</span>
+                  {% endif %}
+                </a>
+              </li>
+              {% endif %}
+              {% if can_store_access %}
+              <li>
+                <a href="{% url 'store_access_management' %}" class="menu-item-enhanced">Store Access Management</a>
+              </li>
+              {% endif %}
             </ul>
           </li>
           {% endif %}
@@ -390,13 +803,20 @@
               <i class="fas fa-car"></i> Vehicles
             </a>
             <ul class="collapse list-unstyled {% if 'vehicle' in request.resolver_match.url_name %}show{% endif %}" id="vehicleSubmenu">
+              {% has_permission_tag request.user 'vehicles' 'view' as can_view_vehicles %}
+              {% if can_view_vehicles %}
               <li>
                 <a href="{% url 'vehicle_list' %}" class="menu-item-enhanced">All Vehicles</a>
               </li>
-              {% if request.user.user_type != 'driver' %}
+              {% endif %}
+              {% has_permission_tag request.user 'vehicles' 'add' as can_add_vehicles %}
+              {% if can_add_vehicles %}
               <li>
                 <a href="{% url 'vehicle_create' %}" class="menu-item-enhanced">Add Vehicle</a>
               </li>
+              {% endif %}
+              {% has_permission_tag request.user 'vehicles' 'manage' as can_manage_vehicles %}
+              {% if can_manage_vehicles %}
               <li>
                 <a href="{% url 'vehicle_type_list' %}" class="menu-item-enhanced">Vehicle Types</a>
               </li>
@@ -405,6 +825,7 @@
           </li>
 
           <!-- Vehicle Tracking Section -->
+        {% if request.user|has_permission:'tracking,view' %}
         <li>
           <a href="#trackingSubmenu" data-bs-toggle="collapse" aria-expanded="false"
              class="dropdown-toggle menu-item-enhanced">
@@ -413,6 +834,7 @@
           <ul class="collapse list-unstyled {% if 'tracking' in request.resolver_match.url_name or 'map' in request.resolver_match.url_name %}show{% endif %}"
               id="trackingSubmenu">
             <!-- Main Tracking Dashboard -->
+            {% if request.user|has_permission:'tracking,view' %}
             <li>
               <a href="{% url 'tracking_dashboard' %}" class="menu-item-enhanced">
                 <i class="fas fa-tachometer-alt me-2"></i>Dashboard
@@ -424,8 +846,9 @@
                 <i class="fas fa-map-marked-alt me-2"></i>Live Map
               </a>
             </li>
-            <!-- Device Management (Admin / Manager / Vehicle Manager) -->
-            {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+            {% endif %}
+            <!-- Device Management (Users with manage permission) -->
+            {% if request.user|has_permission:'tracking,manage' %}
             <li>
               <a href="{% url 'device_list' %}" class="menu-item-enhanced">
                 <i class="fas fa-microchip me-2"></i>Devices
@@ -433,7 +856,7 @@
             </li>
             {% endif %}
             <!-- Sync with AiroTrack (Admin only) -->
-            {% if request.user.user_type == 'admin' %}
+            {% if request.user|has_permission:'tracking,manage' %}
             <li>
               <a href="{% url 'sync_airotrack' %}" class="menu-item-enhanced"
                  onclick="event.preventDefault(); document.getElementById('syncForm').submit();">
@@ -447,19 +870,23 @@
             {% endif %}
           </ul>
         </li>
+        {% endif %}
         
+        {% if request.user|has_permission:'trips,view' %}
         <li>
           <a href="#tripSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-route"></i> Trips
-            {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+            {% if request.user|has_permission:'trips,manage' %}
               <i class="fas fa-key driver-access-indicator" title="Management can also drive"></i>
             {% endif %}
           </a>
           <ul class="collapse list-unstyled {% if 'trip' in request.resolver_match.url_name %}show{% endif %}" id="tripSubmenu">
+            {% if request.user|has_permission:'trips,view' %}
             <li>
               <a href="{% url 'trip_list' %}" class="menu-item-enhanced"><i class="fas fa-list-alt me-2"></i>All Trips</a>
             </li>
-            {% if request.user.user_type == 'driver' or request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+            {% endif %}
+            {% if request.user|has_permission:'trips,add' %}
             <li>
               <a href="{% url 'start_trip' %}" class="menu-item-enhanced">
                 <i class="fas fa-play me-2"></i>Start Trip
@@ -467,8 +894,8 @@
             </li>
             {% endif %}
             
-            <!-- Manual Trip Management - Only for Admin, Manager, Vehicle Manager -->
-            {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+            <!-- Manual Trip Management - Only for users with manage permission -->
+            {% if request.user|has_permission:'trips,manage' %}
             <li>
               <a href="{% url 'manual_trip_create' %}" class="menu-item-enhanced">
                 <i class="fas fa-plus-circle me-2"></i>Add Single Trip
@@ -483,47 +910,63 @@
             {% endif %}
           </ul>
         </li>
+        {% endif %}
 
+        {% if request.user|has_permission:'fuel,view' %}
         <li>
           <a href="#fuelSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-gas-pump"></i> Fuel
           </a>
           <ul class="collapse list-unstyled {% if 'fuel' in request.resolver_match.url_name %}show{% endif %}" id="fuelSubmenu">
+            {% if request.user|has_permission:'fuel,view' %}
             <li>
               <a href="{% url 'fuel_transaction_list' %}" class="menu-item-enhanced">Transactions</a>
             </li>
+            {% endif %}
+            {% if request.user|has_permission:'fuel,add' %}
             <li>
               <a href="{% url 'fuel_transaction_create' %}" class="menu-item-enhanced">Add Transaction</a>
             </li>
-            {% if request.user.user_type != 'driver' %}
+            {% endif %}
+            {% if request.user|has_permission:'fuel,manage' %}
             <li>
               <a href="{% url 'fuel_station_list' %}" class="menu-item-enhanced">Fuel Stations</a>
             </li>
             {% endif %}
           </ul>
         </li>
+        {% endif %}
         
-        {% if request.user.user_type != 'driver' %}
+        {% if request.user|has_permission:'generators,view' %}
         <li>
           <a href="#generatorSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-dharmachakra"></i> Generators
           </a>
           <ul class="collapse list-unstyled {% if request.resolver_match.url_name == 'store_list' or request.resolver_match.url_name == 'store_create' or request.resolver_match.url_name == 'generator_list' or request.resolver_match.url_name == 'generator_create' or request.resolver_match.url_name == 'usage_tracking_list' or request.resolver_match.url_name == 'fuel_entry_list' or request.resolver_match.url_name == 'maintenance_log_list' %}show{% endif %}" id="generatorSubmenu">
             <!-- Stores -->
+            {% if request.user|has_permission:'generators,view' %}
             <li>
               <a href="{% url 'generators:store_list' %}" class="menu-item-enhanced">Stores</a>
             </li>
+            {% endif %}
+            {% if request.user|has_permission:'generators,add' %}
             <li>
               <a href="{% url 'generators:store_create' %}" class="menu-item-enhanced">Add Store</a>
             </li>
+            {% endif %}
             <!-- Generators -->
+            {% if request.user|has_permission:'generators,view' %}
             <li>
               <a href="{% url 'generators:generator_list' %}" class="menu-item-enhanced">Generators</a>
             </li>
+            {% endif %}
+            {% if request.user|has_permission:'generators,add' %}
             <li>
               <a href="{% url 'generators:generator_create' %}" class="menu-item-enhanced">Add Generator</a>
             </li>
+            {% endif %}
             <!-- Logs -->
+            {% if request.user|has_permission:'generators,view' %}
             <li>
               <a href="{% url 'generators:usage_tracking_list' %}" class="menu-item-enhanced">Usage Tracking</a>
             </li>
@@ -533,22 +976,28 @@
             <li>
               <a href="{% url 'generators:maintenance_log_list' %}" class="menu-item-enhanced">Maintenance Logs</a>
             </li>
+            {% endif %}
           </ul>
         </li>
         {% endif %}
         
+        {% if request.user|has_permission:'maintenance,view' %}
         <li>
           <a href="#maintenanceSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-tools"></i> Maintenance
           </a>
           <ul class="collapse list-unstyled {% if 'maintenance' in request.resolver_match.url_name %}show{% endif %}" id="maintenanceSubmenu">
+            {% if request.user|has_permission:'maintenance,view' %}
             <li>
               <a href="{% url 'maintenance_list' %}" class="menu-item-enhanced">All Records</a>
             </li>
-            {% if request.user.user_type != 'driver' %}
+            {% endif %}
+            {% if request.user|has_permission:'maintenance,add' %}
             <li>
               <a href="{% url 'maintenance_create' %}" class="menu-item-enhanced">Add Record</a>
             </li>
+            {% endif %}
+            {% if request.user|has_permission:'maintenance,manage' %}
             <li>
               <a href="{% url 'maintenance_type_list' %}" class="menu-item-enhanced">Maintenance Types</a>
             </li>
@@ -558,99 +1007,166 @@
             {% endif %}
           </ul>
         </li>
+        {% endif %}
         
-        {% if request.user.user_type != 'driver' %}
+        {% if request.user|has_permission:'documents,view' %}
         <li>
           <a href="#documentSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-file-alt"></i> Documents
           </a>
           <ul class="collapse list-unstyled {% if 'document' in request.resolver_match.url_name %}show{% endif %}" id="documentSubmenu">
+            {% if request.user|has_permission:'documents,view' %}
             <li>
               <a href="{% url 'document_list' %}" class="menu-item-enhanced">All Documents</a>
             </li>
+            {% endif %}
+            {% if request.user|has_permission:'documents,add' %}
             <li>
               <a href="{% url 'document_create' %}" class="menu-item-enhanced">Add Document</a>
             </li>
+            {% endif %}
+            {% if request.user|has_permission:'documents,manage' %}
             <li>
               <a href="{% url 'document_type_list' %}" class="menu-item-enhanced">Document Types</a>
             </li>
+            {% endif %}
           </ul>
         </li>
         {% endif %}
         
+        {% if request.user|has_permission:'accidents,view' %}
         <li>
           <a href="#accidentSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-car-crash"></i> Accidents
           </a>
           <ul class="collapse list-unstyled {% if 'accident' in request.resolver_match.url_name %}show{% endif %}" id="accidentSubmenu">
+            {% if request.user|has_permission:'accidents,view' %}
             <li>
               <a href="{% url 'accident_list' %}" class="menu-item-enhanced">All Accidents</a>
             </li>
+            {% endif %}
+            {% if request.user|has_permission:'accidents,add' %}
             <li>
               <a href="{% url 'accident_create' %}" class="menu-item-enhanced">Report Accident</a>
             </li>
+            {% endif %}
           </ul>
         </li>
+        {% endif %}
 
           <!-- SOR (Security Outward Register) Section -->
+          {% if request.user|has_permission:'sor,view' %}
           <li>
             <a href="#sorSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
               <i class="fas fa-clipboard-list"></i> SOR
             </a>
             <ul class="collapse list-unstyled {% if 'sor' in request.resolver_match.url_name %}show{% endif %}" id="sorSubmenu">
+              {% if request.user|has_permission:'sor,view' %}
               <li>
                 <a href="{% url 'sor_list' %}" class="menu-item-enhanced">All SOR Entries</a>
               </li>
+              {% endif %}
+              {% if request.user|has_permission:'sor,add' %}
               <li>
                 <a href="{% url 'sor_create' %}" class="menu-item-enhanced">Create SOR Entry</a>
               </li>
+              {% endif %}
             </ul>
           </li>
+          {% endif %}
         
-        {% if request.user.user_type == 'admin' %}
+        {% if request.user|has_permission:'users,view' %}
         <li>
           <a href="#userSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-users"></i> Users
           </a>
           <ul class="collapse list-unstyled {% if 'user' in request.resolver_match.url_name %}show{% endif %}" id="userSubmenu">
+            {% if request.user|has_permission:'users,view' %}
             <li>
               <a href="{% url 'user_list' %}" class="menu-item-enhanced">All Users</a>
             </li>
+            {% endif %}
+            {% if request.user|has_permission:'users,add' %}
             <li>
               <a href="{% url 'user_create' %}" class="menu-item-enhanced">Add User</a>
             </li>
+            <li><hr class="dropdown-divider my-2"></li>
+            {% endif %}
+            {% if request.user|has_permission:'users,user_rights' %}
+            <li>
+              <a href="{% url 'user_rights_list' %}" class="menu-item-enhanced">
+                <i class="fas fa-key me-2"></i>User Rights
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'bulk_user_rights' %}" class="menu-item-enhanced">
+                <i class="fas fa-users-cog me-2"></i>Bulk Rights Management
+              </a>
+            </li>
+            {% endif %}
           </ul>
         </li>
         {% endif %}
         
-        {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' or request.user.user_type == 'vehicle_manager' %}
+        <!-- Reports Section -->
+        {% has_permission_tag request.user 'reports' 'vehicle_report' as can_vehicle_report %}
+        {% has_permission_tag request.user 'reports' 'firm_report' as can_firm_report %}
+        {% has_permission_tag request.user 'reports' 'driver_report' as can_driver_report %}
+        {% has_permission_tag request.user 'reports' 'maintenance_report' as can_maintenance_report %}
+        {% has_permission_tag request.user 'reports' 'fuel_report' as can_fuel_report %}
+        {% has_permission_tag request.user 'reports' 'consultant_report' as can_consultant_report %}
+        {% has_permission_tag request.user 'reports' 'daily_usage_cost' as can_daily_usage_cost %}
+        
+        {% if can_vehicle_report or can_firm_report or can_driver_report or can_maintenance_report or can_fuel_report or can_consultant_report or can_daily_usage_cost %}
         <li>
           <a href="#reportSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-chart-bar"></i> Reports
           </a>
           <ul class="collapse list-unstyled {% if 'report' in request.resolver_match.url_name %}show{% endif %}" id="reportSubmenu">
+            {% if can_vehicle_report %}
             <li>
               <a href="{% url 'vehicle_report' %}" class="menu-item-enhanced">Vehicle Report</a>
             </li>
+            {% endif %}
+            {% if can_firm_report %}
             <li>
               <a href="{% url 'firm_report' %}" class="menu-item-enhanced">Firm Report</a>
             </li>
+            {% endif %}
+            {% if can_driver_report %}
             <li>
               <a href="{% url 'driver_report' %}" class="menu-item-enhanced">Driver Report</a>
             </li>
+            {% endif %}
+            {% if can_maintenance_report %}
             <li>
               <a href="{% url 'maintenance_report' %}" class="menu-item-enhanced">Maintenance Report</a>
             </li>
+            {% endif %}
+            {% if can_fuel_report %}
             <li>
               <a href="{% url 'fuel_report' %}" class="menu-item-enhanced">Fuel Report</a>
             </li>
+            {% endif %}
+            {% if can_consultant_report %}
             <li>
               <a href="{% url 'consultant_report' %}" class="menu-item-enhanced">Consultant Report</a>
             </li>
+            {% endif %}
+            {% if can_daily_usage_cost %}
             <li>
               <a href="{% url 'daily_usage_cost' %}" class="menu-item-enhanced">Daily Usage Cost</a>
             </li>
+            {% endif %}
           </ul>
+        </li>
+        {% endif %}
+        <!-- VMS Assistant - Admin Only -->
+        {% if request.user.user_type == 'admin' %}
+        <li>
+          <a href="#" id="sidebar-chatbot-toggle" class="menu-item-enhanced">
+            <i class="fas fa-robot"></i> VMS Assistant
+          </a>
         </li>
         {% endif %}
         {% endif %} <!-- End of regular users menu -->
@@ -944,5 +1460,11 @@
   <script src="{% static 'js/time-utils.js' %}"></script>
   
   {% block extra_js %}{% endblock %}
+
+  <!-- VMS Chatbot Widget - Only for Admin users -->
+  {% if request.user.is_authenticated and request.user.user_type == 'admin' %}
+    {% include 'chatbot/chatbot_widget.html' %}
+  {% endif %}
+
 </body>
 </html>

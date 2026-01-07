@@ -1028,7 +1028,8 @@ class FuelReportView(ReportBaseView):
         trips_in_period = Trip.objects.filter(
             start_time__date__gte=start_date_obj,
             end_time__date__lte=end_date_obj,
-            status='completed'
+            status='completed',
+            is_deleted=False
         ).values('vehicle').annotate(
             total_distance=Sum(F('end_odometer') - F('start_odometer'))
         )
@@ -1253,6 +1254,7 @@ class DailyUsageCostView(ReportBaseView):
 
         trip_qs = Trip.objects.filter(
             status='completed',
+            is_deleted=False,
             **vehicle_filter,
             **vehicle_type_filter
         ).filter(
@@ -1330,6 +1332,7 @@ class DailyUsageCostView(ReportBaseView):
         
         trips = Trip.objects.filter(
             status='completed',
+            is_deleted=False,
             **vehicle_filter
         ).extra(
             where=["DATE(start_time) >= %s AND DATE(start_time) <= %s"],

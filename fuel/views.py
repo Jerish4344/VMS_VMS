@@ -12,7 +12,11 @@ from django.http import JsonResponse
 
 # Import permissions - adjust these imports based on your accounts app structure
 try:
-    from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin
+    from accounts.permissions import (
+        AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin,
+        FuelViewPermissionMixin, FuelAddPermissionMixin, FuelEditPermissionMixin,
+        FuelDeletePermissionMixin, FuelManagePermissionMixin
+    )
 except ImportError:
     # Fallback if permissions don't exist
     class AdminRequiredMixin(LoginRequiredMixin):
@@ -20,6 +24,16 @@ except ImportError:
     class ManagerRequiredMixin(LoginRequiredMixin):
         pass
     class VehicleManagerRequiredMixin(LoginRequiredMixin):
+        pass
+    class FuelViewPermissionMixin(LoginRequiredMixin):
+        pass
+    class FuelAddPermissionMixin(LoginRequiredMixin):
+        pass
+    class FuelEditPermissionMixin(LoginRequiredMixin):
+        pass
+    class FuelDeletePermissionMixin(LoginRequiredMixin):
+        pass
+    class FuelManagePermissionMixin(LoginRequiredMixin):
         pass
 
 from .models import FuelTransaction, FuelStation
@@ -55,7 +69,7 @@ class FuelManagerRequiredMixin(LoginRequiredMixin):
         
         return super().dispatch(request, *args, **kwargs)
 
-class FuelTransactionListView(LoginRequiredMixin, ListView):
+class FuelTransactionListView(FuelViewPermissionMixin, ListView):
     model = FuelTransaction
     template_name = 'fuel/fuel_transaction_list.html'
     context_object_name = 'transactions'
@@ -204,7 +218,7 @@ class FuelTransactionListView(LoginRequiredMixin, ListView):
         
         return context
 
-class FuelTransactionDetailView(LoginRequiredMixin, DetailView):
+class FuelTransactionDetailView(FuelViewPermissionMixin, DetailView):
     model = FuelTransaction
     template_name = 'fuel/fuel_transaction_detail.html'
     context_object_name = 'transaction'
@@ -247,7 +261,7 @@ class FuelTransactionDetailView(LoginRequiredMixin, DetailView):
         
         return context
 
-class FuelTransactionCreateView(VehicleManagerRequiredMixin, CreateView):
+class FuelTransactionCreateView(FuelAddPermissionMixin, CreateView):
     model = FuelTransaction
     form_class = FuelTransactionForm
     template_name = 'fuel/fuel_transaction_form.html'
@@ -297,7 +311,7 @@ class FuelTransactionCreateView(VehicleManagerRequiredMixin, CreateView):
         
         return super().form_invalid(form)
 
-class FuelTransactionUpdateView(FuelManagerRequiredMixin, UpdateView):
+class FuelTransactionUpdateView(FuelEditPermissionMixin, UpdateView):
     model = FuelTransaction
     form_class = FuelTransactionForm
     template_name = 'fuel/fuel_transaction_form.html'
@@ -321,7 +335,7 @@ class FuelTransactionUpdateView(FuelManagerRequiredMixin, UpdateView):
             
         return response
 
-class FuelTransactionDeleteView(FuelAdminRequiredMixin, DeleteView):
+class FuelTransactionDeleteView(FuelDeletePermissionMixin, DeleteView):
     model = FuelTransaction
     template_name = 'fuel/fuel_transaction_confirm_delete.html'
     success_url = reverse_lazy('fuel_transaction_list')
@@ -402,7 +416,7 @@ class FuelStationListView(LoginRequiredMixin, ListView):
             
         return context
 
-class FuelStationCreateView(VehicleManagerRequiredMixin, CreateView):
+class FuelStationCreateView(FuelManagePermissionMixin, CreateView):
     model = FuelStation
     form_class = FuelStationForm
     template_name = 'fuel/fuel_station_form.html'
@@ -414,7 +428,7 @@ class FuelStationCreateView(VehicleManagerRequiredMixin, CreateView):
         messages.success(self.request, f'{station_type} added successfully.')
         return response
 
-class FuelStationUpdateView(VehicleManagerRequiredMixin, UpdateView):
+class FuelStationUpdateView(FuelManagePermissionMixin, UpdateView):
     model = FuelStation
     form_class = FuelStationForm
     template_name = 'fuel/fuel_station_form.html'
@@ -426,7 +440,7 @@ class FuelStationUpdateView(VehicleManagerRequiredMixin, UpdateView):
         messages.success(self.request, f'{station_type} updated successfully.')
         return response
 
-class FuelStationDeleteView(FuelAdminRequiredMixin, DeleteView):
+class FuelStationDeleteView(FuelDeletePermissionMixin, DeleteView):
     model = FuelStation
     template_name = 'fuel/fuel_station_confirm_delete.html'
     success_url = reverse_lazy('fuel_station_list')

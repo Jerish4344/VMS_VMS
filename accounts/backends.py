@@ -3,31 +3,66 @@ import requests
 import logging
 from django.contrib.auth.backends import BaseBackend, ModelBackend
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password, check_password
 from django.utils import timezone
+from datetime import timedelta
 import json
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
+# Configuration for cached authentication
+CACHED_AUTH_VALIDITY_DAYS = 30  # How long cached credentials are valid
+STYLEHR_API_TIMEOUT = 10  # Timeout in seconds for StyleHR API calls
+
 class StyleHRAuthBackend(BaseBackend):
     """
-    StyleHR authentication backend for drivers only
+    StyleHR authentication backend for drivers with cached/offline authentication support.
+    
+    Authentication flow:
+    1. Try StyleHR API authentication
+    2. If API succeeds: update user data, cache password, verify not resigned
+    3. If API fails (timeout/error): fall back to cached credentials if valid
+    4. Check if user is still active (not resigned/terminated)
     """
     
     def authenticate(self, request, username=None, password=None, **kwargs):
         if username is None or password is None:
             return None
         
+        # First, try StyleHR API authentication
+        api_available = True
+        hr_user_data = None
+        
         try:
-            # Authenticate with StyleHR system
             hr_user_data = self._authenticate_with_stylehr(username, password)
-            
-            if not hr_user_data:
-                logger.warning(f"StyleHR authentication failed for user: {username}")
-                return None
-            
+        except Exception as e:
+            logger.warning(f"StyleHR API unavailable for {username}: {str(e)}")
+            api_available = False
+        
+        if hr_user_data:
+            # API authentication successful
+            return self._handle_successful_api_auth(username, password, hr_user_data)
+        elif api_available:
+            # API is available but authentication failed (wrong credentials)
+            logger.warning(f"StyleHR authentication failed for user: {username}")
+            return None
+        else:
+            # API is unavailable, try cached authentication
+            return self._try_cached_authentication(username, password)
+    
+    def _handle_successful_api_auth(self, username, password, hr_user_data):
+        """Handle successful StyleHR API authentication"""
+        try:
             # Log the actual HR data received for debugging
             logger.info(f"StyleHR data received for {username}: {list(hr_user_data.keys())}")
+            
+            # Check if user has resigned/terminated in HR system
+            if self._is_user_resigned(hr_user_data):
+                logger.warning(f"User {username} has resigned/terminated in StyleHR system")
+                # Deactivate local account if exists
+                self._deactivate_resigned_user(username)
+                return None
             
             # Check if user is a driver in HR system
             if not self._is_driver(hr_user_data):
@@ -40,6 +75,9 @@ class StyleHRAuthBackend(BaseBackend):
             # Update user information from HR system
             self._update_user_from_hr_data(user, hr_user_data)
             
+            # Cache the password for offline authentication
+            self._cache_password(user, password)
+            
             # Update HR authentication timestamp
             user.hr_authenticated_at = timezone.now()
             user.save()
@@ -48,8 +86,96 @@ class StyleHRAuthBackend(BaseBackend):
             return user
             
         except Exception as e:
-            logger.error(f"StyleHR authentication error for {username}: {str(e)}")
+            logger.error(f"Error processing StyleHR auth for {username}: {str(e)}")
             return None
+    
+    def _try_cached_authentication(self, username, password):
+        """Fall back to cached credentials when StyleHR API is unavailable"""
+        try:
+            user = User.objects.get(username=str(username))
+            
+            # Check if user is active
+            if not user.is_active:
+                logger.warning(f"Cached auth failed: User {username} is inactive (possibly resigned)")
+                return None
+            
+            # Check if cached credentials exist and are valid
+            if not user.password or not user.password.startswith(('pbkdf2_', 'argon2', 'bcrypt')):
+                logger.warning(f"Cached auth failed: No cached password for {username}")
+                return None
+            
+            # Check if cached credentials haven't expired
+            if user.hr_authenticated_at:
+                expiry_date = user.hr_authenticated_at + timedelta(days=CACHED_AUTH_VALIDITY_DAYS)
+                if timezone.now() > expiry_date:
+                    logger.warning(f"Cached auth failed: Credentials expired for {username}")
+                    return None
+            else:
+                # No previous HR authentication, can't use cached auth
+                logger.warning(f"Cached auth failed: No previous StyleHR auth for {username}")
+                return None
+            
+            # Verify the cached password
+            if check_password(password, user.password):
+                logger.info(f"Cached authentication successful for {username} (StyleHR API unavailable)")
+                return user
+            else:
+                logger.warning(f"Cached auth failed: Wrong password for {username}")
+                return None
+                
+        except User.DoesNotExist:
+            logger.warning(f"Cached auth failed: User {username} not found")
+            return None
+        except Exception as e:
+            logger.error(f"Cached authentication error for {username}: {str(e)}")
+            return None
+    
+    def _cache_password(self, user, password):
+        """Cache the user's password for offline authentication"""
+        user.password = make_password(password)
+        user.save(update_fields=['password'])
+        logger.info(f"Cached password updated for user {user.username}")
+    
+    def _is_user_resigned(self, hr_user_data):
+        """Check if user has resigned or been terminated in HR system"""
+        # Check various fields that might indicate resignation/termination
+        status_fields = ['status', 'employment_status', 'employee_status', 'is_active', 'active']
+        resigned_statuses = ['resigned', 'terminated', 'inactive', 'left', 'separated', 'exit', 'relieved']
+        
+        for field in status_fields:
+            value = hr_user_data.get(field)
+            if value is not None:
+                if isinstance(value, bool):
+                    if not value:  # is_active = False or active = False
+                        return True
+                elif isinstance(value, str):
+                    if value.lower() in resigned_statuses:
+                        return True
+        
+        # Check for exit/relieving date
+        date_fields = ['exit_date', 'relieving_date', 'termination_date', 'last_working_date', 'end_date']
+        for field in date_fields:
+            if hr_user_data.get(field):
+                # If any of these dates exist, user has left
+                logger.info(f"User has {field}: {hr_user_data.get(field)}")
+                return True
+        
+        return False
+    
+    def _deactivate_resigned_user(self, username):
+        """Deactivate a user who has resigned in the HR system"""
+        try:
+            user = User.objects.get(username=str(username))
+            if user.is_active:
+                user.is_active = False
+                user.approval_status = 'rejected'
+                user.rejection_reason = 'User resigned/terminated in HR system'
+                user.save()
+                logger.info(f"Deactivated resigned user: {username}")
+        except User.DoesNotExist:
+            pass
+        except Exception as e:
+            logger.error(f"Error deactivating resigned user {username}: {str(e)}")
     
     def get_user(self, user_id):
         try:
@@ -58,25 +184,39 @@ class StyleHRAuthBackend(BaseBackend):
             return None
     
     def _authenticate_with_stylehr(self, username, password):
-        """Authenticate with StyleHR API"""
+        """
+        Authenticate with StyleHR API.
+        
+        Returns:
+            dict: User data if authentication successful
+            None: If credentials are invalid
+            
+        Raises:
+            Exception: If API is unavailable (network error, timeout, server error)
+        """
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+        
+        payload = {
+            'email': username,
+            'password': password
+        }
+        
         try:
-            headers = {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-            
-            payload = {
-                'email': username,
-                'password': password
-            }
-            
             response = requests.post(
                 'https://stylehr.in/api/login/',
                 json=payload,
                 headers=headers,
-                timeout=30
+                timeout=STYLEHR_API_TIMEOUT
             )
             
+            # Server errors (5xx) - API is having issues
+            if response.status_code >= 500:
+                raise Exception(f"StyleHR server error: {response.status_code}")
+            
+            # Successful response
             if response.status_code == 200:
                 try:
                     response_data = response.json()
@@ -85,13 +225,21 @@ class StyleHRAuthBackend(BaseBackend):
                     if isinstance(response_data, dict) and self._is_valid_response(response_data):
                         return response_data
                 except json.JSONDecodeError:
-                    pass
+                    raise Exception("StyleHR returned invalid JSON response")
             
+            # 401/403 - Invalid credentials (not an API error)
+            if response.status_code in [401, 403]:
+                return None
+            
+            # Other client errors - credentials likely invalid
             return None
             
+        except requests.exceptions.Timeout:
+            raise Exception("StyleHR API timeout")
+        except requests.exceptions.ConnectionError:
+            raise Exception("StyleHR API connection error")
         except requests.RequestException as e:
-            logger.error(f"StyleHR API request failed: {str(e)}")
-            return None
+            raise Exception(f"StyleHR API request failed: {str(e)}")
     
     def _is_valid_response(self, response_data):
         """Check if response contains valid employee data"""

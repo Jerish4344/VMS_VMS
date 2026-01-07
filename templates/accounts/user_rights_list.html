@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}User Rights Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header Section -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="h3 mb-1">
+                        <i class="fas fa-users-cog text-primary me-2"></i>
+                        User Rights Management
+                    </h2>
+                    <p class="text-muted mb-0">Manage user permissions and access rights</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'bulk_user_rights' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-users me-1"></i>
+                        Bulk Management
+                    </a>
+                </div>
+            </div>
+
+            <!-- Filter and Search Section -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="user_type" class="form-label">User Type</label>
+                            <select name="user_type" id="user_type" class="form-select">
+                                <option value="">All User Types</option>
+                                {% for value, label in user_types %}
+                                    <option value="{{ value }}" {% if current_user_type == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="search" class="form-label">Search Users</label>
+                            <input type="text" name="search" id="search" class="form-control" 
+                                   placeholder="Search by name, username, or email..." 
+                                   value="{{ search_query }}">
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-search me-1"></i>Filter
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Users List -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-list me-2"></i>
+                        Users ({{ users|length }} results)
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if users %}
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Permissions</th>
+                                        <th>Last Modified</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for user in users %}
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    {% if user.profile_picture %}
+                                                        <img src="{{ user.profile_picture.url }}" 
+                                                             alt="{{ user.get_full_name }}" 
+                                                             class="rounded-circle me-3" 
+                                                             style="width: 40px; height: 40px; object-fit: cover;">
+                                                    {% else %}
+                                                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" 
+                                                             style="width: 40px; height: 40px;">
+                                                            {{ user.get_full_name|first|upper }}
+                                                        </div>
+                                                    {% endif %}
+                                                    <div>
+                                                        <h6 class="mb-0">{{ user.get_full_name }}</h6>
+                                                        <small class="text-muted">{{ user.username }}</small>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                {% if user.user_type == 'admin' %}
+                                                    <span class="badge bg-danger">
+                                                        <i class="fas fa-crown me-1"></i>Administrator
+                                                    </span>
+                                                {% elif user.user_type == 'manager' %}
+                                                    <span class="badge bg-primary">
+                                                        <i class="fas fa-user-tie me-1"></i>Manager
+                                                    </span>
+                                                {% elif user.user_type == 'vehicle_manager' %}
+                                                    <span class="badge bg-info">
+                                                        <i class="fas fa-cogs me-1"></i>Vehicle Manager
+                                                    </span>
+                                                {% elif user.user_type == 'driver' %}
+                                                    <span class="badge bg-success">
+                                                        <i class="fas fa-car me-1"></i>Driver
+                                                    </span>
+                                                    {% if user.has_full_access %}
+                                                        <span class="badge bg-warning ms-1">
+                                                            <i class="fas fa-star me-1"></i>Full Access
+                                                        </span>
+                                                    {% endif %}
+                                                {% elif user.user_type == 'generator_user' %}
+                                                    <span class="badge bg-warning text-dark">
+                                                        <i class="fas fa-dharmachakra me-1"></i>Generator User
+                                                    </span>
+                                                {% elif user.user_type == 'sor_team' %}
+                                                    <span class="badge bg-secondary">
+                                                        <i class="fas fa-clipboard-list me-1"></i>SOR Team
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-light text-dark">
+                                                        <i class="fas fa-user me-1"></i>{{ user.get_user_type_display }}
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if user.approval_status == 'approved' %}
+                                                    <span class="badge bg-success">
+                                                        <i class="fas fa-check me-1"></i>Approved
+                                                    </span>
+                                                {% elif user.approval_status == 'pending' %}
+                                                    <span class="badge bg-warning">
+                                                        <i class="fas fa-clock me-1"></i>Pending
+                                                    </span>
+                                                {% elif user.approval_status == 'rejected' %}
+                                                    <span class="badge bg-danger">
+                                                        <i class="fas fa-times me-1"></i>Rejected
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    {% with user.user_permissions_custom.count as custom_perms %}
+                                                        {% if custom_perms > 0 %}
+                                                            <span class="badge bg-info">
+                                                                {{ custom_perms }} Custom
+                                                            </span>
+                                                        {% else %}
+                                                            <span class="badge bg-secondary">
+                                                                Default Only
+                                                            </span>
+                                                        {% endif %}
+                                                    {% endwith %}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                {% if user.approved_at %}
+                                                    <small class="text-muted">
+                                                        {{ user.approved_at|timesince }} ago
+                                                        {% if user.approved_by %}
+                                                            <br>by {{ user.approved_by.get_full_name }}
+                                                        {% endif %}
+                                                    </small>
+                                                {% else %}
+                                                    <small class="text-muted">Never</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="d-flex gap-1">
+                                                    <a href="{% url 'user_rights_detail' user.pk %}" 
+                                                       class="btn btn-sm btn-outline-primary" 
+                                                       title="Manage Permissions">
+                                                        <i class="fas fa-key"></i>
+                                                    </a>
+                                                    <a href="{% url 'user_detail' user.pk %}" 
+                                                       class="btn btn-sm btn-outline-secondary" 
+                                                       title="View Details">
+                                                        <i class="fas fa-eye"></i>
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        {% if is_paginated %}
+                            <div class="card-footer">
+                                <nav aria-label="Page navigation">
+                                    <ul class="pagination justify-content-center mb-0">
+                                        {% if page_obj.has_previous %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if current_user_type %}&user_type={{ current_user_type }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">
+                                                    <i class="fas fa-chevron-left"></i>
+                                                </a>
+                                            </li>
+                                        {% endif %}
+
+                                        {% for num in page_obj.paginator.page_range %}
+                                            {% if page_obj.number == num %}
+                                                <li class="page-item active">
+                                                    <span class="page-link">{{ num }}</span>
+                                                </li>
+                                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                                <li class="page-item">
+                                                    <a class="page-link" href="?page={{ num }}{% if current_user_type %}&user_type={{ current_user_type }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">{{ num }}</a>
+                                                </li>
+                                            {% endif %}
+                                        {% endfor %}
+
+                                        {% if page_obj.has_next %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if current_user_type %}&user_type={{ current_user_type }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">
+                                                    <i class="fas fa-chevron-right"></i>
+                                                </a>
+                                            </li>
+                                        {% endif %}
+                                    </ul>
+                                </nav>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-users text-muted mb-3" style="font-size: 3rem;"></i>
+                            <h5 class="text-muted">No users found</h5>
+                            <p class="text-muted">Try adjusting your search criteria or filters.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.badge {
+    font-size: 0.75em;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.btn-group .btn {
+    border-radius: 0.375rem;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+</style>
+{% endblock %}

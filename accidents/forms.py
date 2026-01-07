@@ -48,7 +48,8 @@ class AccidentForm(forms.ModelForm):
             # Get the vehicle from active trip
             active_trip = Trip.objects.filter(
                 driver=self.user,
-                status='ongoing'
+                status='ongoing',
+                is_deleted=False
             ).first()
             
             if active_trip:

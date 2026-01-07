@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'reports',
     'generators',
     'sor',
+    'chatbot',
 ]
 
 MIDDLEWARE = [
@@ -421,57 +422,6 @@ STYLEHR_API_URL = 'https://stylehr.in/api/login/'
 STYLEHR_API_TIMEOUT = 30  # seconds
 
 
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': 'logs/approval_auth.log',
-            'formatter': 'verbose',
-        },
-        'console': {
-            'level': 'DEBUG',
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-    },
-    'loggers': {
-        'accounts.backends': {
-            'handlers': ['file', 'console'],
-            'level': 'INFO',
-            'propagate': True,
-        },
-        'accounts.views': {
-            'handlers': ['file', 'console'],
-            'level': 'INFO',
-            'propagate': True,
-        },
-    },
-}
-
-# Session Configuration
-SESSION_COOKIE_AGE = 8 * 60 * 60  # 8 hours
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-
-# Security Settings for API calls
-REQUESTS_TIMEOUT = 30
-REQUESTS_VERIFY_SSL = True  # Set to False only for development with self-signed certificates
-
-# Notification settings
-DRIVER_APPROVAL_NOTIFICATIONS = True
-DEFAULT_FROM_EMAIL = 'noreply@yourvms.com'
-
-
-
-
 import logging
 
 class IgnoreNotificationPolling(logging.Filter):
@@ -487,14 +437,28 @@ class IgnoreNotificationPolling(logging.Filter):
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
     'filters': {
         'ignore_polling': {
             '()': IgnoreNotificationPolling,
         },
     },
     'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': 'logs/approval_auth.log',
+            'formatter': 'verbose',
+        },
         'console': {
+            'level': 'DEBUG',
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
             'filters': ['ignore_polling'],
         },
     },
@@ -502,6 +466,16 @@ LOGGING = {
         'handlers': ['console'],
     },
     'loggers': {
+        'accounts.backends': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'accounts.views': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
         'django.server': {
             'handlers': ['console'],
             'level': 'INFO',
@@ -509,6 +483,18 @@ LOGGING = {
         },
     },
 }
+
+# Session Configuration
+SESSION_COOKIE_AGE = 8 * 60 * 60  # 8 hours
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Security Settings for API calls
+REQUESTS_TIMEOUT = 30
+REQUESTS_VERIFY_SSL = True  # Set to False only for development with self-signed certificates
+
+# Notification settings
+DRIVER_APPROVAL_NOTIFICATIONS = True
+DEFAULT_FROM_EMAIL = 'noreply@yourvms.com'
 
 # Bulk upload settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100MB

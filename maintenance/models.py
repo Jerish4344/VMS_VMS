@@ -42,6 +42,15 @@ class Maintenance(models.Model):
     cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     invoice_image = models.ImageField(upload_to='maintenance_invoices/', null=True, blank=True)
     notes = models.TextField(blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['vehicle', 'status']),
+            models.Index(fields=['scheduled_date']),
+            models.Index(fields=['status', 'scheduled_date']),
+        ]
+        ordering = ['-date_reported']
     
     def __str__(self):
         return f"{self.maintenance_type.name} for {self.vehicle} on {self.date_reported}"

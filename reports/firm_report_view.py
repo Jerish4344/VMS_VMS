@@ -3,8 +3,9 @@ from vehicles.models import Vehicle, Firm
 from trips.models import Trip
 from django.utils import timezone
 from datetime import datetime, timedelta
+from accounts.permissions import FirmReportPermissionMixin
 
-class FirmReportView(TemplateView):
+class FirmReportView(FirmReportPermissionMixin, TemplateView):
     paginate_by = 30
     template_name = 'reports/firm_report.html'
 
@@ -33,7 +34,7 @@ class FirmReportView(TemplateView):
                     try:
                         vehicle = vehicles.get(id=vehicle_id)
                         context['selected_vehicle'] = vehicle
-                        trips = Trip.objects.filter(vehicle=vehicle)
+                        trips = Trip.objects.filter(vehicle=vehicle, is_deleted=False)
                         if start_date:
                             trips = trips.filter(start_time__date__gte=start_date)
                         if end_date:

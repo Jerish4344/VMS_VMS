@@ -18,6 +18,24 @@ from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView
 )
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+try:
+    from accounts.permissions import (
+        GeneratorsViewPermissionMixin, GeneratorsAddPermissionMixin,
+        GeneratorsEditPermissionMixin, GeneratorsDeletePermissionMixin,
+        GeneratorsManagePermissionMixin
+    )
+except Exception:
+    # Fallbacks in case permissions module not available
+    class GeneratorsViewPermissionMixin(LoginRequiredMixin):
+        pass
+    class GeneratorsAddPermissionMixin(LoginRequiredMixin):
+        pass
+    class GeneratorsEditPermissionMixin(LoginRequiredMixin):
+        pass
+    class GeneratorsDeletePermissionMixin(LoginRequiredMixin):
+        pass
+    class GeneratorsManagePermissionMixin(LoginRequiredMixin):
+        pass
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, Sum, Avg, Count
@@ -57,7 +75,7 @@ class GeneratorBaseView:
 #  Dashboard Views
 # --------------------------------------------------------------------------- #
 
-class GeneratorDashboardView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseView, TemplateView):
+class GeneratorDashboardView(GeneratorsViewPermissionMixin, GeneratorBaseView, TemplateView):
     """Dashboard for Generator module showing key metrics and recent activities."""
     
     template_name = 'generators/dashboard.html'
@@ -162,7 +180,7 @@ class StoreDetailView(LoginRequiredMixin, GeneratorBaseView, DetailView):
         return context
 
 
-class StoreCreateView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseView, CreateView):
+class StoreCreateView(GeneratorsAddPermissionMixin, GeneratorBaseView, CreateView):
     """Create a new store."""
     
     model = Store
@@ -182,7 +200,7 @@ class StoreCreateView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseView,
         return super().form_valid(form)
 
 
-class StoreUpdateView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseView, UpdateView):
+class StoreUpdateView(GeneratorsEditPermissionMixin, GeneratorBaseView, UpdateView):
     """Update an existing store."""
     
     model = Store
@@ -204,7 +222,7 @@ class StoreUpdateView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseView,
         return super().form_valid(form)
 
 
-class StoreDeleteView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseView, DeleteView):
+class StoreDeleteView(GeneratorsDeletePermissionMixin, GeneratorBaseView, DeleteView):
     """Delete a store."""
     
     model = Store
@@ -345,7 +363,7 @@ class GeneratorDetailView(LoginRequiredMixin, GeneratorBaseView, DetailView):
         return context
 
 
-class GeneratorCreateView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseView, CreateView):
+class GeneratorCreateView(GeneratorsAddPermissionMixin, GeneratorBaseView, CreateView):
     """Create a new generator."""
     
     model = Generator
@@ -366,7 +384,7 @@ class GeneratorCreateView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseV
         return reverse('generators:generator_detail', kwargs={'pk': self.object.pk})
 
 
-class GeneratorUpdateView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseView, UpdateView):
+class GeneratorUpdateView(GeneratorsEditPermissionMixin, GeneratorBaseView, UpdateView):
     """Update an existing generator."""
     
     model = Generator
@@ -388,7 +406,7 @@ class GeneratorUpdateView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseV
         return reverse('generators:generator_detail', kwargs={'pk': self.object.pk})
 
 
-class GeneratorDeleteView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseView, DeleteView):
+class GeneratorDeleteView(GeneratorsDeletePermissionMixin, GeneratorBaseView, DeleteView):
     """Delete a generator."""
     
     model = Generator
@@ -430,7 +448,7 @@ class GeneratorDeleteView(LoginRequiredMixin, StaffRequiredMixin, GeneratorBaseV
 #  Usage Tracking Views
 # --------------------------------------------------------------------------- #
 
-class UsageTrackingListView(LoginRequiredMixin, GeneratorBaseView, ListView):
+class UsageTrackingListView(GeneratorsViewPermissionMixin, GeneratorBaseView, ListView):
     """List all usage tracking records with search and filtering."""
     
     model = UsageTracking
@@ -488,7 +506,7 @@ class UsageTrackingListView(LoginRequiredMixin, GeneratorBaseView, ListView):
         return context
 
 
-class UsageTrackingCreateView(LoginRequiredMixin, GeneratorBaseView, CreateView):
+class UsageTrackingCreateView(GeneratorsAddPermissionMixin, GeneratorBaseView, CreateView):
     """Create a new usage tracking record."""
     
     model = UsageTracking

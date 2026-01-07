@@ -117,7 +117,8 @@ class AccidentCreateView(LoginRequiredMixin, CreateView):
             # Pre-populate vehicle if driver has an active trip
             active_trip = Trip.objects.filter(
                 driver=self.request.user,
-                status='ongoing'
+                status='ongoing',
+                is_deleted=False
             ).first()
             
             if active_trip:

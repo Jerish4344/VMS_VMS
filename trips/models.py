@@ -102,6 +102,15 @@ class Trip(models.Model):
     
     class Meta:
         ordering = ['-start_time']
+        indexes = [
+            models.Index(fields=['status', 'start_time']),
+            models.Index(fields=['driver', 'status']),
+            models.Index(fields=['vehicle', 'status']),
+            models.Index(fields=['status', 'end_time']),
+            models.Index(fields=['is_deleted', 'status']),
+            models.Index(fields=['start_time']),
+            models.Index(fields=['end_time']),
+        ]
     
     def __str__(self):
         destination = self.destination or "TBD"

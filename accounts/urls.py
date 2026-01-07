@@ -6,10 +6,12 @@ from .views import (
     # Keep legacy names for backward compatibility
     PendingDriversListView, DriverApprovalView, AllDriversListView, toggle_driver_status,
     # Existing admin views
-    UserListView, UserCreateView, UserUpdateView, UserDetailView, 
+    UserListView, UserCreateView, UserUpdateView, UserDetailView,
     UserDeactivateView, ProfileUpdateView,
     # Generator user management views
-    GeneratorUserApprovalView, GeneratorUserManagementView, StoreAccessManagementView
+    GeneratorUserApprovalView, GeneratorUserManagementView, StoreAccessManagementView,
+    # User rights management views
+    UserRightsListView, UserRightsDetailView, BulkUserRightsView, user_rights_ajax
 )
 
 urlpatterns = [
@@ -48,4 +50,10 @@ urlpatterns = [
     path('generator-users/', GeneratorUserManagementView.as_view(), name='generator_user_management'),
     path('generator-users/<int:employee_id>/approve/', GeneratorUserApprovalView.as_view(), name='generator_user_approval'),
     path('store-access-management/', StoreAccessManagementView.as_view(), name='store_access_management'),
+    
+    # User rights management URLs
+    path('user-rights/', UserRightsListView.as_view(), name='user_rights_list'),
+    path('user-rights/<int:pk>/', UserRightsDetailView.as_view(), name='user_rights_detail'),
+    path('user-rights/bulk/', BulkUserRightsView.as_view(), name='bulk_user_rights'),
+    path('user-rights/ajax/', user_rights_ajax, name='user_rights_ajax'),
 ]

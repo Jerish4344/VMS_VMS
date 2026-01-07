@@ -101,6 +101,13 @@ class Document(models.Model):
     
     # Add the custom manager
     objects = DocumentManager()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['expiry_date']),
+            models.Index(fields=['vehicle', 'expiry_date']),
+            models.Index(fields=['document_type', 'expiry_date']),
+        ]
     
     def __str__(self):
         return f"{self.document_type.name} for {self.vehicle}"

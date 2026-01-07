@@ -5,7 +5,9 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, D
 from django.urls import reverse_lazy
 from django.views.generic import FormView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin
+from accounts.permissions import (AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin,
+                                 VehicleViewPermissionMixin, VehicleAddPermissionMixin, 
+                                 VehicleEditPermissionMixin, VehicleDeletePermissionMixin)
 from .models import Vehicle, VehicleType
 from .forms import VehicleForm, VehicleTypeForm
 from .utils import import_vehicles_from_excel
@@ -16,7 +18,7 @@ from django.db.models import Q
 from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
 
-class VehicleListView(LoginRequiredMixin, ListView):
+class VehicleListView(VehicleViewPermissionMixin, ListView):
     model = Vehicle
     template_name = 'vehicles/vehicle_list.html'
     context_object_name = 'vehicles'
@@ -60,7 +62,7 @@ class VehicleListView(LoginRequiredMixin, ListView):
         context['search_params'] = self.request.GET
         return context
 
-class VehicleDetailView(LoginRequiredMixin, DetailView):
+class VehicleDetailView(VehicleViewPermissionMixin, DetailView):
     model = Vehicle
     template_name = 'vehicles/vehicle_detail.html'
     context_object_name = 'vehicle'
@@ -75,7 +77,7 @@ class VehicleDetailView(LoginRequiredMixin, DetailView):
         context['accidents'] = vehicle.accidents.all()
         return context
 
-class VehicleCreateView(VehicleManagerRequiredMixin, CreateView):
+class VehicleCreateView(VehicleAddPermissionMixin, CreateView):
     model = Vehicle
     form_class = VehicleForm
     template_name = 'vehicles/vehicle_form.html'
@@ -90,7 +92,7 @@ class VehicleCreateView(VehicleManagerRequiredMixin, CreateView):
         
         return response
 
-class VehicleUpdateView(VehicleManagerRequiredMixin, UpdateView):
+class VehicleUpdateView(VehicleEditPermissionMixin, UpdateView):
     model = Vehicle
     form_class = VehicleForm
     template_name = 'vehicles/vehicle_form.html'
@@ -107,7 +109,7 @@ class VehicleUpdateView(VehicleManagerRequiredMixin, UpdateView):
         
         return response
 
-class VehicleDeleteView(AdminRequiredMixin, DeleteView):
+class VehicleDeleteView(VehicleDeletePermissionMixin, DeleteView):
     model = Vehicle
     template_name = 'vehicles/vehicle_confirm_delete.html'
     success_url = reverse_lazy('vehicle_list')

@@ -196,6 +196,11 @@ class Vehicle(models.Model):
     
     class Meta:
         ordering = ['license_plate']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['vehicle_type', 'status']),
+            models.Index(fields=['license_plate']),
+        ]
     
     def __str__(self):
         return f"{self.make} {self.model} ({self.license_plate})"

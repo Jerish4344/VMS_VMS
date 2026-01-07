@@ -8,6 +8,7 @@ from trips.models import Trip
 from trips.consultant_models import ConsultantRate
 from accounts.models import CustomUser
 from vehicles.models import Vehicle
+from sor.models import SOR
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 import csv
 from datetime import datetime, timedelta
@@ -76,8 +77,9 @@ class ConsultantReportView(ReportBaseView):
             driver__in=consultant_drivers,
             status='completed',
             start_time__gte=start_datetime,
-            end_time__lte=end_datetime
-        ).select_related('driver', 'vehicle')
+            end_time__lte=end_datetime,
+            is_deleted=False
+        ).select_related('driver', 'vehicle').prefetch_related('sor_entry')
         
         # Create a lookup dictionary for consultant rates
         rate_lookup = {}
@@ -97,6 +99,14 @@ class ConsultantReportView(ReportBaseView):
                 distance = trip.distance_traveled()
                 payment = consultant_rate.calculate_payment(distance)
                 
+                # Check if trip has associated SOR entry and get goods value and transport cost percentage
+                sor_entry = trip.sor_entry.first() if trip.sor_entry.exists() else None
+                transport_cost_percentage = None
+                goods_value = None
+                if sor_entry:
+                    goods_value = float(sor_entry.goods_value) if sor_entry.goods_value else None
+                    transport_cost_percentage = sor_entry.transport_cost_percentage()
+                
                 consultant_report.append({
                     'trip_id': trip.id,
                     'driver_id': trip.driver.id,
@@ -112,7 +122,9 @@ class ConsultantReportView(ReportBaseView):
                     'payment': payment,
                     'duration': trip.duration(),
                     'purpose': trip.purpose,
-                    'notes': trip.notes
+                    'notes': trip.notes,
+                    'goods_value': goods_value,
+                    'transport_cost_percentage': round(transport_cost_percentage, 2) if transport_cost_percentage else None
                 })
         
         # Sort by date (most recent first)
@@ -205,7 +217,7 @@ class ConsultantReportView(ReportBaseView):
         headers = [
             'Driver Name', 'Vehicle', 'Start Time', 'End Time', 
             'Origin', 'Destination', 'Distance (km)', 'Rate (₹/km)',
-            'Payment (₹)', 'Duration', 'Purpose', 'Notes'
+            'Payment (₹)', 'Duration', 'Purpose', 'Notes', 'Goods Value (₹)', 'Transport % of Goods Value'
         ]
         
         filename = f"consultant_report_{context['start_date']}_to_{context['end_date']}"
@@ -213,11 +225,15 @@ class ConsultantReportView(ReportBaseView):
         # Use all data, not just the current page
         export_data = []
         for trip in context['consultant_report']:
+            # Convert UTC times to local timezone
+            local_start_time = timezone.localtime(trip['start_time']) if trip['start_time'] else None
+            local_end_time = timezone.localtime(trip['end_time']) if trip['end_time'] else None
+            
             export_data.append({
                 'driver_name': trip['driver_name'],
                 'vehicle': trip['vehicle'],
-                'start_time': trip['start_time'].strftime('%Y-%m-%d %H:%M') if trip['start_time'] else '',
-                'end_time': trip['end_time'].strftime('%Y-%m-%d %H:%M') if trip['end_time'] else '',
+                'start_time': local_start_time.strftime('%Y-%m-%d %H:%M') if local_start_time else '',
+                'end_time': local_end_time.strftime('%Y-%m-%d %H:%M') if local_end_time else '',
                 'origin': trip['origin'],
                 'destination': trip['destination'],
                 'distance_(km)': trip['distance'],
@@ -225,7 +241,9 @@ class ConsultantReportView(ReportBaseView):
                 'payment_(₹)': trip['payment'],
                 'duration': trip['duration'] or '',
                 'purpose': trip['purpose'],
-                'notes': trip['notes']
+                'notes': trip['notes'],
+                'goods_value_(₹)': trip.get('goods_value') or '',
+                'transport_%_of_goods_value': f"{trip['transport_cost_percentage']}%" if trip.get('transport_cost_percentage') is not None else ''
             })
         
         return export_data, filename, headers

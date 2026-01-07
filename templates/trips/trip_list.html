@@ -782,6 +782,29 @@
             </div>
           </div>
 
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="exportVehicle" class="form-label">Vehicle</label>
+              <select class="form-select" id="exportVehicle" name="vehicle">
+                <option value="">All Vehicles</option>
+                {% for vehicle in vehicles %}
+                <option value="{{ vehicle.id }}">
+                  {{ vehicle.license_plate }} - {{ vehicle.make }} {{ vehicle.model }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="exportVehicleType" class="form-label">Vehicle Type</label>
+              <select class="form-select" id="exportVehicleType" name="vehicle_type">
+                <option value="">All Types</option>
+                {% for vtype in vehicle_types %}
+                <option value="{{ vtype.id }}">{{ vtype.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
           <div class="mb-3">
             <label class="form-label">Export Options</label>
             <div class="form-check">
@@ -895,6 +918,23 @@
       document.getElementById('exportDateTo').value = currentForm.querySelector('#date_to').value || '';
       document.getElementById('exportStatus').value = currentForm.querySelector('#status').value || '';
       document.getElementById('exportSearch').value = currentForm.querySelector('#search').value || '';
+      
+      // Add vehicle and vehicle_type filters
+      const vehicleSelect = currentForm.querySelector('#vehicle');
+      if (vehicleSelect) {
+        const exportVehicle = document.getElementById('exportVehicle');
+        if (exportVehicle) {
+          exportVehicle.value = vehicleSelect.value || '';
+        }
+      }
+      
+      const vehicleTypeSelect = currentForm.querySelector('#vehicle_type');
+      if (vehicleTypeSelect) {
+        const exportVehicleType = document.getElementById('exportVehicleType');
+        if (exportVehicleType) {
+          exportVehicleType.value = vehicleTypeSelect.value || '';
+        }
+      }
     }
     
     // Show modal

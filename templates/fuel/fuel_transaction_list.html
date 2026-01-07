@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load custom_filters %}
 
 {% block title %}Fuel & Charging Transactions - Vehicle Management System{% endblock %}
 
@@ -156,9 +157,11 @@
   <!-- Page Header -->
   <div class="d-sm-flex align-items-center justify-content-between mb-4">
     <h1 class="h3 mb-0 text-gray-800">Fuel & Charging Transactions</h1>
+    {% if request.user|has_permission:'fuel,add' %}
     <a href="{% url 'fuel_transaction_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
       <i class="fas fa-plus fa-sm text-white-50"></i> Add New Transaction
     </a>
+    {% endif %}
   </div>
   
   <!-- Summary Cards -->
@@ -444,18 +447,20 @@
                   </td>
                   <td>
                     <div class="btn-group">
+                      {% if request.user|has_permission:'fuel,view' %}
                       <a href="{% url 'fuel_transaction_detail' transaction.id %}" class="btn btn-sm btn-info" title="View Details">
                         <i class="fas fa-eye"></i>
                       </a>
-                      {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' %}
+                      {% endif %}
+                      {% if request.user|has_permission:'fuel,edit' %}
                       <a href="{% url 'fuel_transaction_update' transaction.id %}" class="btn btn-sm btn-primary" title="Edit Transaction">
                         <i class="fas fa-edit"></i>
                       </a>
-                      {% if request.user.user_type == 'admin' %}
+                      {% endif %}
+                      {% if request.user|has_permission:'fuel,delete' %}
                       <button class="btn btn-sm btn-danger" onclick="confirmDeleteFuelTransaction({{ transaction.id }})" title="Delete Transaction">
                         <i class="fas fa-trash"></i>
                       </button>
-                      {% endif %}
                       {% endif %}
                     </div>
                   </td>

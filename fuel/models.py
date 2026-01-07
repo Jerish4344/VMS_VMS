@@ -88,6 +88,14 @@ class FuelTransaction(models.Model):
     receipt_image = models.ImageField(upload_to='fuel_receipts/', null=True, blank=True)
     notes = models.TextField(blank=True)
     
+    class Meta:
+        indexes = [
+            models.Index(fields=['date']),
+            models.Index(fields=['vehicle', 'date']),
+            models.Index(fields=['driver', 'date']),
+            models.Index(fields=['created_at']),
+        ]
+    
     def __str__(self):
         if self.is_electric_transaction():
             return f"Charging for {self.vehicle} on {self.date}"

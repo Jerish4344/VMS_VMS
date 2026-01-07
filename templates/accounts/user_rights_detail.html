@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}User Rights - {{ target_user.get_full_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header Section -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item">
+                                <a href="{% url 'user_rights_list' %}">User Rights</a>
+                            </li>
+                            <li class="breadcrumb-item active" aria-current="page">
+                                {{ target_user.get_full_name }}
+                            </li>
+                        </ol>
+                    </nav>
+                    <h2 class="h3 mb-1">
+                        <i class="fas fa-key text-primary me-2"></i>
+                        User Permissions
+                    </h2>
+                    <p class="text-muted mb-0">Manage permissions for {{ target_user.get_full_name }}</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'user_rights_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>Back to List
+                    </a>
+                    <a href="{% url 'user_detail' target_user.pk %}" class="btn btn-outline-primary">
+                        <i class="fas fa-user me-1"></i>View User Details
+                    </a>
+                </div>
+            </div>
+
+            <!-- User Info Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            {% if target_user.profile_picture %}
+                                <img src="{{ target_user.profile_picture.url }}" 
+                                     alt="{{ target_user.get_full_name }}" 
+                                     class="rounded-circle" 
+                                     style="width: 60px; height: 60px; object-fit: cover;">
+                            {% else %}
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" 
+                                     style="width: 60px; height: 60px;">
+                                    <span style="font-size: 1.5rem;">{{ target_user.get_full_name|first|upper }}</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col">
+                            <h5 class="mb-1">{{ target_user.get_full_name }}</h5>
+                            <p class="text-muted mb-1">{{ target_user.username }} • {{ target_user.email }}</p>
+                            <div class="d-flex gap-2">
+                                {% if target_user.user_type == 'driver' %}
+                                    <span class="badge bg-primary">
+                                        <i class="fas fa-car me-1"></i>Driver
+                                    </span>
+                                    {% if target_user.has_full_access %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-crown me-1"></i>Full Access
+                                        </span>
+                                    {% endif %}
+                                {% elif target_user.user_type == 'generator_user' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-dharmachakra me-1"></i>Generator User
+                                    </span>
+                                {% endif %}
+                                
+                                {% if target_user.approval_status == 'approved' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check me-1"></i>Approved
+                                    </span>
+                                {% elif target_user.approval_status == 'pending' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-clock me-1"></i>Pending
+                                    </span>
+                                {% elif target_user.approval_status == 'rejected' %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-times me-1"></i>Rejected
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Permissions Form -->
+            <form method="post" id="permissionsForm">
+                {% csrf_token %}
+                
+                <!-- Modules and Permissions -->
+                {% for module in modules %}
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-light">
+                            <div class="d-flex align-items-center">
+                                <i class="{{ module.icon }} text-primary me-2"></i>
+                                <h5 class="card-title mb-0">{{ module.display_name }}</h5>
+                                <small class="text-muted ms-auto">{{ module.description }}</small>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {% with user_permissions|lookup:module.name as module_perms %}
+                                {% if module_perms %}
+                                    <div class="row g-3">
+                                        {% for permission in module.permissions.all %}
+                                            {% with module_perms|lookup:permission.action as perm_data %}
+                                                <div class="col-md-6 col-lg-4">
+                                                    <div class="border rounded p-3 h-100 permission-card" 
+                                                         data-module="{{ module.name }}" 
+                                                         data-action="{{ permission.action }}">
+                                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                                            <h6 class="mb-1">
+                                                                <i class="fas fa-{{ permission.action|permission_icon }} me-2"></i>
+                                                                {{ permission.get_action_display }}
+                                                            </h6>
+                                                            {% if perm_data.is_explicit %}
+                                                                <span class="badge bg-info" title="Explicitly set">
+                                                                    <i class="fas fa-cog"></i>
+                                                                </span>
+                                                            {% elif perm_data.is_default %}
+                                                                <span class="badge bg-secondary" title="Default permission">
+                                                                    <i class="fas fa-star"></i>
+                                                                </span>
+                                                            {% endif %}
+                                                        </div>
+                                                        
+                                                        <div class="permission-controls">
+                                                            <div class="form-check form-check-inline">
+                                                                <input class="form-check-input" type="radio" 
+                                                                       name="permission_{{ module.name }}_{{ permission.action }}" 
+                                                                       id="grant_{{ module.name }}_{{ permission.action }}" 
+                                                                       value="grant"
+                                                                       {% if perm_data.has_permission and perm_data.is_explicit %}checked{% endif %}>
+                                                                <label class="form-check-label text-success" 
+                                                                       for="grant_{{ module.name }}_{{ permission.action }}">
+                                                                    <i class="fas fa-check me-1"></i>Grant
+                                                                </label>
+                                                            </div>
+                                                            
+                                                            <div class="form-check form-check-inline">
+                                                                <input class="form-check-input" type="radio" 
+                                                                       name="permission_{{ module.name }}_{{ permission.action }}" 
+                                                                       id="revoke_{{ module.name }}_{{ permission.action }}" 
+                                                                       value="revoke"
+                                                                       {% if not perm_data.has_permission and perm_data.is_explicit %}checked{% endif %}>
+                                                                <label class="form-check-label text-danger" 
+                                                                       for="revoke_{{ module.name }}_{{ permission.action }}">
+                                                                    <i class="fas fa-times me-1"></i>Revoke
+                                                                </label>
+                                                            </div>
+                                                            
+                                                            <div class="form-check form-check-inline">
+                                                                <input class="form-check-input" type="radio" 
+                                                                       name="permission_{{ module.name }}_{{ permission.action }}" 
+                                                                       id="default_{{ module.name }}_{{ permission.action }}" 
+                                                                       value="default"
+                                                                       {% if not perm_data.is_explicit %}checked{% endif %}>
+                                                                <label class="form-check-label text-muted" 
+                                                                       for="default_{{ module.name }}_{{ permission.action }}">
+                                                                    <i class="fas fa-undo me-1"></i>Default
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <!-- Current Status -->
+                                                        <div class="mt-2 pt-2 border-top">
+                                                            <small class="text-muted">
+                                                                Current: 
+                                                                {% if perm_data.has_permission %}
+                                                                    <span class="text-success">
+                                                                        <i class="fas fa-check-circle me-1"></i>Allowed
+                                                                    </span>
+                                                                {% else %}
+                                                                    <span class="text-danger">
+                                                                        <i class="fas fa-times-circle me-1"></i>Denied
+                                                                    </span>
+                                                                {% endif %}
+                                                                
+                                                                {% if perm_data.is_default %}
+                                                                    (by default)
+                                                                {% elif perm_data.is_explicit %}
+                                                                    (explicitly set)
+                                                                {% endif %}
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endwith %}
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="text-center py-3">
+                                        <p class="text-muted mb-0">No permissions defined for this module.</p>
+                                    </div>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+                    </div>
+                {% endfor %}
+
+                <!-- Save Button -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <button type="button" class="btn btn-outline-warning" id="resetToDefaults">
+                            <i class="fas fa-undo me-1"></i>Reset All to Defaults
+                        </button>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-save me-1"></i>Save Permissions
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.permission-card {
+    transition: all 0.2s ease;
+    background: #f8f9fa;
+}
+
+.permission-card:hover {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transform: translateY(-1px);
+}
+
+.form-check-input:checked + .form-check-label {
+    font-weight: 600;
+}
+
+.badge {
+    font-size: 0.7em;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.breadcrumb {
+    background: none;
+    padding: 0;
+    margin-bottom: 0.5rem;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Reset to defaults button
+    document.getElementById('resetToDefaults').addEventListener('click', function() {
+        if (confirm('Are you sure you want to reset all permissions to their default values? This will remove all custom permissions for this user.')) {
+            // Set all radio buttons to "default"
+            document.querySelectorAll('input[type="radio"][value="default"]').forEach(function(radio) {
+                radio.checked = true;
+            });
+        }
+    });
+
+    // Form submission confirmation
+    document.getElementById('permissionsForm').addEventListener('submit', function(e) {
+        if (!confirm('Are you sure you want to save these permission changes?')) {
+            e.preventDefault();
+        }
+    });
+
+    // Visual feedback for permission changes
+    document.querySelectorAll('input[type="radio"]').forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            const card = this.closest('.permission-card');
+            card.classList.remove('border-success', 'border-danger', 'border-secondary');
+            
+            if (this.value === 'grant') {
+                card.classList.add('border-success');
+            } else if (this.value === 'revoke') {
+                card.classList.add('border-danger');
+            } else {
+                card.classList.add('border-secondary');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

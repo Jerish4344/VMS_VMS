@@ -9,10 +9,17 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseRedirect, JsonResponse
 from django.contrib.auth import logout
 from django.db import models  # Add this import for Q objects
-from .models import CustomUser
-from .permissions import AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin
+from .models import CustomUser, Module, Permission, UserPermission
+from .permissions import (AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin, 
+                         ApprovalRequiredMixin, DriverRequiredMixin, VehicleViewPermissionMixin,
+                         VehicleAddPermissionMixin, VehicleEditPermissionMixin, VehicleDeletePermissionMixin,
+                         VehicleManagePermissionMixin, UsersViewPermissionMixin, UsersAddPermissionMixin,
+                         UsersEditPermissionMixin, UsersDeletePermissionMixin, UsersManagePermissionMixin,
+                         PendingEmployeesPermissionMixin, AllEmployeesPermissionMixin, 
+                         GeneratorUsersPermissionMixin, StoreAccessPermissionMixin, UserRightsPermissionMixin)
 from .forms import ApprovalAuthenticationForm, DriverApprovalForm
-from .decorators import approval_required, manager_required, vehicle_manager_required
+from .decorators import (approval_required, employee_required, permission_required, 
+                        ajax_permission_required, vehicle_manager_required)
 import logging
 from django.views.generic import CreateView, UpdateView, DetailView
 from .forms import CustomUserCreationForm, CustomUserChangeForm
@@ -210,7 +217,7 @@ def access_rejected_view(request):
 
 
 # Manager-only views (unchanged but with explicit decorator)
-@vehicle_manager_required
+@permission_required('employee_management', 'pending_approvals')
 def pending_employees_list_view(request):
     """List view for pending employee approvals"""
     model = CustomUser
@@ -220,7 +227,7 @@ def pending_employees_list_view(request):
     view = PendingEmployeesListView.as_view()
     return view(request)
 
-class PendingEmployeesListView(VehicleManagerRequiredMixin, ListView):
+class PendingEmployeesListView(PendingEmployeesPermissionMixin, ListView):
     """List view for pending employee approvals"""
     model = CustomUser
     template_name = 'accounts/pending_employees.html'
@@ -311,7 +318,7 @@ class EmployeeApprovalView(VehicleManagerRequiredMixin, View):
         return redirect('pending_employees')
 
 
-class AllEmployeesListView(VehicleManagerRequiredMixin, ListView):
+class AllEmployeesListView(AllEmployeesPermissionMixin, ListView):
     """List all employees with their approval status"""
     model = CustomUser
     template_name = 'accounts/all_employees.html'
@@ -368,7 +375,7 @@ class AllEmployeesListView(VehicleManagerRequiredMixin, ListView):
         return context
 
 
-@vehicle_manager_required
+@permission_required('employee_management', 'pending_approvals')
 def toggle_employee_status(request, employee_id):
     """AJAX view to quickly approve/reject employees"""
     if request.method == 'POST':
@@ -408,7 +415,7 @@ def toggle_employee_status(request, employee_id):
     return JsonResponse({'error': 'Invalid request'}, status=400)
 
 
-@vehicle_manager_required
+@permission_required('employee_management', 'pending_approvals')
 def get_notification_data(request):
     """AJAX endpoint to get notification data"""
     from django.utils import timezone
@@ -519,7 +526,7 @@ toggle_driver_status = toggle_employee_status
 
 # Keep existing admin views (unchanged)
 
-class UserListView(AdminRequiredMixin, ListView):
+class UserListView(UsersViewPermissionMixin, ListView):
     model = CustomUser
     template_name = 'accounts/user_list.html'
     context_object_name = 'users'
@@ -636,24 +643,24 @@ class UserListView(AdminRequiredMixin, ListView):
         
         return context
 
-class UserCreateView(AdminRequiredMixin, CreateView):
+class UserCreateView(UsersAddPermissionMixin, CreateView):
     model = CustomUser
     form_class = CustomUserCreationForm
     template_name = 'accounts/user_form.html'
     success_url = reverse_lazy('user_list')
 
-class UserUpdateView(AdminRequiredMixin, UpdateView):
+class UserUpdateView(UsersEditPermissionMixin, UpdateView):
     model = CustomUser
     form_class = CustomUserChangeForm
     template_name = 'accounts/user_form.html'
     success_url = reverse_lazy('user_list')
 
-class UserDetailView(AdminRequiredMixin, DetailView):
+class UserDetailView(UsersViewPermissionMixin, DetailView):
     model = CustomUser
     template_name = 'accounts/user_detail.html'
     context_object_name = 'user_profile'
 
-class UserDeactivateView(AdminRequiredMixin, View):
+class UserDeactivateView(UsersDeletePermissionMixin, View):
     def post(self, request, pk):
         user = CustomUser.objects.get(pk=pk)
         user.is_active = False
@@ -736,7 +743,7 @@ class GeneratorUserApprovalView(VehicleManagerRequiredMixin, View):
         return redirect('generator_user_management')
 
 
-class GeneratorUserManagementView(VehicleManagerRequiredMixin, ListView):
+class GeneratorUserManagementView(GeneratorUsersPermissionMixin, ListView):
     """List all generator users with their store access"""
     model = CustomUser
     template_name = 'accounts/generator_user_management.html'
@@ -761,7 +768,7 @@ class GeneratorUserManagementView(VehicleManagerRequiredMixin, ListView):
         return context
 
 
-class StoreAccessManagementView(VehicleManagerRequiredMixin, View):
+class StoreAccessManagementView(StoreAccessPermissionMixin, View):
     """Bulk manage store access for multiple users"""
     
     def get(self, request):
@@ -811,3 +818,253 @@ class StoreAccessManagementView(VehicleManagerRequiredMixin, View):
             )
         
         return redirect('store_access_management')
+
+
+# User Rights Management Views
+class UserRightsListView(UserRightsPermissionMixin, ListView):
+    """View to list all users for rights management"""
+    model = CustomUser
+    template_name = 'accounts/user_rights_list.html'
+    context_object_name = 'users'
+    paginate_by = 20
+    
+    def get_queryset(self):
+        queryset = CustomUser.objects.filter(
+            is_active=True
+        ).select_related('approved_by').prefetch_related('user_permissions_custom__permission__module')
+        
+        # Filter by user type if specified
+        user_type = self.request.GET.get('user_type')
+        if user_type:
+            queryset = queryset.filter(user_type=user_type)
+        
+        # Search functionality
+        search = self.request.GET.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(username__icontains=search) |
+                Q(email__icontains=search)
+            )
+        
+        return queryset.order_by('first_name', 'last_name')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['user_types'] = CustomUser.USER_TYPES
+        context['current_user_type'] = self.request.GET.get('user_type', '')
+        context['search_query'] = self.request.GET.get('search', '')
+        return context
+
+
+class UserRightsDetailView(UserRightsPermissionMixin, View):
+    """View to manage individual user rights"""
+    template_name = 'accounts/user_rights_detail.html'
+    
+    def get(self, request, pk):
+        user = get_object_or_404(CustomUser, pk=pk, is_active=True)
+        modules = Module.objects.filter(is_active=True).prefetch_related('permissions').order_by('order')
+        
+        # Get user's current permissions
+        user_permissions = {}
+        for module in modules:
+            user_permissions[module.name] = {}
+            for permission in module.permissions.all():
+                has_permission = user.has_module_permission(module.name, permission.action)
+                is_explicit = UserPermission.objects.filter(
+                    user=user, 
+                    permission=permission
+                ).exists()
+                
+                user_permissions[module.name][permission.action] = {
+                    'has_permission': has_permission,
+                    'is_explicit': is_explicit,
+                    'is_default': (
+                        (user.user_type == 'admin' and permission.is_default_for_admin) or
+                        (user.user_type == 'manager' and permission.is_default_for_manager) or
+                        (user.user_type == 'vehicle_manager' and permission.is_default_for_vehicle_manager) or
+                        (user.user_type == 'driver' and permission.is_default_for_driver) or
+                        (user.user_type == 'generator_user' and permission.is_default_for_generator_user) or
+                        (user.user_type == 'sor_team' and permission.is_default_for_sor_team)
+                    )
+                }
+        
+        context = {
+            'target_user': user,
+            'modules': modules,
+            'user_permissions': user_permissions,
+        }
+        return render(request, self.template_name, context)
+    
+    def post(self, request, pk):
+        user = get_object_or_404(CustomUser, pk=pk, is_active=True)
+        
+        # Handle permission updates
+        for key, value in request.POST.items():
+            if key.startswith('permission_'):
+                # Extract module and action from key: permission_vehicles_view or permission_employee_management_all_employees
+                parts = key.split('_')[1:]  # Remove 'permission' prefix
+                if len(parts) >= 2:
+                    # Try to find the correct module name by checking all possible combinations
+                    module_name = None
+                    action = None
+                    
+                    # Try different splits to handle module names with underscores
+                    for i in range(1, len(parts)):
+                        potential_module = '_'.join(parts[:i])
+                        potential_action = '_'.join(parts[i:])
+                        
+                        try:
+                            module = Module.objects.get(name=potential_module)
+                            # If module exists, check if permission exists
+                            if Permission.objects.filter(module=module, action=potential_action).exists():
+                                module_name = potential_module
+                                action = potential_action
+                                break
+                        except Module.DoesNotExist:
+                            continue
+                    
+                    if module_name and action:
+                        try:
+                            module = Module.objects.get(name=module_name)
+                            permission = Permission.objects.get(module=module, action=action)
+                            
+                            if value == 'grant':
+                                user.grant_permission(module_name, action, request.user)
+                            elif value == 'revoke':
+                                user.revoke_permission(module_name, action, request.user)
+                            elif value == 'default':
+                                # Remove explicit permission to use default
+                                UserPermission.objects.filter(
+                                    user=user, 
+                                    permission=permission
+                                ).delete()
+                                
+                        except (Module.DoesNotExist, Permission.DoesNotExist):
+                            continue
+        
+        messages.success(request, f'Permissions updated for {user.get_full_name()}')
+        return redirect('user_rights_detail', pk=user.pk)
+
+
+class BulkUserRightsView(UserRightsPermissionMixin, View):
+    """View for bulk user rights management"""
+    template_name = 'accounts/bulk_user_rights.html'
+    
+    def get(self, request):
+        users = CustomUser.objects.filter(
+            is_active=True
+        ).order_by('first_name', 'last_name')
+        
+        modules = Module.objects.filter(is_active=True).prefetch_related('permissions').order_by('order')
+        
+        context = {
+            'users': users,
+            'modules': modules,
+            'user_types': CustomUser.USER_TYPES,
+        }
+        return render(request, self.template_name, context)
+    
+    def post(self, request):
+        action = request.POST.get('action')
+        user_ids = request.POST.getlist('selected_users')
+        
+        if not user_ids:
+            messages.error(request, 'Please select at least one user.')
+            return redirect('bulk_user_rights')
+        
+        users = CustomUser.objects.filter(
+            id__in=user_ids,
+            is_active=True
+        )
+        
+        if action == 'bulk_grant':
+            module_name = request.POST.get('module')
+            permission_action = request.POST.get('permission')
+            
+            if module_name and permission_action:
+                try:
+                    module = Module.objects.get(name=module_name)
+                    permission = Permission.objects.get(module=module, action=permission_action)
+                    
+                    for user in users:
+                        user.grant_permission(module_name, permission_action, request.user)
+                    
+                    messages.success(
+                        request,
+                        f'Granted {permission} to {users.count()} users.'
+                    )
+                except (Module.DoesNotExist, Permission.DoesNotExist):
+                    messages.error(request, 'Invalid module or permission.')
+            
+        elif action == 'bulk_revoke':
+            module_name = request.POST.get('module')
+            permission_action = request.POST.get('permission')
+            
+            if module_name and permission_action:
+                try:
+                    module = Module.objects.get(name=module_name)
+                    permission = Permission.objects.get(module=module, action=permission_action)
+                    
+                    for user in users:
+                        user.revoke_permission(module_name, permission_action, request.user)
+                    
+                    messages.success(
+                        request,
+                        f'Revoked {permission} from {users.count()} users.'
+                    )
+                except (Module.DoesNotExist, Permission.DoesNotExist):
+                    messages.error(request, 'Invalid module or permission.')
+            
+        elif action == 'reset_to_defaults':
+            # Remove all explicit permissions to use defaults
+            UserPermission.objects.filter(user__in=users).delete()
+            
+            messages.success(
+                request,
+                f'Reset {users.count()} users to default permissions.'
+            )
+        
+        return redirect('bulk_user_rights')
+
+
+@ajax_permission_required('users', 'user_rights')
+def user_rights_ajax(request):
+    """AJAX endpoint for user rights operations"""
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        user_id = request.POST.get('user_id')
+        module_name = request.POST.get('module')
+        permission_action = request.POST.get('permission')
+        
+        try:
+            user = CustomUser.objects.get(pk=user_id, is_active=True)
+            
+            if action == 'grant':
+                result = user.grant_permission(module_name, permission_action, request.user)
+                if result:
+                    return JsonResponse({
+                        'success': True,
+                        'message': f'Permission granted to {user.get_full_name()}'
+                    })
+            elif action == 'revoke':
+                result = user.revoke_permission(module_name, permission_action, request.user)
+                if result:
+                    return JsonResponse({
+                        'success': True,
+                        'message': f'Permission revoked from {user.get_full_name()}'
+                    })
+            elif action == 'check':
+                has_permission = user.has_module_permission(module_name, permission_action)
+                return JsonResponse({
+                    'success': True,
+                    'has_permission': has_permission
+                })
+                
+        except CustomUser.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    
+    return JsonResponse({'error': 'Invalid request'}, status=400)
