@@ -15,6 +15,7 @@ class CustomUser(AbstractUser):
         ('manager', 'Manager'),
         ('vehicle_manager', 'Vehicle Manager'),
         ('driver', 'Employee (Vehicle Access)'),  # Updated label
+        ('personal_vehicle_staff', 'Personal Vehicle Staff'),  # Staff using own vehicles for reimbursement
         ('generator_user', 'Generator User'),  # New role for generator-only access
 	('sor_team', 'SOR Team'),  # SOR team role
     )
@@ -26,7 +27,7 @@ class CustomUser(AbstractUser):
     )
     
     user_type = models.CharField(
-        max_length=20, 
+        max_length=30, 
         choices=USER_TYPES,
         default='driver'  # Default for vehicle access
     )

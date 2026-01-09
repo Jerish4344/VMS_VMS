@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Update My Vehicle - Vehicle Management System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h2><i class="fas fa-edit me-2"></i>Update My Vehicle</h2>
+            <p class="text-muted">Update your vehicle information</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.current_odometer.id_for_label }}" class="form-label">
+                                Current Odometer (km) <span class="text-danger">*</span>
+                            </label>
+                            {{ form.current_odometer }}
+                            {% if form.current_odometer.errors %}
+                                <div class="text-danger">{{ form.current_odometer.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">Update your current odometer reading</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.image.id_for_label }}" class="form-label">Vehicle Image</label>
+                            {{ form.image }}
+                            {% if form.image.errors %}
+                                <div class="text-danger">{{ form.image.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">Upload a photo of your vehicle (optional)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">Notes</label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}
+                                <div class="text-danger">{{ form.notes.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">Any additional notes about your vehicle</small>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>Save Changes
+                            </button>
+                            <a href="{% url 'my_vehicle' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-1"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm bg-light">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-info-circle me-2"></i>Information</h5>
+                    <p class="card-text">You can only update limited fields of your vehicle. For changes to other details like license plate, make, model, or reimbursement rate, please contact your administrator.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

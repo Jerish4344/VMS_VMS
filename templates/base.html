@@ -320,6 +320,41 @@
               </li>
             </ul>
           </li>
+        {% elif request.user.user_type == 'personal_vehicle_staff' %}
+          <!-- Personal Vehicle Staff - Limited Menu Access -->
+          <!-- My Vehicle Section -->
+          <li>
+            <a href="{% url 'my_vehicle' %}" class="menu-item-enhanced">
+              <i class="fas fa-car"></i> My Vehicle
+            </a>
+          </li>
+          
+          <!-- Trips Section - Only see their own trips -->
+          <li>
+            <a href="#tripSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-route"></i> My Trips
+            </a>
+            <ul class="collapse list-unstyled {% if 'trip' in request.resolver_match.url_name %}show{% endif %}" id="tripSubmenu">
+              <li>
+                <a href="{% url 'driver_trips' %}" class="menu-item-enhanced">
+                  <i class="fas fa-list-alt me-2"></i>All My Trips
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'start_trip' %}" class="menu-item-enhanced">
+                  <i class="fas fa-play me-2"></i>Start Trip
+                </a>
+              </li>
+            </ul>
+          </li>
+          
+          <!-- Reimbursement Section -->
+          <li>
+            <a href="{% url 'my_reimbursement' %}" class="menu-item-enhanced">
+              <i class="fas fa-dollar-sign"></i> My Reimbursement
+            </a>
+          </li>
+          
         {% elif request.user.user_type == 'sor_team' %}
           <!-- SOR Team - SOR Section -->
           <li>
@@ -620,9 +655,10 @@
           {% has_permission_tag request.user 'reports' 'maintenance_report' as can_maintenance_report %}
           {% has_permission_tag request.user 'reports' 'fuel_report' as can_fuel_report %}
           {% has_permission_tag request.user 'reports' 'consultant_report' as can_consultant_report %}
+          {% has_permission_tag request.user 'reports' 'staff_report' as can_staff_report %}
           {% has_permission_tag request.user 'reports' 'daily_usage_cost' as can_daily_usage_cost %}
           
-          {% if can_vehicle_report or can_firm_report or can_driver_report or can_maintenance_report or can_fuel_report or can_consultant_report or can_daily_usage_cost %}
+          {% if can_vehicle_report or can_firm_report or can_driver_report or can_maintenance_report or can_fuel_report or can_consultant_report or can_staff_report or can_daily_usage_cost %}
           <li>
             <a href="#reportSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
               <i class="fas fa-chart-bar"></i> Reports
@@ -656,6 +692,11 @@
               {% if can_consultant_report %}
               <li>
                 <a href="{% url 'consultant_report' %}" class="menu-item-enhanced">Consultant Report</a>
+              </li>
+              {% endif %}
+              {% if can_staff_report %}
+              <li>
+                <a href="{% url 'staff_report' %}" class="menu-item-enhanced">Staff Report</a>
               </li>
               {% endif %}
               {% if can_daily_usage_cost %}
@@ -1115,9 +1156,10 @@
         {% has_permission_tag request.user 'reports' 'maintenance_report' as can_maintenance_report %}
         {% has_permission_tag request.user 'reports' 'fuel_report' as can_fuel_report %}
         {% has_permission_tag request.user 'reports' 'consultant_report' as can_consultant_report %}
+        {% has_permission_tag request.user 'reports' 'staff_report' as can_staff_report %}
         {% has_permission_tag request.user 'reports' 'daily_usage_cost' as can_daily_usage_cost %}
         
-        {% if can_vehicle_report or can_firm_report or can_driver_report or can_maintenance_report or can_fuel_report or can_consultant_report or can_daily_usage_cost %}
+        {% if can_vehicle_report or can_firm_report or can_driver_report or can_maintenance_report or can_fuel_report or can_consultant_report or can_staff_report or can_daily_usage_cost %}
         <li>
           <a href="#reportSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
             <i class="fas fa-chart-bar"></i> Reports
@@ -1151,6 +1193,11 @@
             {% if can_consultant_report %}
             <li>
               <a href="{% url 'consultant_report' %}" class="menu-item-enhanced">Consultant Report</a>
+            </li>
+            {% endif %}
+            {% if can_staff_report %}
+            <li>
+              <a href="{% url 'staff_report' %}" class="menu-item-enhanced">Staff Report</a>
             </li>
             {% endif %}
             {% if can_daily_usage_cost %}

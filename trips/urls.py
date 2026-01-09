@@ -65,9 +65,14 @@ urlpatterns = [
     
     # View trips by driver (must come before generic pk-based routes)
     path(
-        'driver/<int:driver_id>/trips/',
+        'my-trips/',
         DriverTripsView.as_view(),
         name='driver_trips'
+    ),
+    path(
+        'driver/<int:driver_id>/trips/',
+        DriverTripsView.as_view(),
+        name='driver_trips_by_id'
     ),
     
     # Dynamic URLs with primary keys (should come after static URLs)

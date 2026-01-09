@@ -46,14 +46,14 @@ logger = logging.getLogger(__name__)
 class CanDriveVehicleMixin:
     """
     Mixin to check if user can drive vehicles.
-    Allows: drivers, admins, managers, and vehicle_managers
+    Allows: drivers, admins, managers, vehicle_managers, and personal_vehicle_staff
     """
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect('login')
         
         # Allow these user types to drive vehicles
-        allowed_user_types = ['driver', 'admin', 'manager', 'vehicle_manager']
+        allowed_user_types = ['driver', 'admin', 'manager', 'vehicle_manager', 'personal_vehicle_staff']
         
         if request.user.user_type not in allowed_user_types:
             messages.error(request, 'You do not have permission to access this feature.')
@@ -71,6 +71,14 @@ class TripListView(LoginRequiredMixin, ListView):
         # Get base queryset based on user permissions
         if self.request.user.user_type == 'driver':
             queryset = Trip.objects.filter(driver=self.request.user, is_deleted=False)
+        elif self.request.user.user_type == 'personal_vehicle_staff':
+            # Personal vehicle staff only see trips with their personal vehicles
+            queryset = Trip.objects.filter(
+                driver=self.request.user,
+                vehicle__ownership_type='personal',
+                vehicle__owned_by=self.request.user,
+                is_deleted=False
+            )
         elif self.request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
             queryset = Trip.objects.filter(is_deleted=False)
         else:
@@ -269,9 +277,15 @@ class DriverTripsView(LoginRequiredMixin, ListView):
 
     # ---- helpers ----------------------------------------------------------
     def _get_driver(self):
-        """Return the driver object referenced by the URL, or 404."""
+        """Return the driver object referenced by the URL, or current user for personal vehicle staff."""
         driver_id = self.kwargs.get('driver_id')
-        return get_object_or_404(CustomUser, id=driver_id, user_type='driver')
+        
+        # If no driver_id in URL, return current user (for personal vehicle staff accessing their own trips)
+        if not driver_id:
+            return self.request.user
+            
+        # For management users viewing other drivers
+        return get_object_or_404(CustomUser, id=driver_id, user_type__in=['driver', 'personal_vehicle_staff'])
 
     # ---- queryset ---------------------------------------------------------
     def get_queryset(self):
@@ -280,7 +294,17 @@ class DriverTripsView(LoginRequiredMixin, ListView):
         by status / date range, ordered by most-recent first.
         """
         driver = self._get_driver()
-        qs = Trip.objects.filter(driver=driver, is_deleted=False).select_related('vehicle', 'driver')
+        
+        # For personal vehicle staff, only show trips with their personal vehicles
+        if driver.user_type == 'personal_vehicle_staff':
+            qs = Trip.objects.filter(
+                driver=driver,
+                vehicle__ownership_type='personal',
+                vehicle__owned_by=driver,
+                is_deleted=False
+            ).select_related('vehicle', 'driver')
+        else:
+            qs = Trip.objects.filter(driver=driver, is_deleted=False).select_related('vehicle', 'driver')
 
         # Status filter
         status = self.request.GET.get('status', '').strip()
@@ -415,8 +439,21 @@ class StartTripView(LoginRequiredMixin, CanDriveVehicleMixin, CreateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Add available vehicles to the context
-        available_vehicles = Vehicle.objects.filter(status='available').select_related('vehicle_type')
+        # Add available vehicles to the context based on user type
+        if self.request.user.user_type == 'personal_vehicle_staff':
+            # Personal vehicle staff only see their own vehicles
+            available_vehicles = Vehicle.objects.filter(
+                ownership_type='personal',
+                owned_by=self.request.user,
+                status='available'
+            ).select_related('vehicle_type')
+        else:
+            # Other users see company vehicles
+            available_vehicles = Vehicle.objects.filter(
+                ownership_type='company',
+                status='available'
+            ).select_related('vehicle_type')
+        
         context['available_vehicles'] = available_vehicles
         
         # Add vehicle types for filter buttons

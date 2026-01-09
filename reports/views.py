@@ -1397,3 +1397,221 @@ class DailyUsageCostView(ReportBaseView):
         filename = f"daily_usage_cost_summary_{start_date}_to_{end_date}"
         
         return export_data, filename, headers
+
+class StaffReportView(ReportBaseView):
+    """
+    View for generating reports on personal vehicle staff and their reimbursements.
+    """
+    template_name = 'reports/staff_report.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        start_date, end_date = self.get_date_range_filters()
+        
+        # Convert to datetime objects
+        try:
+            start_date_obj = datetime.fromisoformat(start_date).date()
+            end_date_obj = datetime.fromisoformat(end_date).date()
+        except ValueError:
+            start_date_obj = timezone.now().date() - timedelta(days=30)
+            end_date_obj = timezone.now().date()
+            start_date = start_date_obj.isoformat()
+            end_date = end_date_obj.isoformat()
+        
+        # Create timezone-aware datetime objects for filtering
+        start_datetime = timezone.make_aware(
+            datetime.combine(start_date_obj, datetime.min.time())
+        )
+        end_datetime = timezone.make_aware(
+            datetime.combine(end_date_obj, datetime.max.time())
+        )
+        
+        # Get all personal vehicle staff
+        personal_vehicle_staff = CustomUser.objects.filter(
+            user_type='personal_vehicle_staff'
+        ).distinct()
+        
+        # Get all personal vehicles
+        personal_vehicles = Vehicle.objects.filter(
+            ownership_type='personal'
+        ).select_related('owned_by')
+        
+        # Filter by staff if specified
+        staff_id = self.request.GET.get('staff')
+        if staff_id:
+            personal_vehicle_staff = personal_vehicle_staff.filter(id=staff_id)
+            personal_vehicles = personal_vehicles.filter(owned_by_id=staff_id)
+        
+        # Filter by vehicle if specified
+        vehicle_id = self.request.GET.get('vehicle')
+        if vehicle_id:
+            personal_vehicles = personal_vehicles.filter(id=vehicle_id)
+        
+        # Get all completed trips for these vehicles within date range
+        trips = Trip.objects.filter(
+            vehicle__in=personal_vehicles,
+            status='completed',
+            start_time__gte=start_datetime,
+            end_time__lte=end_datetime,
+            is_deleted=False
+        ).select_related('vehicle', 'vehicle__owned_by')
+        
+        # Process trip data and calculate reimbursements
+        staff_report = []
+        
+        for trip in trips:
+            # Calculate distance
+            if trip.end_odometer is not None and trip.start_odometer is not None:
+                distance = float(trip.end_odometer) - float(trip.start_odometer)
+                if distance < 0:
+                    distance = 0
+            else:
+                distance = 0
+            
+            # Calculate reimbursement
+            if trip.vehicle.reimbursement_rate_per_km and distance > 0:
+                reimbursement = float(trip.vehicle.reimbursement_rate_per_km) * distance
+            else:
+                reimbursement = 0
+            
+            staff_report.append({
+                'trip_id': trip.id,
+                'staff_id': trip.vehicle.owned_by.id if trip.vehicle.owned_by else None,
+                'staff_name': trip.vehicle.owned_by.get_full_name() if trip.vehicle.owned_by else 'N/A',
+                'staff_username': trip.vehicle.owned_by.username if trip.vehicle.owned_by else 'N/A',
+                'vehicle_id': trip.vehicle.id,
+                'vehicle': f"{trip.vehicle.license_plate} ({trip.vehicle.make} {trip.vehicle.model})",
+                'start_time': trip.start_time,
+                'end_time': trip.end_time,
+                'origin': trip.origin,
+                'destination': trip.destination,
+                'distance': distance,
+                'rate_per_km': float(trip.vehicle.reimbursement_rate_per_km) if trip.vehicle.reimbursement_rate_per_km else 0,
+                'reimbursement': reimbursement,
+                'duration': trip.duration(),
+                'purpose': trip.purpose,
+                'notes': trip.notes
+            })
+        
+        # Sort by date (most recent first)
+        staff_report.sort(key=lambda x: x['end_time'], reverse=True)
+        
+        # Calculate summary statistics
+        total_trips = len(staff_report)
+        total_distance = sum(trip['distance'] for trip in staff_report)
+        total_reimbursement = sum(trip['reimbursement'] for trip in staff_report)
+        
+        # Group by staff for staff summary
+        staff_summary = {}
+        for trip in staff_report:
+            staff_id = trip['staff_id']
+            if staff_id and staff_id not in staff_summary:
+                staff_summary[staff_id] = {
+                    'staff_name': trip['staff_name'],
+                    'staff_username': trip['staff_username'],
+                    'trip_count': 0,
+                    'total_distance': 0,
+                    'total_reimbursement': 0
+                }
+            
+            if staff_id:
+                staff_summary[staff_id]['trip_count'] += 1
+                staff_summary[staff_id]['total_distance'] += trip['distance']
+                staff_summary[staff_id]['total_reimbursement'] += trip['reimbursement']
+        
+        # Convert to list and sort by total reimbursement
+        staff_summary_list = list(staff_summary.values())
+        staff_summary_list.sort(key=lambda x: x['total_reimbursement'], reverse=True)
+        
+        # Group by vehicle for vehicle summary
+        vehicle_summary = {}
+        for trip in staff_report:
+            vehicle_id = trip['vehicle_id']
+            if vehicle_id not in vehicle_summary:
+                vehicle_summary[vehicle_id] = {
+                    'vehicle': trip['vehicle'],
+                    'staff_name': trip['staff_name'],
+                    'trip_count': 0,
+                    'total_distance': 0,
+                    'total_reimbursement': 0
+                }
+            
+            vehicle_summary[vehicle_id]['trip_count'] += 1
+            vehicle_summary[vehicle_id]['total_distance'] += trip['distance']
+            vehicle_summary[vehicle_id]['total_reimbursement'] += trip['reimbursement']
+        
+        # Convert to list and sort by total reimbursement
+        vehicle_summary_list = list(vehicle_summary.values())
+        vehicle_summary_list.sort(key=lambda x: x['total_reimbursement'], reverse=True)
+        
+        # Pagination
+        page = self.request.GET.get('page', 1)
+        page_size = int(self.request.GET.get('page_size', 20))
+        
+        # Validate page_size
+        if page_size not in [10, 20, 50, 100]:
+            page_size = 20
+        
+        paginator = Paginator(staff_report, page_size)
+        
+        try:
+            staff_report_page = paginator.page(page)
+        except PageNotAnInteger:
+            staff_report_page = paginator.page(1)
+        except EmptyPage:
+            staff_report_page = paginator.page(paginator.num_pages)
+        
+        context.update({
+            'staff_report': staff_report,
+            'staff_report_page': staff_report_page,
+            'paginator': paginator,
+            'total_trips': total_trips,
+            'total_distance': total_distance,
+            'total_reimbursement': total_reimbursement,
+            'staff_summary': staff_summary_list,
+            'vehicle_summary': vehicle_summary_list,
+            'start_date': start_date,
+            'end_date': end_date,
+            'personal_vehicle_staff': personal_vehicle_staff,
+            'personal_vehicles': personal_vehicles,
+            'page_size': page_size,
+            'selected_staff': staff_id,
+            'selected_vehicle': vehicle_id
+        })
+        
+        return context
+    
+    def get_export_data(self, context):
+        """Prepare data for export"""
+        headers = [
+            'Staff Name', 'Username', 'Vehicle', 'Start Time', 'End Time', 
+            'Origin', 'Destination', 'Distance (km)', 'Rate (₹/km)',
+            'Reimbursement (₹)', 'Duration', 'Purpose', 'Notes'
+        ]
+        
+        filename = f"staff_reimbursement_report_{context['start_date']}_to_{context['end_date']}"
+        
+        # Use all data, not just the current page
+        export_data = []
+        for trip in context['staff_report']:
+            # Convert UTC times to local timezone
+            local_start_time = timezone.localtime(trip['start_time']) if trip['start_time'] else None
+            local_end_time = timezone.localtime(trip['end_time']) if trip['end_time'] else None
+            
+            export_data.append({
+                'staff_name': trip['staff_name'],
+                'username': trip['staff_username'],
+                'vehicle': trip['vehicle'],
+                'start_time': local_start_time.strftime('%Y-%m-%d %H:%M') if local_start_time else '',
+                'end_time': local_end_time.strftime('%Y-%m-%d %H:%M') if local_end_time else '',
+                'origin': trip['origin'],
+                'destination': trip['destination'],
+                'distance_(km)': trip['distance'],
+                'rate_(₹/km)': trip['rate_per_km'],
+                'reimbursement_(₹)': trip['reimbursement'],
+                'duration': trip['duration'] or '',
+                'purpose': trip['purpose'],
+                'notes': trip['notes']
+            })
+        
+        return export_data, filename, headers

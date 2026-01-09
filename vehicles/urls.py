@@ -6,6 +6,9 @@ from .views import (
     VehicleTypeListView, VehicleTypeCreateView, VehicleTypeUpdateView, ImportVehiclesView,
     vehicle_details_api  # Add this import
 )
+from .personal_vehicle_views import (
+    MyVehicleDetailView, MyVehicleUpdateView, MyReimbursementView
+)
 
 urlpatterns = [
     path('', VehicleListView.as_view(), name='vehicle_list'),
@@ -19,4 +22,9 @@ urlpatterns = [
     path('import/', ImportVehiclesView.as_view(), name='vehicle_import'),
     # Add this new API endpoint
     path('api/<int:vehicle_id>/details/', vehicle_details_api, name='vehicle_details_api'),
+
+    # Personal vehicle staff URLs
+    path('my-vehicle/', MyVehicleDetailView.as_view(), name='my_vehicle'),
+    path('my-vehicle/update/', MyVehicleUpdateView.as_view(), name='my_vehicle_update'),
+    path('my-reimbursement/', MyReimbursementView.as_view(), name='my_reimbursement'),
 ]

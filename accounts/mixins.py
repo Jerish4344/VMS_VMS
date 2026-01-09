@@ -23,4 +23,16 @@ class EmployeeRequiredMixin(ApprovalRequiredMixin):
         if not super().test_func():
             return False
         return self.request.user.user_type == 'driver'
+
+class PersonalVehicleStaffRequiredMixin(ApprovalRequiredMixin):
+    """Mixin to ensure only personal vehicle staff can access views."""
+    def test_func(self):
+        if not super().test_func():
+            return False
+        return self.request.user.user_type == 'personal_vehicle_staff'
     
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            messages.error(self.request, 'Access denied. This section is only for personal vehicle staff.')
+            return redirect('dashboard')
+        return super().handle_no_permission()

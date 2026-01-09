@@ -24,8 +24,25 @@ class TripForm(forms.ModelForm):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         
-        # Set up vehicle choices - only show available vehicles
-        self.fields['vehicle'].queryset = Vehicle.objects.filter(status='available')
+        # Set up vehicle choices based on user type
+        if user:
+            if user.user_type == 'personal_vehicle_staff':
+                # Personal vehicle staff only see their own vehicles
+                self.fields['vehicle'].queryset = Vehicle.objects.filter(
+                    ownership_type='personal',
+                    owned_by=user,
+                    status='available'
+                )
+            else:
+                # Other users see available company vehicles
+                self.fields['vehicle'].queryset = Vehicle.objects.filter(
+                    ownership_type='company',
+                    status='available'
+                )
+        else:
+            # Fallback: only show available vehicles
+            self.fields['vehicle'].queryset = Vehicle.objects.filter(status='available')
+        
         self.fields['vehicle'].empty_label = "Choose a vehicle..."
         
         # Make notes optional

@@ -73,9 +73,15 @@
             <button type="submit" class="btn btn-primary me-2 flex-grow-1">
               <i class="fas fa-filter fa-sm"></i> Filter
             </button>
-            <a href="{% url 'driver_trips' driver.id %}" class="btn btn-secondary flex-grow-1">
+            {% if driver.id and driver.id != request.user.id %}
+            <a href="{% url 'driver_trips_by_id' driver.id %}" class="btn btn-secondary flex-grow-1">
               <i class="fas fa-redo fa-sm"></i>
             </a>
+            {% else %}
+            <a href="{% url 'driver_trips' %}" class="btn btn-secondary flex-grow-1">
+              <i class="fas fa-redo fa-sm"></i>
+            </a>
+            {% endif %}
           </div>
         </div>
       </form>

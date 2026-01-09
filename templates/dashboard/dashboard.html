@@ -191,6 +191,7 @@
 
   <!-- Summary Cards -->
   <div class="row">
+    {% if request.user.user_type != 'personal_vehicle_staff' %}
     <div class="col-lg-3 col-md-6">
       <div class="card stats-card mb-4">
         <div class="card-body">
@@ -222,6 +223,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
     
     {% if request.user.user_type == 'admin' or request.user.user_type == 'manager' %}
     <div class="col-lg-3 col-md-6">
@@ -318,6 +320,72 @@
             </div>
             <div class="stats-icon">
               <i class="fas fa-map-marked-alt"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+    {% if request.user.user_type == 'personal_vehicle_staff' %}
+    <div class="col-lg-3 col-md-6">
+      <div class="card stats-card mb-4 border-primary">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="stats-title">Monthly Distance</h6>
+              <h3 class="stats-number">{{ monthly_distance }} km</h3>
+            </div>
+            <div class="stats-icon bg-primary">
+              <i class="fas fa-road"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6">
+      <div class="card stats-card mb-4 border-info">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="stats-title">Monthly Trips</h6>
+              <h3 class="stats-number">{{ monthly_trips }}</h3>
+            </div>
+            <div class="stats-icon bg-info">
+              <i class="fas fa-map-marked-alt"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6">
+      <div class="card stats-card mb-4 border-success">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="stats-title">Monthly Reimbursement</h6>
+              <h3 class="stats-number text-success">₹{{ monthly_reimbursement|floatformat:2 }}</h3>
+            </div>
+            <div class="stats-icon bg-success">
+              <i class="fas fa-dollar-sign"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6">
+      <div class="card stats-card mb-4 border-warning">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="stats-title">Rate per KM</h6>
+              <h3 class="stats-number">₹{{ reimbursement_rate|floatformat:2 }}</h3>
+            </div>
+            <div class="stats-icon bg-warning">
+              <i class="fas fa-calculator"></i>
             </div>
           </div>
         </div>
@@ -1196,6 +1264,197 @@
     </div>
   </div>
   {% endif %}
+
+  <!-- Personal Vehicle Staff Dashboard -->
+  {% if request.user.user_type == 'personal_vehicle_staff' %}
+  {% if has_vehicle %}
+  <div class="row">
+    <!-- Vehicle Info Card -->
+    <div class="col-lg-4">
+      <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+          <h5 class="card-title mb-0"><i class="fas fa-car me-2"></i>My Vehicle</h5>
+        </div>
+        <div class="card-body">
+          <h4>{{ personal_vehicle.make }} {{ personal_vehicle.model }}</h4>
+          <p class="mb-2"><strong>License Plate:</strong> {{ personal_vehicle.license_plate }}</p>
+          <p class="mb-2"><strong>Year:</strong> {{ personal_vehicle.year }}</p>
+          <p class="mb-2"><strong>Current Odometer:</strong> {{ personal_vehicle.current_odometer }} km</p>
+          <p class="mb-2"><strong>Reimbursement Rate:</strong> <span class="badge bg-success">₹{{ reimbursement_rate|floatformat:2 }}/km</span></p>
+          <hr>
+          <div class="d-grid gap-2">
+            <a href="{% url 'my_vehicle' %}" class="btn btn-primary">
+              <i class="fas fa-info-circle me-1"></i>View Details
+            </a>
+            <a href="{% url 'start_trip' %}" class="btn btn-success">
+              <i class="fas fa-play me-1"></i>Start New Trip
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Current Trip & Quick Stats -->
+    <div class="col-lg-8">
+      <!-- Ongoing Trips -->
+      {% if ongoing_trips %}
+      <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning">
+          <h5 class="card-title mb-0"><i class="fas fa-route me-2"></i>Current Trip</h5>
+        </div>
+        <div class="card-body">
+          {% for trip in ongoing_trips %}
+          <div class="active-trip-card">
+            <div class="row">
+              <div class="col-md-6">
+                <p class="mb-2"><strong>Started:</strong> {{ trip.start_time|date:"M d, Y H:i" }}</p>
+                <p class="mb-2"><strong>Origin:</strong> {{ trip.origin }}</p>
+                <p class="mb-2"><strong>Purpose:</strong> {{ trip.purpose }}</p>
+                <p class="mb-2"><strong>Start Odometer:</strong> {{ trip.start_odometer }} km</p>
+              </div>
+              <div class="col-md-6 text-md-end">
+                <a href="{% url 'end_trip' trip.id %}" class="btn btn-danger btn-lg mb-2">
+                  <i class="fas fa-flag-checkered"></i> End Trip
+                </a>
+                <br>
+                <a href="{% url 'trip_detail' trip.id %}" class="btn btn-info mb-2">
+                  <i class="fas fa-info-circle"></i> Details
+                </a>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <div class="card mb-4 border-success">
+        <div class="card-header bg-success text-white">
+          <h5 class="card-title mb-0"><i class="fas fa-check-circle me-2"></i>No Active Trip</h5>
+        </div>
+        <div class="card-body text-center py-4">
+          <p class="mb-3">You don't have any ongoing trips.</p>
+          <a href="{% url 'start_trip' %}" class="btn btn-success btn-lg">
+            <i class="fas fa-play me-1"></i>Start a New Trip
+          </a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Monthly Distance & Reimbursement Chart -->
+  <div class="row">
+    <div class="col-lg-12">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="card-title"><i class="fas fa-chart-line me-2"></i>Monthly Distance & Reimbursement (Last 6 Months)</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="personalVehicleChart" height="80"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Recent Trips -->
+  <div class="row">
+    <div class="col-lg-12">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="card-title"><i class="fas fa-list me-2"></i>Your Recent Trips</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>DATE</th>
+                  <th>ORIGIN</th>
+                  <th>DESTINATION</th>
+                  <th>DISTANCE</th>
+                  <th>REIMBURSEMENT</th>
+                  <th>STATUS</th>
+                  <th>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for trip in recent_trips %}
+                <tr>
+                  <td>{{ trip.start_time|date:"M d, Y" }}</td>
+                  <td>{{ trip.origin|truncatewords:5 }}</td>
+                  <td>
+                    {% if trip.destination %}
+                      {{ trip.destination|truncatewords:5 }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if trip.distance is not None %}
+                      {{ trip.distance }} km
+                    {% else %}
+                      In progress
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if trip.reimbursement %}
+                      <span class="text-success fw-bold">₹{{ trip.reimbursement|floatformat:2 }}</span>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if trip.status == 'completed' %}
+                      <span class="badge bg-success">{{ trip.get_status_display }}</span>
+                    {% elif trip.status == 'ongoing' %}
+                      <span class="badge bg-warning">{{ trip.get_status_display }}</span>
+                    {% else %}
+                      <span class="badge bg-secondary">{{ trip.get_status_display }}</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <a href="{% url 'trip_detail' trip.id %}" class="btn btn-sm btn-info">
+                      <i class="fas fa-info-circle"></i>
+                    </a>
+                    {% if trip.status == 'ongoing' %}
+                    <a href="{% url 'end_trip' trip.id %}" class="btn btn-sm btn-warning">
+                      <i class="fas fa-flag-checkered"></i>
+                    </a>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="7" class="text-center">No trips yet. <a href="{% url 'start_trip' %}">Start your first trip</a></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="text-center mt-3">
+            <a href="{% url 'driver_trips' %}" class="btn btn-primary">
+              <i class="fas fa-list-alt me-1"></i>View All Trips
+            </a>
+            <a href="{% url 'my_reimbursement' %}" class="btn btn-success">
+              <i class="fas fa-dollar-sign me-1"></i>View Full Reimbursement Report
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <!-- No Vehicle Registered -->
+  <div class="row">
+    <div class="col-12">
+      <div class="alert alert-warning">
+        <h4><i class="fas fa-exclamation-triangle me-2"></i>No Vehicle Registered</h4>
+        <p>You don't have a personal vehicle registered in the system. Please contact your administrator to register your vehicle for reimbursement tracking.</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
 </div>
 
 <!-- Location Map Modal -->
@@ -2004,6 +2263,101 @@ document.addEventListener('DOMContentLoaded', function() {
       dailyViewBtn.classList.remove('active');
       weeklyViewBtn.classList.add('active');
     });
+  }
+  {% endif %}
+  
+  // Personal Vehicle Staff Dashboard Charts
+  {% if request.user.user_type == 'personal_vehicle_staff' and has_vehicle %}
+  try {
+    const personalVehicleChartCtx = document.getElementById('personalVehicleChart').getContext('2d');
+    
+    {% if driver_months %}
+    const pvMonths = [{% for item in driver_months %}'{{ item.month }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+    const pvDistances = [{% for item in driver_months %}{{ item.distance }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+    const pvReimbursements = [{% for item in driver_months %}{{ item.reimbursement|floatformat:2 }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+    {% else %}
+    const pvMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const pvDistances = [0, 0, 0, 0, 0, 0];
+    const pvReimbursements = [0, 0, 0, 0, 0, 0];
+    {% endif %}
+    
+    const personalVehicleChart = new Chart(personalVehicleChartCtx, {
+      type: 'bar',
+      data: {
+        labels: pvMonths,
+        datasets: [
+          {
+            label: 'Distance (km)',
+            data: pvDistances,
+            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Reimbursement (₹)',
+            data: pvReimbursements,
+            backgroundColor: 'rgba(75, 192, 192, 0.5)',
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 2,
+            type: 'line',
+            tension: 0.3,
+            fill: false,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top'
+          },
+          title: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Distance (km)',
+              font: {
+                size: 12
+              }
+            }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Reimbursement (₹)',
+              font: {
+                size: 12
+              }
+            },
+            grid: {
+              drawOnChartArea: false
+            }
+          }
+        }
+      }
+    });
+  } catch (e) {
+    console.error('Error creating personal vehicle chart:', e);
   }
   {% endif %}
   

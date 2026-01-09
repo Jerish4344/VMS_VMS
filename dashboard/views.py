@@ -37,6 +37,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             self.add_vehicle_manager_data(context)
         elif user_type == 'driver':
             self.add_driver_data(context)
+        elif user_type == 'personal_vehicle_staff':
+            self.add_personal_vehicle_staff_data(context)
         elif user_type == 'generator_user':
             self.add_generator_user_data(context)
             
@@ -468,6 +470,148 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         
         # Add chart data in a format the JavaScript can easily parse
         self.add_chart_json_data(context)
+    
+    def add_personal_vehicle_staff_data(self, context):
+        """Dashboard data for personal vehicle staff using their own vehicles"""
+        staff = self.request.user
+        
+        # Get the staff member's personal vehicle
+        try:
+            personal_vehicle = Vehicle.objects.get(
+                ownership_type='personal',
+                owned_by=staff
+            )
+            context['personal_vehicle'] = personal_vehicle
+            context['has_vehicle'] = True
+        except Vehicle.DoesNotExist:
+            context['personal_vehicle'] = None
+            context['has_vehicle'] = False
+            return  # No vehicle, no data to show
+        
+        # Staff's ongoing trips with their personal vehicle
+        context['ongoing_trips'] = Trip.objects.filter(
+            driver=staff,
+            vehicle=personal_vehicle,
+            status='ongoing',
+            is_deleted=False
+        ).select_related('vehicle')
+        
+        # Staff's recent trips
+        recent_trips = Trip.objects.filter(
+            driver=staff,
+            vehicle=personal_vehicle,
+            is_deleted=False
+        ).order_by('-start_time')[:10]
+        
+        # Add duration and distance to trips
+        for trip in recent_trips:
+            # Calculate distance - check for not None (0 is valid)
+            if trip.end_odometer is not None and trip.start_odometer is not None:
+                trip.distance = trip.end_odometer - trip.start_odometer
+                # Calculate reimbursement for this trip
+                if personal_vehicle.reimbursement_rate_per_km:
+                    trip.reimbursement = trip.distance * personal_vehicle.reimbursement_rate_per_km
+                else:
+                    trip.reimbursement = 0
+            else:
+                trip.distance = None
+                trip.reimbursement = None
+                
+            # Calculate duration
+            if trip.end_time and trip.start_time:
+                try:
+                    trip.calculated_duration = trip.end_time - trip.start_time
+                    total_seconds = trip.calculated_duration.total_seconds()
+                    
+                    hours = int(total_seconds // 3600)
+                    minutes = int((total_seconds % 3600) // 60)
+                    trip.formatted_duration = f"{hours}h {minutes}m"
+                    trip.duration_hours = round(total_seconds / 3600, 1)
+                except Exception:
+                    trip.calculated_duration = timedelta(seconds=0)
+                    trip.duration_hours = 0
+                    trip.formatted_duration = "0h 0m"
+            else:
+                trip.calculated_duration = None
+                trip.duration_hours = None
+                trip.formatted_duration = "In progress"
+        
+        context['recent_trips'] = recent_trips
+        
+        # Staff's total distance and reimbursement this month
+        first_of_month = timezone.now().date().replace(day=1)
+        monthly_trips = Trip.objects.filter(
+            driver=staff,
+            vehicle=personal_vehicle,
+            start_time__gte=first_of_month,
+            status='completed',
+            is_deleted=False
+        )
+        
+        # Calculate monthly stats
+        total_distance = 0
+        trip_count = 0
+        for trip in monthly_trips:
+            if trip.end_odometer is not None and trip.start_odometer is not None:
+                total_distance += (trip.end_odometer - trip.start_odometer)
+                trip_count += 1
+        
+        context['monthly_distance'] = total_distance
+        context['monthly_trips'] = trip_count
+        
+        # Calculate reimbursement
+        if personal_vehicle.reimbursement_rate_per_km:
+            context['monthly_reimbursement'] = total_distance * personal_vehicle.reimbursement_rate_per_km
+            context['reimbursement_rate'] = personal_vehicle.reimbursement_rate_per_km
+        else:
+            context['monthly_reimbursement'] = 0
+            context['reimbursement_rate'] = 0
+        
+        # Add monthly distance chart data (last 6 months)
+        self.add_personal_vehicle_chart_data(context, staff, personal_vehicle)
+    
+    def add_personal_vehicle_chart_data(self, context, staff, vehicle):
+        """Add chart data for personal vehicle staff"""
+        from datetime import datetime
+        
+        # Monthly distance and reimbursement for last 6 months
+        monthly_data = []
+        current_date = timezone.now()
+        
+        for i in range(6):
+            # Calculate month
+            month_date = (current_date - timedelta(days=30*i)).replace(day=1)
+            next_month = (month_date + timedelta(days=32)).replace(day=1)
+            
+            # Get trips for this month
+            month_trips = Trip.objects.filter(
+                driver=staff,
+                vehicle=vehicle,
+                start_time__gte=month_date,
+                start_time__lt=next_month,
+                status='completed',
+                is_deleted=False
+            )
+            
+            # Calculate distance
+            distance = 0
+            for trip in month_trips:
+                if trip.end_odometer is not None and trip.start_odometer is not None:
+                    distance += (trip.end_odometer - trip.start_odometer)
+            
+            # Calculate reimbursement
+            reimbursement = 0
+            if vehicle.reimbursement_rate_per_km:
+                reimbursement = distance * vehicle.reimbursement_rate_per_km
+            
+            monthly_data.insert(0, {
+                'month': month_date.strftime('%b'),
+                'distance': distance,
+                'reimbursement': float(reimbursement)
+            })
+        
+        context['monthly_distance_json'] = json.dumps(monthly_data)
+        context['driver_months'] = monthly_data  # For template compatibility
     
     def add_chart_json_data(self, context):
         """Add chart data in JSON format for the JavaScript to use directly"""

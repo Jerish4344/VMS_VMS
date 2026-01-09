@@ -1,6 +1,6 @@
-
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
 
 # Firm model to represent JIPL and Kannammal
 class Firm(models.Model):
@@ -105,6 +105,34 @@ class Vehicle(models.Model):
     )
     company_owned = models.CharField(max_length=3, choices=OWNERSHIP_CHOICES, default='yes')
     
+    # New fields for personal vehicle tracking
+    OWNERSHIP_TYPE_CHOICES = (
+        ('company', 'Company Vehicle'),
+        ('personal', 'Personal Vehicle (Staff-Owned)'),
+    )
+    ownership_type = models.CharField(
+        max_length=20, 
+        choices=OWNERSHIP_TYPE_CHOICES, 
+        default='company',
+        help_text="Distinguishes between company and staff personal vehicles"
+    )
+    owned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, 
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='owned_vehicles',
+        help_text="Staff member who owns this vehicle (for personal vehicles only)"
+    )
+    reimbursement_rate_per_km = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Reimbursement rate per kilometer for personal vehicles",
+        verbose_name="Reimbursement Rate per KM"
+    )
+
     USAGE_TYPE_CHOICES = (
         ('personal', 'Personal'),
         ('staff', 'Staff'),
