@@ -1,24 +1,25 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}My Vehicle - Vehicle Management System{% endblock %}
+{% block title %}My Vehicles - Vehicle Management System{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col">
-            <h2><i class="fas fa-car me-2"></i>My Vehicle</h2>
-            <p class="text-muted">Manage your personal vehicle and track reimbursements</p>
+            <h2><i class="fas fa-car me-2"></i>My Vehicles ({{ total_vehicles }})</h2>
+            <p class="text-muted">Manage your personal vehicles and track reimbursements</p>
         </div>
     </div>
 
-    {% if vehicle %}
-    <div class="row">
+    {% if vehicles_with_stats %}
+    {% for vehicle in vehicles_with_stats %}
+    <div class="row mb-4">
         <!-- Vehicle Details Card -->
         <div class="col-md-8">
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Vehicle Information</h5>
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>{{ vehicle.make }} {{ vehicle.model }} - {{ vehicle.license_plate }}</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -31,11 +32,17 @@
                         <div class="col-md-6">
                             <p><strong>Fuel Type:</strong> {{ vehicle.fuel_type|default:"N/A" }}</p>
                             <p><strong>Color:</strong> {{ vehicle.color }}</p>
-                            <p><strong>Reimbursement Rate:</strong> ₹{{ vehicle.reimbursement_rate_per_km|default:"Not set" }}/km</p>
+                            <p><strong>Reimbursement Rate:</strong> 
+                                {% if vehicle.reimbursement_rate_per_km %}
+                                    <span class="badge bg-success">₹{{ vehicle.reimbursement_rate_per_km }}/km</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Not set</span>
+                                {% endif %}
+                            </p>
                         </div>
                     </div>
                     <div class="mt-3">
-                        <a href="{% url 'my_vehicle_update' %}" class="btn btn-primary">
+                        <a href="{% url 'my_vehicle_update' vehicle.pk %}" class="btn btn-primary">
                             <i class="fas fa-edit me-1"></i>Update Vehicle Info
                         </a>
                     </div>
@@ -52,58 +59,55 @@
                 <div class="card-body">
                     <div class="mb-3">
                         <h6 class="text-muted">Total Trips</h6>
-                        <h3 class="mb-0">{{ current_month_trips_count }}</h3>
+                        <h3 class="mb-0">{{ vehicle.current_month_trips_count }}</h3>
                     </div>
                     <div class="mb-3">
                         <h6 class="text-muted">Distance Traveled</h6>
-                        <h3 class="mb-0">{{ current_month_distance }} km</h3>
+                        <h3 class="mb-0">{{ vehicle.current_month_distance }} km</h3>
                     </div>
                     <div class="mb-3">
                         <h6 class="text-muted">Est. Reimbursement</h6>
-                        <h3 class="mb-0 text-success">₹{{ current_month_reimbursement|floatformat:2 }}</h3>
+                        <h3 class="mb-0 text-success">₹{{ vehicle.current_month_reimbursement|floatformat:2 }}</h3>
                     </div>
-                    <a href="{% url 'my_reimbursement' %}" class="btn btn-success btn-sm w-100">
-                        <i class="fas fa-dollar-sign me-1"></i>View Reimbursement Details
-                    </a>
                 </div>
             </div>
 
             <div class="card shadow-sm">
                 <div class="card-body text-center">
-                    <p class="mb-2"><strong>Pending Trips:</strong> {{ pending_trips }}</p>
-                    <p class="mb-0"><strong>Total Trips:</strong> {{ total_trips }}</p>
+                    <p class="mb-2"><strong>Pending Trips:</strong> {{ vehicle.pending_trips }}</p>
+                    <p class="mb-0"><strong>Total Trips:</strong> {{ vehicle.total_trips }}</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Recent Trips -->
-    <div class="row">
+    <!-- Recent Trips for this vehicle -->
+    {% if vehicle.recent_trips %}
+    <div class="row mb-4">
         <div class="col-12">
             <div class="card shadow-sm">
                 <div class="card-header bg-info text-white">
-                    <h5 class="mb-0"><i class="fas fa-route me-2"></i>Recent Trips</h5>
+                    <h5 class="mb-0"><i class="fas fa-route me-2"></i>Recent Trips - {{ vehicle.license_plate }}</h5>
                 </div>
                 <div class="card-body">
-                    {% if recent_trips %}
                     <div class="table-responsive">
-                        <table class="table table-hover">
+                        <table class="table table-hover table-sm">
                             <thead>
                                 <tr>
                                     <th>Date</th>
-                                    <th>Origin</th>
-                                    <th>Destination</th>
+                                    <th>From</th>
+                                    <th>To</th>
                                     <th>Distance</th>
                                     <th>Purpose</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for trip in recent_trips %}
+                                {% for trip in vehicle.recent_trips %}
                                 <tr>
                                     <td>{{ trip.start_time|date:"d M Y" }}</td>
-                                    <td>{{ trip.origin }}</td>
-                                    <td>{{ trip.destination|default:"—" }}</td>
+                                    <td>{{ trip.origin|truncatechars:15 }}</td>
+                                    <td>{{ trip.destination|truncatechars:15|default:"—" }}</td>
                                     <td>
                                         {% if trip.distance is not None %}
                                             {{ trip.distance }} km
@@ -111,9 +115,9 @@
                                             —
                                         {% endif %}
                                     </td>
-                                    <td>{{ trip.purpose }}</td>
+                                    <td>{{ trip.purpose|truncatechars:20 }}</td>
                                     <td>
-                                        <span class="badge bg-{{ trip.status|yesno:'success,warning,secondary' }}">
+                                        <span class="badge bg-{% if trip.status == 'completed' %}success{% elif trip.status == 'ongoing' %}warning{% else %}secondary{% endif %}">
                                             {{ trip.get_status_display }}
                                         </span>
                                     </td>
@@ -122,14 +126,25 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="text-center mt-3">
-                        <a href="{% url 'driver_trips' %}" class="btn btn-outline-primary">
-                            <i class="fas fa-list me-1"></i>View All Trips
-                        </a>
-                    </div>
-                    {% else %}
-                    <p class="text-muted text-center">No trips recorded yet.</p>
-                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    <!-- Summary Actions -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5>Quick Actions</h5>
+                    <a href="{% url 'my_reimbursement' %}" class="btn btn-success me-2">
+                        <i class="fas fa-dollar-sign me-1"></i>View All Reimbursements
+                    </a>
+                    <a href="{% url 'trip_list' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-list me-1"></i>View All My Trips
+                    </a>
                 </div>
             </div>
         </div>

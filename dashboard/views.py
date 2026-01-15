@@ -8,7 +8,7 @@ from pytz import timezone as pytz_timezone
 from calendar import month_name
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin
+from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin, CompanyDashboardPermissionMixin, StaffDashboardPermissionMixin
 from vehicles.models import Vehicle
 from trips.models import Trip
 from maintenance.models import Maintenance
@@ -17,7 +17,7 @@ from accidents.models import Accident
 from documents.models import Document
 import json
 
-class DashboardView(LoginRequiredMixin, TemplateView):
+class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/dashboard.html'
     
     def get_context_data(self, **kwargs):
@@ -26,9 +26,13 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         # Get the current user type
         user_type = self.request.user.user_type
         
-        # Basic statistics
-        context['total_vehicles'] = Vehicle.objects.count()
-        context['active_trips'] = Trip.objects.filter(status='ongoing', is_deleted=False).count()
+        # Basic statistics - exclude personal vehicles from company dashboard
+        context['total_vehicles'] = Vehicle.objects.filter(ownership_type='company').count()
+        context['active_trips'] = Trip.objects.filter(
+            vehicle__ownership_type='company',
+            status='ongoing',
+            is_deleted=False
+        ).count()
         
         # Different dashboard data based on user type
         if user_type in ['admin', 'manager']:
@@ -74,17 +78,25 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         return trips
     
     def add_admin_manager_data(self, context):
-        # Vehicle status distribution
-        context['vehicle_status'] = Vehicle.objects.values('status').annotate(count=Count('id'))
+        # Vehicle status distribution - company vehicles only
+        context['vehicle_status'] = Vehicle.objects.filter(ownership_type='company').values('status').annotate(count=Count('id'))
         
-        # Vehicles by type
-        context['vehicle_types'] = Vehicle.objects.values('vehicle_type__name').annotate(count=Count('id'))
+        # Vehicles by type - company vehicles only
+        context['vehicle_types'] = Vehicle.objects.filter(ownership_type='company').values('vehicle_type__name').annotate(count=Count('id'))
         
-        # Ongoing trips
-        context['ongoing_trips'] = Trip.objects.filter(status='ongoing', is_deleted=False).select_related('vehicle', 'driver')
+        # Ongoing trips - company vehicles only
+        context['ongoing_trips'] = Trip.objects.filter(
+            vehicle__ownership_type='company',
+            status='ongoing',
+            is_deleted=False
+        ).select_related('vehicle', 'driver')
         
-        # Group ongoing trips by vehicle type for the grouped view
-        ongoing_trips = Trip.objects.filter(status='ongoing', is_deleted=False).select_related('vehicle', 'driver', 'vehicle__vehicle_type')
+        # Group ongoing trips by vehicle type for the grouped view - company vehicles only
+        ongoing_trips = Trip.objects.filter(
+            vehicle__ownership_type='company',
+            status='ongoing',
+            is_deleted=False
+        ).select_related('vehicle', 'driver', 'vehicle__vehicle_type')
         ongoing_trips_by_type = {}
         ongoing_trips_summary = {}
         
@@ -104,37 +116,43 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['ongoing_trips_by_type'] = ongoing_trips_by_type
         context['ongoing_trips_summary'] = ongoing_trips_summary
         
-        # Recent accidents
-        context['recent_accidents'] = Accident.objects.all().order_by('-date_time')[:5]
+        # Recent accidents - company vehicles only
+        context['recent_accidents'] = Accident.objects.filter(
+            vehicle__ownership_type='company'
+        ).order_by('-date_time')[:5]
         
-        # Upcoming maintenance
+        # Upcoming maintenance - company vehicles only
         context['upcoming_maintenance'] = Maintenance.objects.filter(
+            vehicle__ownership_type='company',
             status='scheduled',
             scheduled_date__gte=timezone.now().date()
         ).order_by('scheduled_date')[:5]
         
-        # Upcoming document renewals
+        # Upcoming document renewals - company vehicles only
         today = timezone.now().date()
         next_month = today + timedelta(days=30)
         context['expiring_documents'] = Document.objects.filter(
+            vehicle__ownership_type='company',
             expiry_date__range=[today, next_month]
         ).order_by('expiry_date')[:5]
         
         # Add fuel expenses data
         self.add_fuel_expenses_data(context)
         
-        # Vehicle utilization (trips per vehicle this month)
+        # Vehicle utilization (trips per vehicle this month) - company vehicles only
         first_of_month = timezone.now().date().replace(day=1)
         context['vehicle_utilization'] = Trip.objects.filter(
+            vehicle__ownership_type='company',
             start_time__gte=first_of_month,
             is_deleted=False
         ).values('vehicle__license_plate').annotate(
             trip_count=Count('id')
         ).order_by('-trip_count')[:10]
         
-        # Driver performance (total distance driven this month)
+        # Driver performance (total distance driven this month) - company vehicles only
         # Updated to include duration calculation
         driver_performance = Trip.objects.filter(
+            vehicle__ownership_type='company',
             start_time__gte=first_of_month,
             status='completed',
             is_deleted=False
@@ -179,8 +197,9 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         last_twelve_weeks = today - timedelta(weeks=12)
         last_thirty_days = today - timedelta(days=30)
         
-        # Monthly fuel expenses
+        # Monthly fuel expenses - company vehicles only
         monthly_fuel = FuelTransaction.objects.filter(
+            vehicle__ownership_type='company',
             date__gte=last_six_months
         ).annotate(
             month=Extract('date', 'month'),
@@ -218,8 +237,9 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             week_start = today - timedelta(weeks=12-i)
             week_end = week_start + timedelta(days=6)
             
-            # Query transactions for this week
+            # Query transactions for this week - company vehicles only
             week_total = FuelTransaction.objects.filter(
+                vehicle__ownership_type='company',
                 date__range=[week_start, week_end]
             ).aggregate(total=Sum('total_cost'))['total'] or 0
             
@@ -254,6 +274,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             # Start from 30 days ago and work forward to today
             day = today - timedelta(days=29-i)  # Changed from (30-i) to (29-i)
             day_total = FuelTransaction.objects.filter(
+                vehicle__ownership_type='company',
                 date=day
             ).aggregate(total=Sum('total_cost'))['total'] or 0
             
@@ -475,23 +496,26 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         """Dashboard data for personal vehicle staff using their own vehicles"""
         staff = self.request.user
         
-        # Get the staff member's personal vehicle
-        try:
-            personal_vehicle = Vehicle.objects.get(
-                ownership_type='personal',
-                owned_by=staff
-            )
-            context['personal_vehicle'] = personal_vehicle
-            context['has_vehicle'] = True
-        except Vehicle.DoesNotExist:
-            context['personal_vehicle'] = None
-            context['has_vehicle'] = False
-            return  # No vehicle, no data to show
+        # Get the staff member's personal vehicles (can have multiple)
+        personal_vehicles = Vehicle.objects.filter(
+            ownership_type='personal',
+            owned_by=staff
+        )
         
-        # Staff's ongoing trips with their personal vehicle
+        if personal_vehicles.exists():
+            context['personal_vehicles'] = personal_vehicles
+            context['has_vehicle'] = True
+            context['total_personal_vehicles'] = personal_vehicles.count()
+        else:
+            context['personal_vehicles'] = []
+            context['has_vehicle'] = False
+            context['total_personal_vehicles'] = 0
+            return  # No vehicles, no data to show
+        
+        # Staff's ongoing trips with their personal vehicles
         context['ongoing_trips'] = Trip.objects.filter(
             driver=staff,
-            vehicle=personal_vehicle,
+            vehicle__in=personal_vehicles,
             status='ongoing',
             is_deleted=False
         ).select_related('vehicle')
@@ -499,7 +523,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         # Staff's recent trips
         recent_trips = Trip.objects.filter(
             driver=staff,
-            vehicle=personal_vehicle,
+            vehicle__in=personal_vehicles,
             is_deleted=False
         ).order_by('-start_time')[:10]
         
@@ -509,8 +533,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             if trip.end_odometer is not None and trip.start_odometer is not None:
                 trip.distance = trip.end_odometer - trip.start_odometer
                 # Calculate reimbursement for this trip
-                if personal_vehicle.reimbursement_rate_per_km:
-                    trip.reimbursement = trip.distance * personal_vehicle.reimbursement_rate_per_km
+                if trip.vehicle.reimbursement_rate_per_km:
+                    trip.reimbursement = trip.distance * trip.vehicle.reimbursement_rate_per_km
                 else:
                     trip.reimbursement = 0
             else:
@@ -542,7 +566,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         first_of_month = timezone.now().date().replace(day=1)
         monthly_trips = Trip.objects.filter(
             driver=staff,
-            vehicle=personal_vehicle,
+            vehicle__in=personal_vehicles,
             start_time__gte=first_of_month,
             status='completed',
             is_deleted=False
@@ -550,27 +574,31 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         
         # Calculate monthly stats
         total_distance = 0
+        total_reimbursement = 0
         trip_count = 0
         for trip in monthly_trips:
             if trip.end_odometer is not None and trip.start_odometer is not None:
-                total_distance += (trip.end_odometer - trip.start_odometer)
+                distance = trip.end_odometer - trip.start_odometer
+                total_distance += distance
                 trip_count += 1
+                # Calculate reimbursement per trip based on vehicle's rate
+                if trip.vehicle.reimbursement_rate_per_km:
+                    total_reimbursement += distance * trip.vehicle.reimbursement_rate_per_km
         
         context['monthly_distance'] = total_distance
         context['monthly_trips'] = trip_count
+        context['monthly_reimbursement'] = total_reimbursement
         
-        # Calculate reimbursement
-        if personal_vehicle.reimbursement_rate_per_km:
-            context['monthly_reimbursement'] = total_distance * personal_vehicle.reimbursement_rate_per_km
-            context['reimbursement_rate'] = personal_vehicle.reimbursement_rate_per_km
+        # Calculate average reimbursement rate
+        if total_distance > 0:
+            context['average_reimbursement_rate'] = total_reimbursement / total_distance
         else:
-            context['monthly_reimbursement'] = 0
-            context['reimbursement_rate'] = 0
+            context['average_reimbursement_rate'] = 0
         
         # Add monthly distance chart data (last 6 months)
-        self.add_personal_vehicle_chart_data(context, staff, personal_vehicle)
+        self.add_personal_vehicle_chart_data(context, staff, personal_vehicles)
     
-    def add_personal_vehicle_chart_data(self, context, staff, vehicle):
+    def add_personal_vehicle_chart_data(self, context, staff, vehicles):
         """Add chart data for personal vehicle staff"""
         from datetime import datetime
         
@@ -583,26 +611,27 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             month_date = (current_date - timedelta(days=30*i)).replace(day=1)
             next_month = (month_date + timedelta(days=32)).replace(day=1)
             
-            # Get trips for this month
+            # Get trips for this month across all personal vehicles
             month_trips = Trip.objects.filter(
                 driver=staff,
-                vehicle=vehicle,
+                vehicle__in=vehicles,
                 start_time__gte=month_date,
                 start_time__lt=next_month,
                 status='completed',
                 is_deleted=False
             )
             
-            # Calculate distance
+            # Calculate distance and reimbursement
             distance = 0
+            reimbursement = 0
             for trip in month_trips:
                 if trip.end_odometer is not None and trip.start_odometer is not None:
-                    distance += (trip.end_odometer - trip.start_odometer)
-            
-            # Calculate reimbursement
-            reimbursement = 0
-            if vehicle.reimbursement_rate_per_km:
-                reimbursement = distance * vehicle.reimbursement_rate_per_km
+                    trip_distance = trip.end_odometer - trip.start_odometer
+                    distance += trip_distance
+                    
+                    # Calculate reimbursement per trip based on vehicle's rate
+                    if trip.vehicle.reimbursement_rate_per_km:
+                        reimbursement += trip_distance * trip.vehicle.reimbursement_rate_per_km
             
             monthly_data.insert(0, {
                 'month': month_date.strftime('%b'),
@@ -1069,3 +1098,158 @@ def ongoing_trips_by_type_api(request):
         'total_count': total_count,
         'trips_by_type': trips_by_type
     })
+
+
+class StaffDashboardView(StaffDashboardPermissionMixin, LoginRequiredMixin, TemplateView):
+    """Dashboard specifically for Staff Personal Vehicles (ownership_type='personal')"""
+    template_name = 'dashboard/staff_dashboard.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Filter for personal vehicles only
+        personal_vehicles = Vehicle.objects.filter(ownership_type='personal')
+        context['total_personal_vehicles'] = personal_vehicles.count()
+        
+        # Active trips for personal vehicles
+        context['active_personal_trips'] = Trip.objects.filter(
+            vehicle__ownership_type='personal',
+            status='ongoing',
+            is_deleted=False
+        ).count()
+        
+        # Personal vehicle status distribution
+        context['personal_vehicle_status'] = personal_vehicles.values('status').annotate(count=Count('id'))
+        
+        # Ongoing trips for personal vehicles
+        ongoing_trips = Trip.objects.filter(
+            vehicle__ownership_type='personal',
+            status='ongoing',
+            is_deleted=False
+        ).select_related('vehicle', 'driver', 'vehicle__vehicle_type', 'vehicle__owned_by')
+        
+        # Group by vehicle type
+        ongoing_trips_by_type = {}
+        ongoing_trips_summary = {}
+        
+        for trip in ongoing_trips:
+            vehicle_type = trip.vehicle.vehicle_type.name
+            
+            if vehicle_type not in ongoing_trips_by_type:
+                ongoing_trips_by_type[vehicle_type] = []
+            ongoing_trips_by_type[vehicle_type].append(trip)
+            
+            if vehicle_type not in ongoing_trips_summary:
+                ongoing_trips_summary[vehicle_type] = 0
+            ongoing_trips_summary[vehicle_type] += 1
+        
+        context['ongoing_trips_by_type'] = ongoing_trips_by_type
+        context['ongoing_trips_summary'] = ongoing_trips_summary
+        context['ongoing_personal_trips'] = ongoing_trips
+        
+        # Calculate reimbursement data for current month
+        first_of_month = timezone.now().date().replace(day=1)
+        
+        completed_personal_trips = Trip.objects.filter(
+            vehicle__ownership_type='personal',
+            status='completed',
+            start_time__gte=first_of_month,
+            is_deleted=False
+        ).select_related('vehicle', 'driver', 'vehicle__owned_by')
+        
+        # Calculate reimbursement by staff member
+        reimbursement_by_staff = {}
+        total_reimbursement = 0
+        
+        for trip in completed_personal_trips:
+            # Check if odometer readings exist and are valid
+            if trip.end_odometer is not None and trip.start_odometer is not None and trip.end_odometer > trip.start_odometer:
+                distance = trip.end_odometer - trip.start_odometer
+                rate = trip.vehicle.reimbursement_rate_per_km
+                
+                # Only calculate if rate exists and is valid
+                if rate is not None and rate > 0:
+                    reimbursement = float(distance) * float(rate)
+                    
+                    owner = trip.vehicle.owned_by
+                    if owner:
+                        owner_name = owner.get_full_name()
+                        if owner_name not in reimbursement_by_staff:
+                            reimbursement_by_staff[owner_name] = {
+                                'owner': owner,
+                                'trips': 0,
+                                'distance': 0,
+                                'reimbursement': 0
+                            }
+                        
+                        reimbursement_by_staff[owner_name]['trips'] += 1
+                        reimbursement_by_staff[owner_name]['distance'] += distance
+                        reimbursement_by_staff[owner_name]['reimbursement'] += reimbursement
+                        total_reimbursement += reimbursement
+        
+        context['reimbursement_by_staff'] = list(reimbursement_by_staff.values())
+        context['total_reimbursement'] = round(total_reimbursement, 2)
+        
+        # Staff vehicle utilization (trips per vehicle this month)
+        context['staff_vehicle_utilization'] = Trip.objects.filter(
+            vehicle__ownership_type='personal',
+            start_time__gte=first_of_month,
+            is_deleted=False
+        ).values(
+            'vehicle__license_plate',
+            'vehicle__owned_by__first_name',
+            'vehicle__owned_by__last_name'
+        ).annotate(
+            trip_count=Count('id')
+        ).order_by('-trip_count')[:10]
+        
+        # Recent completed trips for personal vehicles
+        recent_trips = Trip.objects.filter(
+            vehicle__ownership_type='personal',
+            status='completed',
+            is_deleted=False
+        ).select_related('vehicle', 'driver', 'vehicle__owned_by').order_by('-end_time')[:10]
+        
+        # Calculate distance and reimbursement for each trip
+        for trip in recent_trips:
+            # Check if odometer readings exist and are valid
+            if trip.end_odometer is not None and trip.start_odometer is not None and trip.end_odometer > trip.start_odometer:
+                trip.distance = trip.end_odometer - trip.start_odometer
+                # Check if reimbursement rate exists
+                if trip.vehicle.reimbursement_rate_per_km is not None and trip.vehicle.reimbursement_rate_per_km > 0:
+                    trip.reimbursement_amount = float(trip.distance) * float(trip.vehicle.reimbursement_rate_per_km)
+                else:
+                    trip.reimbursement_amount = None
+            else:
+                trip.distance = None
+                trip.reimbursement_amount = None
+        
+        context['recent_personal_trips'] = recent_trips
+        
+        # Personal vehicles by staff member
+        vehicles_by_owner = personal_vehicles.values(
+            'owned_by__first_name',
+            'owned_by__last_name'
+        ).annotate(
+            vehicle_count=Count('id')
+        ).order_by('-vehicle_count')
+        
+        context['vehicles_by_owner'] = vehicles_by_owner
+        
+        # Monthly statistics for personal vehicles
+        context['monthly_personal_trips'] = Trip.objects.filter(
+            vehicle__ownership_type='personal',
+            start_time__gte=first_of_month,
+            is_deleted=False
+        ).count()
+        
+        context['monthly_personal_distance'] = Trip.objects.filter(
+            vehicle__ownership_type='personal',
+            status='completed',
+            start_time__gte=first_of_month,
+            is_deleted=False
+        ).aggregate(
+            total_distance=Sum(F('end_odometer') - F('start_odometer'))
+        )['total_distance'] or 0
+        
+        return context

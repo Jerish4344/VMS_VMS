@@ -16,6 +16,10 @@
   
   <!-- Google Fonts - Nunito -->
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet.js CSS for Maps -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   
   <!-- Main CSS -->
   <link href="{% static 'css/style.css' %}" rel="stylesheet">
@@ -276,11 +280,57 @@
       
       <ul class="list-unstyled components">
         {% if request.user.user_type != 'sor_team' %}
-        <li {% if request.resolver_match.url_name == 'dashboard' %}{% endif %}>
+        <!-- Dashboard with dropdown for admin/manager users -->
+        {% if request.user|has_permission:'dashboard,company_dashboard' or request.user|has_permission:'dashboard,staff_dashboard' %}
+          {% if request.user.user_type == 'personal_vehicle_staff' %}
+          <!-- Show single Dashboard link for personal vehicle staff -->
+          <li {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>
+            <a href="{% url 'dashboard' %}" class="menu-item-enhanced">
+              <i class="fas fa-tachometer-alt"></i> Dashboard
+            </a>
+          </li>
+          {% elif request.user|has_permission:'dashboard,company_dashboard' and request.user|has_permission:'dashboard,staff_dashboard' %}
+          <!-- Show dropdown if user has both permissions (admin/manager) -->
+          <li>
+            <a href="#dashboardSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-tachometer-alt"></i> Dashboard
+            </a>
+            <ul class="collapse list-unstyled" id="dashboardSubmenu">
+              <li>
+                <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                  <i class="fas fa-building"></i> Company Dashboard
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'staff_dashboard' %}" class="{% if request.resolver_match.url_name == 'staff_dashboard' %}active{% endif %}">
+                  <i class="fas fa-user-tie"></i> Staff Personal Dashboard
+                </a>
+              </li>
+            </ul>
+          </li>
+          {% elif request.user|has_permission:'dashboard,company_dashboard' %}
+          <!-- Show only Company Dashboard if user has only that permission -->
+          <li {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>
+            <a href="{% url 'dashboard' %}" class="menu-item-enhanced">
+              <i class="fas fa-tachometer-alt"></i> Company Dashboard
+            </a>
+          </li>
+          {% elif request.user|has_permission:'dashboard,staff_dashboard' %}
+          <!-- Show only Staff Dashboard if user has only that permission -->
+          <li {% if request.resolver_match.url_name == 'staff_dashboard' %}class="active"{% endif %}>
+            <a href="{% url 'staff_dashboard' %}" class="menu-item-enhanced">
+              <i class="fas fa-tachometer-alt"></i> Staff Personal Dashboard
+            </a>
+          </li>
+          {% endif %}
+        {% elif request.user.user_type == 'driver' or request.user.user_type == 'generator_user' %}
+        <!-- Dashboard link for drivers and generator users (legacy fallback) -->
+        <li {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>
           <a href="{% url 'dashboard' %}" class="menu-item-enhanced">
             <i class="fas fa-tachometer-alt"></i> Dashboard
           </a>
         </li>
+        {% endif %}
         {% endif %}
         <!-- Show different menus based on user type -->
   {% if request.user.is_generator_user %}
@@ -413,6 +463,13 @@
               {% if request.user|has_permission:'trips,view' %}
               <li>
                 <a href="{% url 'trip_list' %}" class="menu-item-enhanced"><i class="fas fa-list-alt me-2"></i>All Trips</a>
+              </li>
+              {% endif %}
+              {% if request.user.user_type == 'admin' %}
+              <li>
+                <a href="{% url 'staff_trips' %}" class="menu-item-enhanced">
+                  <i class="fas fa-satellite-dish me-2"></i>Staff Trips (GPS)
+                </a>
               </li>
               {% endif %}
               {% if request.user|has_permission:'trips,add' %}
@@ -925,6 +982,18 @@
             {% if request.user|has_permission:'trips,view' %}
             <li>
               <a href="{% url 'trip_list' %}" class="menu-item-enhanced"><i class="fas fa-list-alt me-2"></i>All Trips</a>
+            </li>
+            {% endif %}
+            {% if request.user.user_type == 'admin' %}
+            <li>
+              <a href="{% url 'staff_trips' %}" class="menu-item-enhanced">
+                <i class="fas fa-satellite-dish me-2"></i>Staff Trips (GPS)
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'live_tracking' %}" class="menu-item-enhanced">
+                <i class="fas fa-map-marked-alt me-2"></i>Live Tracking
+              </a>
             </li>
             {% endif %}
             {% if request.user|has_permission:'trips,add' %}
@@ -1505,6 +1574,10 @@
   
   <!-- Time Utilities -->
   <script src="{% static 'js/time-utils.js' %}"></script>
+
+  <!-- Leaflet.js JavaScript for Maps -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   
   {% block extra_js %}{% endblock %}
 

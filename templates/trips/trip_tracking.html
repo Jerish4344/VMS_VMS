@@ -259,6 +259,121 @@
       apiUrl: '{% url "location_update" %}'
     });
     
+    // ====== KEEP TAB ACTIVE & PREVENT CLOSING ======
+    let wakeLock = null;
+    
+    // 1. Prevent accidental tab closing
+    window.addEventListener('beforeunload', function (e) {
+      e.preventDefault();
+      e.returnValue = '⚠️ GPS tracking is active! Closing this tab will stop location recording. Are you sure?';
+      return e.returnValue;
+    });
+    
+    // 2. Keep screen awake using Wake Lock API
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          console.log('✅ Wake Lock activated - screen will stay awake');
+          
+          wakeLock.addEventListener('release', () => {
+            console.log('⚠️ Wake Lock released');
+          });
+        } else {
+          console.log('⚠️ Wake Lock API not supported');
+        }
+      } catch (err) {
+        console.error('Wake Lock error:', err);
+      }
+    }
+    
+    // 3. Detect when tab becomes hidden/inactive
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        console.warn('⚠️ Tab hidden - GPS tracking may be affected');
+        showWarningNotification('Tab is hidden! Keep this tab visible for accurate GPS tracking.');
+      } else {
+        console.log('✅ Tab visible again');
+        // Re-request wake lock if it was released
+        if (wakeLock === null) {
+          requestWakeLock();
+        }
+      }
+    });
+    
+    // 4. Show persistent warning notification
+    function showWarningNotification(message) {
+      // Create notification element if it doesn't exist
+      let notification = document.getElementById('gpsWarningNotification');
+      if (!notification) {
+        notification = document.createElement('div');
+        notification.id = 'gpsWarningNotification';
+        notification.style.cssText = `
+          position: fixed;
+          top: 80px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #ff6b6b;
+          color: white;
+          padding: 15px 30px;
+          border-radius: 10px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          z-index: 9999;
+          font-weight: bold;
+          text-align: center;
+          animation: pulse 2s infinite;
+        `;
+        document.body.appendChild(notification);
+        
+        // Add pulse animation
+        const style = document.createElement('style');
+        style.textContent = `
+          @keyframes pulse {
+            0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+            50% { opacity: 0.8; transform: translateX(-50%) scale(1.05); }
+          }
+        `;
+        document.head.appendChild(style);
+      }
+      notification.textContent = '⚠️ ' + message;
+      notification.style.display = 'block';
+      
+      // Hide after 5 seconds if tab is visible again
+      setTimeout(() => {
+        if (!document.hidden) {
+          notification.style.display = 'none';
+        }
+      }, 5000);
+    }
+    
+    // 5. Request notification permission (for background alerts)
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    
+    // Initialize wake lock on page load
+    requestWakeLock();
+    
+    // Show initial instruction
+    const instructionBanner = document.createElement('div');
+    instructionBanner.style.cssText = `
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 15px;
+      text-align: center;
+      font-weight: bold;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    `;
+    instructionBanner.innerHTML = `
+      📍 <strong>GPS Tracking Active</strong><br>
+      <small>Keep this tab open and screen unlocked for continuous tracking</small>
+    `;
+    document.querySelector('.container-fluid').insertBefore(instructionBanner, document.querySelector('.container-fluid').firstChild);
+    
+    // ====== END KEEP TAB ACTIVE ======
+    
     // Update speed and location count
     let locationCount = 0;
     const currentSpeedElement = document.getElementById('currentSpeed');

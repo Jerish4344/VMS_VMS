@@ -213,8 +213,45 @@
             <div class="trip-info-value">
               <span class="badge bg-primary">{{ trip.get_status_display }}</span>
             </div>
+            
+            {% if trip.gps_tracking_enabled %}
+            <div class="trip-info-label">GPS Tracking</div>
+            <div class="trip-info-value">
+              <span class="badge bg-success" id="gps-tracking-status">
+                <i class="fas fa-map-marker-alt"></i> Active
+              </span>
+              <span id="gps-points-count" class="ms-2 text-muted"></span>
+            </div>
+            {% endif %}
           </div>
         </div>
+        
+        {% if trip.gps_tracking_enabled %}
+        <!-- GPS Distance Comparison -->
+        <div id="gps-comparison-section" style="display: none;" class="mt-3">
+          <div class="alert alert-info">
+            <h6 class="mb-3"><i class="fas fa-route me-2"></i>Distance Verification</h6>
+            <div class="row">
+              <div class="col-md-4">
+                <div class="trip-info-label">GPS Distance</div>
+                <div class="trip-info-value" id="gps-distance-display">Calculating...</div>
+              </div>
+              <div class="col-md-4">
+                <div class="trip-info-label">Odometer Distance</div>
+                <div class="trip-info-value" id="odometer-distance-display">-</div>
+              </div>
+              <div class="col-md-4">
+                <div class="trip-info-label">Variance</div>
+                <div class="trip-info-value" id="variance-display">-</div>
+              </div>
+            </div>
+            <div id="variance-warning" class="alert alert-warning mt-3" style="display: none;">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              <strong>Note:</strong> <span id="variance-message"></span>
+            </div>
+          </div>
+        </div>
+        {% endif %}
         
         <!-- Route Display -->
         <div class="trip-info-label">Current Route</div>
@@ -307,6 +344,12 @@
             </div>
         </div>
         
+        <!-- Hidden GPS coordinate fields -->
+        {% if trip.gps_tracking_enabled %}
+        <input type="hidden" name="gps_end_lat" id="gps_end_lat">
+        <input type="hidden" name="gps_end_lon" id="gps_end_lon">
+        {% endif %}
+        
         <!-- Submit button -->
         <div class="form-actions mt-4">
             <button type="submit" class="btn btn-danger btn-lg" id="end-trip-btn">
@@ -387,8 +430,27 @@
 {% endblock %}
 
 {% block extra_js %}
+{% if trip.gps_tracking_enabled %}
+<script src="{% static 'js/gps-tracker.js' %}"></script>
+{% endif %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  {% if trip.gps_tracking_enabled %}
+  // Check GPS tracking status
+  checkGPSStatus();
+  
+  async function checkGPSStatus() {
+    try {
+      const status = await gpsTracker.getStatus({{ trip.id }});
+      if (status.total_points > 0) {
+        document.getElementById('gps-points-count').textContent = `(${status.total_points} points recorded)`;
+      }
+    } catch (error) {
+      console.error('Failed to get GPS status:', error);
+    }
+  }
+  {% endif %}
+  
     const endOdometerInput = document.getElementById('id_end_odometer');
     const destinationInput = document.getElementById('id_destination');
     const distanceCalculation = document.getElementById('distance-calculation');
@@ -417,6 +479,137 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    {% if trip.gps_tracking_enabled %}
+    // GPS Tracking Finalization
+    const endTripForm = document.getElementById('end-trip-form');
+    const endTripBtn = document.getElementById('end-trip-btn');
+    let gpsFinalized = false;
+    
+    // Set the trip ID on the GPS tracker
+    gpsTracker.tripId = {{ trip.id }};
+    console.log('GPS Tracker initialized for trip:', gpsTracker.tripId);
+    
+    endTripForm.addEventListener('submit', async function(e) {
+        // If GPS already finalized, allow submission
+        if (gpsFinalized) {
+            return true;
+        }
+        
+        e.preventDefault();
+        
+        // Disable submit button and show loading
+        endTripBtn.disabled = true;
+        endTripBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing GPS Data...';
+        
+        try {
+            // Stop GPS tracking
+            if (gpsTracker.isTracking) {
+                gpsTracker.stopTracking();
+            }
+            
+            // Get current GPS location for end coordinates
+            if (gpsTracker.isSupported()) {
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        enableHighAccuracy: true,
+                        timeout: 5000
+                    });
+                });
+                
+                document.getElementById('gps_end_lat').value = position.coords.latitude;
+                document.getElementById('gps_end_lon').value = position.coords.longitude;
+            }
+            
+            // Finalize GPS tracking session
+            console.log('Finalizing GPS for trip:', gpsTracker.tripId);
+            
+            // Get end odometer value
+            const endOdometer = parseInt(document.getElementById('id_end_odometer').value);
+            
+            const result = await gpsTracker.finalize(endOdometer);
+            console.log('GPS finalization result:', result);
+            
+            // Check if finalization was successful
+            if (!result || result.gps_distance === undefined) {
+                console.warn('GPS finalization returned no data');
+                throw new Error('No GPS data available for this trip');
+            }
+            
+            // Display GPS comparison only if GPS data is available
+            const startOdometer = {{ trip.start_odometer }};
+            const odometerDistance = endOdometer - startOdometer;
+            
+            // Check if GPS distance is available and greater than 0
+            if (result.gps_distance !== null && result.gps_distance > 0) {
+                // Check if elements exist before trying to update them
+                const gpsDistanceEl = document.getElementById('gps-distance-display');
+                const odometerDistanceEl = document.getElementById('odometer-distance-display');
+                const varianceEl = document.getElementById('variance-display');
+                const comparisonSection = document.getElementById('gps-comparison-section');
+                
+                if (gpsDistanceEl && odometerDistanceEl && varianceEl && comparisonSection) {
+                    gpsDistanceEl.textContent = result.gps_distance.toFixed(2) + ' km';
+                    odometerDistanceEl.textContent = odometerDistance + ' km';
+                    
+                    const variancePercent = result.variance_percentage;
+                    let varianceClass = 'text-success';
+                    let varianceIcon = 'fa-check-circle';
+                    
+                    if (variancePercent > 15) {
+                        varianceClass = 'text-danger';
+                        varianceIcon = 'fa-exclamation-circle';
+                    } else if (variancePercent > 10) {
+                        varianceClass = 'text-warning';
+                        varianceIcon = 'fa-exclamation-triangle';
+                    }
+                    
+                    varianceEl.innerHTML = 
+                        `<i class="fas ${varianceIcon} me-1 ${varianceClass}"></i><span class="${varianceClass}">${variancePercent.toFixed(1)}%</span>`;
+                    
+                    comparisonSection.style.display = 'block';
+                    
+                    // Show warning if flagged for review
+                    if (result.requires_review) {
+                        const varianceMsg = document.getElementById('variance-message');
+                        const varianceWarn = document.getElementById('variance-warning');
+                        if (varianceMsg && varianceWarn) {
+                            varianceMsg.textContent = result.review_reason;
+                            varianceWarn.style.display = 'block';
+                        }
+                    }
+                } else {
+                    console.log('GPS display elements not found on page');
+                }
+            } else {
+                // No GPS data available
+                console.log('No GPS distance data available');
+            }
+            
+            // Mark as finalized and submit
+            gpsFinalized = true;
+            endTripBtn.disabled = false;
+            endTripBtn.innerHTML = '<i class="fas fa-stop-circle me-1"></i> Confirm End Trip';
+            
+            // Auto-submit after 2 seconds or wait for user confirmation
+            setTimeout(() => {
+                endTripForm.submit();
+            }, 2000);
+            
+        } catch (error) {
+            console.error('GPS finalization error:', error);
+            
+            // Show warning but allow trip to end
+            if (confirm('GPS tracking could not be finalized: ' + error.message + '\n\nDo you want to end the trip anyway?')) {
+                gpsFinalized = true;
+                endTripForm.submit();
+            } else {
+                endTripBtn.disabled = false;
+                endTripBtn.innerHTML = '<i class="fas fa-stop-circle me-1"></i> End Trip';
+            }
+        }
+    });
+    {% endif %}
 
     // Location suggestions (simplified)
     const commonDestinations = [

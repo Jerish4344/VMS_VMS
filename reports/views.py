@@ -1160,7 +1160,7 @@ class FuelReportView(ReportBaseView):
         context['station_type_analysis'] = station_type_analysis
         context['start_date'] = start_date
         context['end_date'] = end_date
-        context['vehicles'] = Vehicle.objects.all()
+        context['vehicles'] = Vehicle.objects.filter(ownership_type='company')
         context['fuel_types'] = FuelTransaction.objects.values_list('fuel_type', flat=True).distinct()
         context['fuel_stations'] = FuelTransaction.objects.select_related('fuel_station').values(
             'fuel_station__id', 'fuel_station__name'
@@ -1306,7 +1306,7 @@ class DailyUsageCostView(ReportBaseView):
             'avg_cost_per_km': total_cost / total_distance if total_distance > 0 else 0,
             'total_days': None,
             'active_vehicles': len(daily_usage),
-            'vehicles': Vehicle.objects.filter(status__in=['available', 'in_use']).order_by('license_plate'),
+            'vehicles': Vehicle.objects.filter(ownership_type='company', status__in=['available', 'in_use']).order_by('license_plate'),
             'vehicle_types': VehicleType.objects.all().order_by('name'),
         })
         return context

@@ -156,7 +156,8 @@ class FuelTransactionListView(FuelViewPermissionMixin, ListView):
         context = super().get_context_data(**kwargs)
         
         # Get all vehicles for filtering
-        context['vehicles'] = Vehicle.objects.select_related('vehicle_type').order_by('license_plate')
+        # Get company vehicles only for filtering
+        context['vehicles'] = Vehicle.objects.filter(ownership_type='company').select_related('vehicle_type').order_by('license_plate')
         
         # Get all fuel types for filtering
         context['fuel_types'] = FuelTransaction.objects.values_list('fuel_type', flat=True).distinct().exclude(fuel_type__isnull=True).exclude(fuel_type='').order_by('fuel_type')

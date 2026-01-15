@@ -48,7 +48,7 @@ class MaintenanceListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['vehicles'] = Vehicle.objects.all()
+        context['vehicles'] = Vehicle.objects.filter(ownership_type='company')
         context['maintenance_types'] = MaintenanceType.objects.all()
         # Fix: Access the choices through the model's meta
         context['statuses'] = dict(Maintenance._meta.get_field('status').choices)

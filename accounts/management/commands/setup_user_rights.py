@@ -20,9 +20,14 @@ class Command(BaseCommand):
                     'order': 1,
                     'permissions': [
                         {
-                            'action': 'view', 
+                            'action': 'company_dashboard', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': True, 'generator_default': True, 'sor_default': True
+                            'driver_default': True, 'personal_vehicle_staff_default': True, 'generator_default': False, 'sor_default': False
+                        },
+                        {
+                            'action': 'staff_dashboard', 
+                            'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
+                            'driver_default': False, 'personal_vehicle_staff_default': True, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -36,27 +41,27 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': True, 'generator_default': False, 'sor_default': False
+                            'driver_default': True, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'add', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'edit', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'delete', 
                             'admin_default': True, 'manager_default': False, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'manage', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -70,27 +75,27 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': True, 'generator_default': False, 'sor_default': False
+                            'driver_default': True, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'add', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': True, 'generator_default': False, 'sor_default': False
+                            'driver_default': True, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'edit', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'delete', 
                             'admin_default': True, 'manager_default': False, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'manage', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -104,27 +109,27 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'add', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'edit', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'delete', 
                             'admin_default': True, 'manager_default': False, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'manage', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -138,27 +143,27 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': True, 'generator_default': False, 'sor_default': False
+                            'driver_default': True, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'add', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'edit', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'delete', 
                             'admin_default': True, 'manager_default': False, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'manage', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -172,27 +177,27 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': True, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': True, 'sor_default': False
                         },
                         {
                             'action': 'add', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'edit', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'delete', 
                             'admin_default': True, 'manager_default': False, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'manage', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -206,27 +211,27 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'add', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'edit', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'delete', 
                             'admin_default': True, 'manager_default': False, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'manage', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -240,22 +245,22 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': True, 'generator_default': False, 'sor_default': False
+                            'driver_default': True, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'add', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': True, 'generator_default': False, 'sor_default': False
+                            'driver_default': True, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'edit', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'delete', 
                             'admin_default': True, 'manager_default': False, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -269,12 +274,12 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'manage', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -288,47 +293,47 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'export', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'vehicle_report', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'firm_report', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'driver_report', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'maintenance_report', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'fuel_report', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'consultant_report', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'daily_usage_cost', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -342,32 +347,32 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'add', 
                             'admin_default': True, 'manager_default': False, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'edit', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'delete', 
                             'admin_default': True, 'manager_default': False, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'manage', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'user_rights', 
                             'admin_default': True, 'manager_default': False, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -381,22 +386,22 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': False,
-                            'driver_default': True, 'generator_default': False, 'sor_default': True
+                            'driver_default': True, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': True
                         },
                         {
                             'action': 'add', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': True
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': True
                         },
                         {
                             'action': 'edit', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': True
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': True
                         },
                         {
                             'action': 'delete', 
                             'admin_default': True, 'manager_default': False, 'vehicle_manager_default': False,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -410,12 +415,12 @@ class Command(BaseCommand):
                         {
                             'action': 'pending_approvals', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'all_employees', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -429,12 +434,12 @@ class Command(BaseCommand):
                         {
                             'action': 'all_generator_users', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'store_access', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                     ]
                 },
@@ -477,6 +482,7 @@ class Command(BaseCommand):
                             'is_default_for_manager': perm_data.get('manager_default', False),
                             'is_default_for_vehicle_manager': perm_data.get('vehicle_manager_default', False),
                             'is_default_for_driver': perm_data.get('driver_default', False),
+                            'is_default_for_personal_vehicle_staff': perm_data.get('personal_vehicle_staff_default', False),
                             'is_default_for_generator_user': perm_data.get('generator_default', False),
                             'is_default_for_sor_team': perm_data.get('sor_default', False),
                         }
@@ -492,6 +498,7 @@ class Command(BaseCommand):
                             'is_default_for_manager': 'manager_default',
                             'is_default_for_vehicle_manager': 'vehicle_manager_default',
                             'is_default_for_driver': 'driver_default',
+                            'is_default_for_personal_vehicle_staff': 'personal_vehicle_staff_default',
                             'is_default_for_generator_user': 'generator_default',
                             'is_default_for_sor_team': 'sor_default',
                         }
@@ -532,9 +539,15 @@ class Command(BaseCommand):
         for i, user in enumerate(users, 1):
             self.stdout.write(f'Processing user {i}/{total_users}: {user.username} ({user.user_type})')
             
+            # Skip user types that don't have permission fields
+            permission_field = f'is_default_for_{user.user_type}'
+            if not hasattr(Permission, permission_field):
+                self.stdout.write(f'    Skipping - no permission field for user type: {user.user_type}')
+                continue
+            
             # Get all permissions that should be default for this user type
             default_permissions = Permission.objects.filter(**{
-                f'is_default_for_{user.user_type}': True
+                permission_field: True
             })
             
             assigned_count = 0

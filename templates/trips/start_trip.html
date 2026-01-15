@@ -698,8 +698,20 @@
               <li>Ensure the vehicle is in good condition for use</li>
               <li>You can add your destination when you end the trip</li>
               <li>The trip will start immediately upon submission</li>
+              {% if user.user_type == 'personal_vehicle_staff' %}
+              <li><strong>GPS tracking will be enabled</strong> to verify mileage for reimbursement</li>
+              {% endif %}
             </ul>
           </div>
+          
+          <!-- GPS Tracking Indicator (Hidden initially, shown after trip starts) -->
+          {% if user.user_type == 'personal_vehicle_staff' %}
+          <div id="gps-tracking-indicator" class="alert alert-info" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-map-marker-alt"></i> Initializing GPS tracking...</span>
+            </div>
+          </div>
+          {% endif %}
           
           <div class="mt-4 d-flex justify-content-between">
             <button type="button" class="btn btn-secondary" id="step3Back">
@@ -717,8 +729,58 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- GPS Tracker -->
+<script src="{% static 'js/gps-tracker.js' %}"></script>
+
+<!-- GPS Permission Modal -->
+<div class="modal fade" id="gpsPermissionModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+          <i class="fas fa-map-marker-alt me-2"></i>GPS Tracking Required
+        </h5>
+      </div>
+      <div class="modal-body">
+        <div class="text-center py-3" id="gpsRequestingPermission">
+          <div class="spinner-border text-primary mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <h6>Requesting GPS Permission...</h6>
+          <p class="text-muted">Please allow location access when prompted by your browser.</p>
+        </div>
+        
+        <div class="text-center py-3 d-none" id="gpsPermissionGranted">
+          <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
+          <h6 class="text-success">GPS Permission Granted</h6>
+          <p class="text-muted">Your location will be tracked during the trip to verify mileage.</p>
+        </div>
+        
+        <div class="text-center py-3 d-none" id="gpsPermissionDenied">
+          <i class="fas fa-times-circle text-danger fa-3x mb-3"></i>
+          <h6 class="text-danger">GPS Permission Denied</h6>
+          <p class="text-muted" id="gpsErrorMessage"></p>
+          <div class="alert alert-warning">
+            <strong>Note:</strong> GPS tracking is required for personal vehicle trips to verify mileage for reimbursement purposes.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="gpsModalFooter">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="gpsRetryButton" style="display:none;">
+          <i class="fas fa-redo me-1"></i>Retry
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Debug: Check user type
+  console.log('Current user type: {{ user.user_type }}');
+  console.log('GPS tracking check: {{ user.user_type }} === "personal_vehicle_staff" ?', '{{ user.user_type }}' === 'personal_vehicle_staff');
+  
   // Form step elements
   const step1 = document.getElementById('step1');
   const step2 = document.getElementById('step2');
@@ -1219,6 +1281,119 @@ document.addEventListener('DOMContentLoaded', function() {
       `;
     }
   }
+  
+  // GPS Tracking Logic for Personal Vehicle Staff
+  {% if user.user_type == 'personal_vehicle_staff' %}
+  console.log('GPS Tracking: User is personal_vehicle_staff, initializing GPS logic');
+  const tripForm = document.getElementById('tripForm');
+  const gpsPermissionModal = new bootstrap.Modal(document.getElementById('gpsPermissionModal'));
+  const gpsRequestingPermission = document.getElementById('gpsRequestingPermission');
+  const gpsPermissionGranted = document.getElementById('gpsPermissionGranted');
+  const gpsPermissionDenied = document.getElementById('gpsPermissionDenied');
+  const gpsErrorMessage = document.getElementById('gpsErrorMessage');
+  const gpsRetryButton = document.getElementById('gpsRetryButton');
+  const gpsModalFooter = document.getElementById('gpsModalFooter');
+  
+  let gpsPermissionStatus = false;
+  let gpsInitialLocation = null;
+  
+  // Handle form submission
+  tripForm.addEventListener('submit', async function(e) {
+    // If GPS permission already granted, allow form submission
+    if (gpsPermissionStatus) {
+      console.log('GPS already granted, submitting form');
+      return; // Allow form to submit normally
+    }
+    
+    // GPS permission not granted yet - prevent submission and request permission
+    e.preventDefault();
+    console.log('GPS not yet granted, requesting permission');
+    
+    // Show GPS permission modal
+    gpsPermissionModal.show();
+    
+    // Request GPS permission
+    requestGPSPermission();
+  });
+  
+  async function requestGPSPermission() {
+    // Show requesting state
+    gpsRequestingPermission.classList.remove('d-none');
+    gpsPermissionGranted.classList.add('d-none');
+    gpsPermissionDenied.classList.add('d-none');
+    gpsRetryButton.style.display = 'none';
+    
+    try {
+      // Check if GPS is supported
+      if (!gpsTracker.isSupported()) {
+        throw new Error('GPS tracking is not supported by your browser. Please use a modern browser like Chrome, Firefox, or Safari.');
+      }
+      
+      // Request permission
+      const result = await gpsTracker.requestPermission();
+      
+      // Permission granted
+      gpsPermissionStatus = true;
+      gpsInitialLocation = result.location;
+      
+      console.log('GPS Permission Granted:', result.location);
+      
+      // Add GPS coordinates to form BEFORE submitting
+      const gpsStartLatInput = document.createElement('input');
+      gpsStartLatInput.type = 'hidden';
+      gpsStartLatInput.name = 'gps_start_lat';
+      gpsStartLatInput.value = result.location.latitude;
+      tripForm.appendChild(gpsStartLatInput);
+      
+      const gpsStartLonInput = document.createElement('input');
+      gpsStartLonInput.type = 'hidden';
+      gpsStartLonInput.name = 'gps_start_lon';
+      gpsStartLonInput.value = result.location.longitude;
+      tripForm.appendChild(gpsStartLonInput);
+      
+      const gpsEnabledInput = document.createElement('input');
+      gpsEnabledInput.type = 'hidden';
+      gpsEnabledInput.name = 'gps_tracking_enabled';
+      gpsEnabledInput.value = 'true';
+      tripForm.appendChild(gpsEnabledInput);
+      
+      console.log('GPS data added to form:', {
+        lat: result.location.latitude,
+        lon: result.location.longitude,
+        enabled: true
+      });
+      
+      // Show success state
+      gpsRequestingPermission.classList.add('d-none');
+      gpsPermissionGranted.classList.remove('d-none');
+      
+      // Auto-close modal and submit form after 1.5 seconds
+      setTimeout(() => {
+        gpsPermissionModal.hide();
+        tripForm.submit();
+      }, 1500);
+      
+    } catch (error) {
+      // Permission denied or error
+      console.error('GPS permission error:', error);
+      
+      gpsPermissionStatus = false;
+      gpsInitialLocation = null;
+      
+      // Show error state
+      gpsRequestingPermission.classList.add('d-none');
+      gpsPermissionDenied.classList.remove('d-none');
+      gpsErrorMessage.textContent = error.message;
+      gpsRetryButton.style.display = 'inline-block';
+    }
+  }
+  
+  // Retry button handler
+  gpsRetryButton.addEventListener('click', function() {
+    requestGPSPermission();
+  });
+  {% endif %}
 });
 </script>
 {% endblock %}
+

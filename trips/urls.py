@@ -15,6 +15,12 @@ from .consultant_views import (
     ConsultantRateDetailView,
     ConsultantRateToggleView,
 )
+# Import GPS tracking views
+from .gps_views import (
+    record_gps_location,
+    get_trip_gps_status,
+    finalize_gps_tracking,
+)
 
 urlpatterns = [
     # Export URLs (should come before dynamic URLs)
@@ -61,6 +67,10 @@ urlpatterns = [
 
     # Trip management URLs
     path('', TripListView.as_view(), name='trip_list'),
+    path('staff-trips/', views.StaffTripsView.as_view(), name='staff_trips'),
+    path('live-tracking/', views.LiveTrackingView.as_view(), name='live_tracking'),
+    path('live-tracking/data/', views.LiveTrackingDataView.as_view(), name='live_tracking_data'),
+    path('<int:pk>/map/', views.TripDetailMapView.as_view(), name='trip_detail_map'),
     path('start/', StartTripView.as_view(), name='start_trip'),
     
     # View trips by driver (must come before generic pk-based routes)
@@ -90,4 +100,9 @@ urlpatterns = [
     # API endpoints for AJAX requests
     # path('api/vehicle/<int:vehicle_id>/', get_vehicle_details_api, name='vehicle_details_api'),
     # path('api/driver/<int:driver_id>/', get_driver_details_api, name='driver_details_api'),
+    
+    # GPS Tracking API endpoints
+    path('api/gps/record/', record_gps_location, name='record_gps_location'),
+    path('api/gps/status/<int:trip_id>/', get_trip_gps_status, name='get_trip_gps_status'),
+    path('api/gps/finalize/<int:trip_id>/', finalize_gps_tracking, name='finalize_gps_tracking'),
 ]

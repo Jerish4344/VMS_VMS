@@ -1,5 +1,5 @@
 from django.forms import ValidationError
-from django.views.generic import ListView, DetailView, CreateView, UpdateView, TemplateView
+from django.views.generic import ListView, DetailView, CreateView, UpdateView, TemplateView, View
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
@@ -10,6 +10,7 @@ from django.core.exceptions import PermissionDenied
 from accounts.models import CustomUser
 from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin, DriverRequiredMixin
 from .models import Trip
+from .gps_models import GPSTrackingSession
 from vehicles.models import Vehicle
 # For filter dropdown
 from vehicles.models import VehicleType
@@ -237,6 +238,10 @@ class TripListView(LoginRequiredMixin, ListView):
         
         # Add user permissions context
         context['can_start_trip'] = self.request.user.user_type in ['driver', 'admin', 'manager', 'vehicle_manager']
+        
+        # Check if GPS tracking should be auto-started for a newly created trip
+        if 'start_gps_tracking' in self.request.session:
+            context['start_gps_tracking'] = self.request.session.pop('start_gps_tracking')
         
         return context
 
@@ -515,24 +520,60 @@ class StartTripView(LoginRequiredMixin, CanDriveVehicleMixin, CreateView):
         # Set the start time to the current time automatically
         form.instance.start_time = timezone.now()
         
+        # Auto-enable GPS tracking for ALL trips (even if browser location permission denied)
+        form.instance.gps_tracking_enabled = True
+        
+        # Handle GPS coordinates if provided (optional)
+        gps_start_lat = self.request.POST.get('gps_start_lat')
+        gps_start_lon = self.request.POST.get('gps_start_lon')
+        
+        print(f"GPS Debug - Auto-enabled GPS tracking, Lat: {gps_start_lat}, Lon: {gps_start_lon}")
+        
+        if gps_start_lat and gps_start_lon:
+            try:
+                from decimal import Decimal
+                form.instance.gps_start_lat = Decimal(gps_start_lat)
+                form.instance.gps_start_lon = Decimal(gps_start_lon)
+                print(f"GPS Debug - Starting coordinates saved: {form.instance.gps_start_lat}, {form.instance.gps_start_lon}")
+            except (ValueError, Exception) as e:
+                print(f"GPS Debug - Error saving coordinates: {str(e)}")
+                messages.warning(self.request, f'GPS coordinates could not be saved: {str(e)}')
+        else:
+            print("GPS Debug - No starting coordinates provided (location permission denied or unavailable)")
+        
         # Update vehicle status to 'in_use'
         vehicle = form.instance.vehicle
         vehicle.status = 'in_use'
         vehicle.save()
         
+        # Save the trip first to get the trip ID
+        response = super().form_valid(form)
+        
+        # Create GPS tracking session if GPS is enabled
+        if form.instance.gps_tracking_enabled:
+            try:
+                GPSTrackingSession.objects.create(
+                    trip=form.instance,
+                    status='active'
+                )
+            except Exception as e:
+                messages.warning(self.request, f'GPS tracking session could not be created: {str(e)}')
+        
         # Success message with user role indication
         if current_driver == self.request.user:
-            messages.success(
-                self.request, 
-                f'Trip started successfully from {form.instance.origin}!'  # Remove destination reference
-            )
+            success_msg = f'Trip started successfully from {form.instance.origin}!'
+            if form.instance.gps_tracking_enabled:
+                success_msg += ' GPS tracking is active.'
+                # Store trip ID in session to start GPS tracking on trip list page
+                self.request.session['start_gps_tracking'] = form.instance.id
+            messages.success(self.request, success_msg)
         else:
-            messages.success(
-                self.request, 
-                f'Trip started successfully for {current_driver.get_full_name()} from {form.instance.origin}!'  # Remove destination reference
-            )
+            success_msg = f'Trip started successfully for {current_driver.get_full_name()} from {form.instance.origin}!'
+            if form.instance.gps_tracking_enabled:
+                success_msg += ' GPS tracking is active.'
+            messages.success(self.request, success_msg)
         
-        return super().form_valid(form)
+        return response
     
     def form_invalid(self, form):
         # Add specific error messages
@@ -577,6 +618,20 @@ class EndTripView(LoginRequiredMixin, UpdateView):
         trip = form.instance
         destination = form.cleaned_data.get('destination')
         end_odometer = form.cleaned_data.get('end_odometer')
+        
+        # Handle GPS end coordinates if tracking was enabled
+        if trip.gps_tracking_enabled:
+            gps_end_lat = self.request.POST.get('gps_end_lat')
+            gps_end_lon = self.request.POST.get('gps_end_lon')
+            
+            if gps_end_lat and gps_end_lon:
+                try:
+                    from decimal import Decimal
+                    trip.gps_end_lat = Decimal(gps_end_lat)
+                    trip.gps_end_lon = Decimal(gps_end_lon)
+                except (ValueError, Exception) as e:
+                    messages.warning(self.request, f'GPS end coordinates could not be saved: {str(e)}')
+        
         try:
             # Use the model's end_trip method
             trip.end_trip(
@@ -600,13 +655,21 @@ class EndTripView(LoginRequiredMixin, UpdateView):
                 recipients = getattr(settings, 'ZEPTO_ALERT_RECIPIENTS', [])
                 send_trip_alert_email(trip, recipients)
 
-            # Success message with role indication
+            # Success message with role indication and GPS info
             user_role = self.request.user.get_user_type_display()
             ended_by = "you" if trip.driver == self.request.user else f"{user_role}"
-            messages.success(
-                self.request, 
-                f'Trip ended successfully by {ended_by}! Distance: {trip.distance_traveled()} km'
-            )
+            success_msg = f'Trip ended successfully by {ended_by}! Distance: {trip.distance_traveled()} km'
+            
+            # Add GPS tracking info if enabled
+            if trip.gps_tracking_enabled:
+                try:
+                    gps_session = GPSTrackingSession.objects.get(trip=trip)
+                    if gps_session.requires_review:
+                        success_msg += f' (Flagged for review: {gps_session.review_reason})'
+                except GPSTrackingSession.DoesNotExist:
+                    pass
+            
+            messages.success(self.request, success_msg)
         except ValidationError as e:
             messages.error(self.request, str(e))
             return self.form_invalid(form)
@@ -1842,3 +1905,253 @@ def export_trips(request):
         return export_trips_pdf(queryset, include_notes, include_driver, include_vehicle)
     else:
         return HttpResponse('Invalid format', status=400)
+
+
+class StaffTripsView(AdminRequiredMixin, ListView):
+    """
+    Admin-only view to monitor personal vehicle staff trips with GPS tracking
+    Shows discrepancies between GPS and odometer readings
+    """
+    model = Trip
+    template_name = 'trips/staff_trips.html'
+    context_object_name = 'trips'
+    paginate_by = 25
+    
+    def get_queryset(self):
+        # Get trips by personal vehicle staff with GPS tracking enabled
+        queryset = Trip.objects.filter(
+            driver__user_type='personal_vehicle_staff',
+            gps_tracking_enabled=True,
+            status='completed'
+        ).select_related('driver', 'vehicle', 'gps_session').order_by('-start_time')
+        
+        # Filter by review status
+        review_filter = self.request.GET.get('review_filter', 'all')
+        if review_filter == 'flagged':
+            queryset = queryset.filter(gps_session__requires_review=True)
+        elif review_filter == 'high_variance':
+            queryset = queryset.filter(gps_session__variance_percentage__gt=15)
+        elif review_filter == 'pending_review':
+            queryset = queryset.filter(
+                gps_session__requires_review=True,
+                gps_session__approved__isnull=True
+            )
+        
+        # Search by driver name or vehicle
+        search = self.request.GET.get('search', '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(driver__first_name__icontains=search) |
+                Q(driver__last_name__icontains=search) |
+                Q(vehicle__license_plate__icontains=search) |
+                Q(origin__icontains=search) |
+                Q(destination__icontains=search)
+            )
+        
+        # Date range filter
+        date_from = self.request.GET.get('date_from')
+        date_to = self.request.GET.get('date_to')
+        
+        if date_from:
+            try:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+                queryset = queryset.filter(start_time__date__gte=date_from_obj)
+            except ValueError:
+                pass
+        
+        if date_to:
+            try:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+                queryset = queryset.filter(start_time__date__lte=date_to_obj)
+            except ValueError:
+                pass
+        
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Calculate summary statistics
+        all_staff_trips = Trip.objects.filter(
+            driver__user_type='personal_vehicle_staff',
+            gps_tracking_enabled=True,
+            status='completed'
+        )
+        
+        context['total_staff_trips'] = all_staff_trips.count()
+        context['flagged_trips'] = all_staff_trips.filter(gps_session__requires_review=True).count()
+        context['high_variance_trips'] = all_staff_trips.filter(gps_session__variance_percentage__gt=15).count()
+        context['pending_review_trips'] = all_staff_trips.filter(
+            gps_session__requires_review=True,
+            gps_session__approved__isnull=True
+        ).count()
+        
+        # Pass current filters
+        context['review_filter'] = self.request.GET.get('review_filter', 'all')
+        context['search'] = self.request.GET.get('search', '')
+        context['date_from'] = self.request.GET.get('date_from', '')
+        context['date_to'] = self.request.GET.get('date_to', '')
+        
+        return context
+
+
+class TripDetailMapView(LoginRequiredMixin, DetailView):
+    """
+    View to display a single trip with GPS route visualization on a map
+    Shows route playback with animation controls
+    """
+    model = Trip
+    template_name = 'trips/trip_detail_map.html'
+    context_object_name = 'trip'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        trip = self.get_object()
+        
+        # Get GPS points for this trip
+        gps_points = trip.gps_locations.all().order_by('timestamp')
+        
+        if gps_points.exists():
+            # Convert to JSON format for JavaScript
+            points_data = []
+            cumulative_distance = 0
+            prev_point = None
+            
+            for point in gps_points:
+                # Calculate cumulative distance
+                if prev_point:
+                    from trips.gps_models import TripLocation
+                    distance = TripLocation.calculate_distance(
+                        prev_point.latitude, prev_point.longitude,
+                        point.latitude, point.longitude
+                    )
+                    cumulative_distance += distance
+                
+                points_data.append({
+                    'latitude': float(point.latitude),
+                    'longitude': float(point.longitude),
+                    'timestamp': point.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                    'speed': float(point.speed) if point.speed else 0,
+                    'cumulative_distance': round(cumulative_distance, 2)
+                })
+                prev_point = point
+            
+            context['gps_points_json'] = json.dumps(points_data)
+        else:
+            context['gps_points_json'] = json.dumps([])
+        
+        return context
+
+
+class LiveTrackingView(LoginRequiredMixin, TemplateView):
+    """
+    Real-time tracking dashboard showing all active trips on a map
+    Updates vehicle positions dynamically
+    """
+    template_name = 'trips/live_tracking.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get all ongoing trips with GPS tracking
+        active_trips = Trip.objects.filter(
+            status='ongoing',  # Changed from 'in_progress' to 'ongoing'
+            gps_tracking_enabled=True
+        ).select_related('driver', 'vehicle', 'gps_session').order_by('-start_time')
+        
+        context['active_trips'] = active_trips
+        context['active_count'] = active_trips.count()
+        
+        return context
+
+
+class LiveTrackingDataView(LoginRequiredMixin, View):
+    """
+    API endpoint for AJAX polling to get live vehicle positions
+    Returns JSON with current positions of all active trips
+    """
+    def get(self, request):
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        all_trips = Trip.objects.all().count()
+        all_ongoing = Trip.objects.filter(status='ongoing').count()
+        gps_enabled = Trip.objects.filter(gps_tracking_enabled=True).count()
+        
+        logger.info(f"Live Tracking DEBUG - Total trips: {all_trips}, Ongoing: {all_ongoing}, GPS enabled (any status): {gps_enabled}")
+        
+        # Log all trips with their statuses
+        all_trips_list = Trip.objects.all().order_by('-id')[:10].values('id', 'status', 'gps_tracking_enabled', 'driver__username')
+        for t in all_trips_list:
+            logger.info(f"  Trip {t['id']}: status={t['status']}, gps_enabled={t['gps_tracking_enabled']}, driver={t.get('driver__username', 'None')}")
+        
+        active_trips = Trip.objects.filter(
+            status='ongoing',  # Changed from 'in_progress' to 'ongoing'
+            gps_tracking_enabled=True
+        ).select_related('driver', 'vehicle', 'gps_session')
+        
+        logger.info(f"Live Tracking - Active trips matching filter: {active_trips.count()}")
+        
+        vehicles_data = []
+        for trip in active_trips:
+            logger.info(f"Processing trip {trip.id}: {trip.vehicle}")
+            try:
+                # Get the most recent GPS point
+                latest_point = trip.gps_locations.order_by('-timestamp').first()
+                logger.info(f"  Latest GPS point: {latest_point}")
+                
+                # Calculate distance covered from gps_session if available
+                distance_covered = 0
+                if trip.gps_session and trip.gps_session.gps_distance:
+                    distance_covered = float(trip.gps_session.gps_distance)
+                
+                # Get driver name safely
+                driver_name = trip.driver.get_full_name() if hasattr(trip.driver, 'get_full_name') else str(trip.driver)
+                logger.info(f"  Driver: {driver_name}")
+                
+                # If we have GPS data, use it; otherwise show trip with default location
+                if latest_point:
+                    vehicle_data = {
+                        'trip_id': trip.id,
+                        'driver': driver_name,
+                        'vehicle': str(trip.vehicle),
+                        'latitude': float(latest_point.latitude),
+                        'longitude': float(latest_point.longitude),
+                        'speed': float(latest_point.speed) if latest_point.speed else 0,
+                        'timestamp': latest_point.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                        'route': f"{trip.origin} → {trip.destination}",
+                        'distance_covered': distance_covered,
+                        'has_gps': True
+                    }
+                    logger.info(f"  Added with GPS: lat={vehicle_data['latitude']}, lon={vehicle_data['longitude']}")
+                    vehicles_data.append(vehicle_data)
+                else:
+                    # Show trip without GPS data (waiting for first location)
+                    vehicle_data = {
+                        'trip_id': trip.id,
+                        'driver': driver_name,
+                        'vehicle': str(trip.vehicle),
+                        'latitude': 28.6139,  # Default to India center
+                        'longitude': 77.2090,
+                        'speed': 0,
+                        'timestamp': trip.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'route': f"{trip.origin} → {trip.destination}",
+                        'distance_covered': 0,
+                        'has_gps': False
+                    }
+                    logger.info(f"  Added without GPS (default location)")
+                    vehicles_data.append(vehicle_data)
+            except Exception as e:
+                logger.error(f"Error processing trip {trip.id}: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
+        
+        logger.info(f"Returning {len(vehicles_data)} vehicles")
+        return JsonResponse({
+            'vehicles': vehicles_data,
+            'count': len(vehicles_data),
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+

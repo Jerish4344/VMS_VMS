@@ -117,6 +117,17 @@ class TripsManagePermissionMixin(UserPassesTestMixin):
         return (self.request.user.is_authenticated and 
                 self.request.user.has_module_permission('trips', 'manage'))
 
+# Dashboard Permission Mixins
+class CompanyDashboardPermissionMixin(UserPassesTestMixin):
+    def test_func(self):
+        return (self.request.user.is_authenticated and 
+                self.request.user.has_module_permission('dashboard', 'company_dashboard'))
+
+class StaffDashboardPermissionMixin(UserPassesTestMixin):
+    def test_func(self):
+        return (self.request.user.is_authenticated and 
+                self.request.user.has_module_permission('dashboard', 'staff_dashboard'))
+
 # Maintenance Permission Mixins
 class MaintenanceViewPermissionMixin(UserPassesTestMixin):
     def test_func(self):

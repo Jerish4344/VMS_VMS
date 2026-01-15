@@ -20,7 +20,7 @@ from accidents.models import Accident
 from sor.models import SOR
 
 # Groq AI Configuration
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 
 try:
     from groq import Groq

@@ -274,6 +274,8 @@ class CustomUser(AbstractUser):
                 return permission.is_default_for_vehicle_manager
             elif self.user_type == 'driver':
                 return permission.is_default_for_driver
+            elif self.user_type == 'personal_vehicle_staff':
+                return permission.is_default_for_personal_vehicle_staff
             elif self.user_type == 'generator_user':
                 return permission.is_default_for_generator_user
             elif self.user_type == 'sor_team':
@@ -407,6 +409,7 @@ class Permission(models.Model):
     is_default_for_manager = models.BooleanField(default=False, help_text="Default permission for manager role")
     is_default_for_vehicle_manager = models.BooleanField(default=False, help_text="Default permission for vehicle manager role")
     is_default_for_driver = models.BooleanField(default=False, help_text="Default permission for driver role")
+    is_default_for_personal_vehicle_staff = models.BooleanField(default=False, help_text="Default permission for personal vehicle staff role")
     is_default_for_generator_user = models.BooleanField(default=False, help_text="Default permission for generator user role")
     is_default_for_sor_team = models.BooleanField(default=False, help_text="Default permission for SOR team role")
     

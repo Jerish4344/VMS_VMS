@@ -25,6 +25,7 @@ urlpatterns = [
 
     # Personal vehicle staff URLs
     path('my-vehicle/', MyVehicleDetailView.as_view(), name='my_vehicle'),
-    path('my-vehicle/update/', MyVehicleUpdateView.as_view(), name='my_vehicle_update'),
+    path('my-vehicle/<int:pk>/update/', MyVehicleUpdateView.as_view(), name='my_vehicle_update'),
+    path('my-vehicle/update/', MyVehicleUpdateView.as_view(), name='my_vehicle_update_legacy'),  # Fallback for no ID
     path('my-reimbursement/', MyReimbursementView.as_view(), name='my_reimbursement'),
 ]

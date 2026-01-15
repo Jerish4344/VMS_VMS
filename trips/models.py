@@ -90,6 +90,13 @@ class Trip(models.Model):
         help_text="User who deleted this trip"
     )
     deleted_at = models.DateTimeField(null=True, blank=True, help_text="When the trip was deleted")
+    
+    # GPS Tracking fields
+    gps_tracking_enabled = models.BooleanField(default=False, help_text="Was GPS tracking active for this trip")
+    gps_start_lat = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, help_text="GPS latitude at trip start")
+    gps_start_lon = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, help_text="GPS longitude at trip start")
+    gps_end_lat = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, help_text="GPS latitude at trip end")
+    gps_end_lon = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, help_text="GPS longitude at trip end")
     def soft_delete(self, user):
         """
         Soft delete the trip, recording who deleted and when.
@@ -353,3 +360,7 @@ class Trip(models.Model):
         if not rate_obj:
             return 0
         return rate_obj.calculate_payment(self.distance_traveled())
+
+
+# Import GPS tracking models
+from .gps_models import TripLocation, GPSTrackingSession

@@ -1,0 +1,353 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Live Tracking{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="row mb-3">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <h2><i class="fas fa-satellite-dish"></i> Live Vehicle Tracking</h2>
+        <div>
+          <span class="badge bg-success" id="activeCount">{{ active_count }} Active</span>
+          <span class="badge bg-info" id="lastUpdate">Last update: --:--:--</span>
+          <button onclick="location.reload()" class="btn btn-primary btn-sm">
+            <i class="fas fa-sync-alt"></i> Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="row mb-3">
+    <div class="col-md-3">
+      <div class="card shadow border-left-primary">
+        <div class="card-body">
+          <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Active Trips</div>
+          <div class="h5 mb-0 font-weight-bold" id="statActive">{{ active_count }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow border-left-success">
+        <div class="card-body">
+          <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Moving</div>
+          <div class="h5 mb-0 font-weight-bold" id="statMoving">0</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow border-left-warning">
+        <div class="card-body">
+          <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Idle</div>
+          <div class="h5 mb-0 font-weight-bold" id="statIdle">0</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow border-left-info">
+        <div class="card-body">
+          <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Auto-Update</div>
+          <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" id="autoRefresh" checked>
+            <label class="form-check-label" for="autoRefresh">Every 30s</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map and Vehicle List -->
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card shadow">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">Live Map View</h6>
+          <button id="fitAllBtn" class="btn btn-sm btn-info">
+            <i class="fas fa-expand"></i> Fit All
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div id="map" style="height: 600px;"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-4">
+      <div class="card shadow">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">Active Vehicles</h6>
+        </div>
+        <div class="card-body p-0">
+          <div id="vehicleList" style="max-height: 600px; overflow-y: auto;">
+            {% if not active_trips %}
+            <div class="p-4 text-center text-muted">
+              <i class="fas fa-info-circle fa-2x mb-2"></i>
+              <p>No active trips at the moment</p>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .border-left-primary {
+    border-left: 4px solid #4e73df;
+  }
+  .border-left-success {
+    border-left: 4px solid #28a745;
+  }
+  .border-left-warning {
+    border-left: 4px solid #f6c23e;
+  }
+  .border-left-info {
+    border-left: 4px solid #36b9cc;
+  }
+  
+  .vehicle-item {
+    padding: 15px;
+    border-bottom: 1px solid #e3e6f0;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .vehicle-item:hover {
+    background: #f8f9fc;
+  }
+  
+  .vehicle-item.selected {
+    background: #e7f3ff;
+    border-left: 4px solid #4e73df;
+  }
+  
+  .speed-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+  
+  .speed-moving {
+    background: #28a745;
+    animation: blink 1s infinite;
+  }
+  
+  .speed-idle {
+    background: #ffc107;
+  }
+  
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+</style>
+
+<script>
+let map;
+let markers = {};
+let autoRefreshInterval = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize map
+  map = L.map('map').setView([28.6139, 77.2090], 6); // Default to India center
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Load initial data
+  updateTracking();
+
+  // Setup auto-refresh
+  const autoRefreshCheckbox = document.getElementById('autoRefresh');
+  autoRefreshCheckbox.addEventListener('change', function() {
+    if (this.checked) {
+      autoRefreshInterval = setInterval(updateTracking, 30000); // 30 seconds
+    } else {
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+      }
+    }
+  });
+
+  // Start auto-refresh
+  autoRefreshInterval = setInterval(updateTracking, 30000);
+
+  // Fit all button
+  document.getElementById('fitAllBtn').addEventListener('click', function() {
+    if (Object.keys(markers).length > 0) {
+      const group = new L.featureGroup(Object.values(markers));
+      map.fitBounds(group.getBounds(), { padding: [50, 50] });
+    }
+  });
+});
+
+function updateTracking() {
+  console.log('Fetching live tracking data...');
+  fetch('{% url "live_tracking_data" %}')
+    .then(response => response.json())
+    .then(data => {
+      console.log('Received data:', data);
+      console.log('Vehicles:', data.vehicles);
+      
+      updateMap(data.vehicles);
+      updateVehicleList(data.vehicles);
+      updateStatistics(data.vehicles);
+      
+      // Update last update time
+      document.getElementById('lastUpdate').textContent = `Last update: ${data.timestamp}`;
+      document.getElementById('activeCount').textContent = `${data.count} Active`;
+    })
+    .catch(error => {
+      console.error('Error updating tracking data:', error);
+    });
+}
+
+function updateMap(vehicles) {
+  console.log('updateMap called with', vehicles.length, 'vehicles');
+  
+  // Remove markers for vehicles that are no longer active
+  const currentTripIds = vehicles.map(v => v.trip_id);
+  Object.keys(markers).forEach(tripId => {
+    if (!currentTripIds.includes(parseInt(tripId))) {
+      map.removeLayer(markers[tripId]);
+      delete markers[tripId];
+    }
+  });
+
+  // Add or update markers for active vehicles
+  vehicles.forEach(vehicle => {
+    console.log('Processing vehicle:', vehicle);
+    
+    const isMoving = vehicle.speed > 5;
+    const hasGPS = vehicle.has_gps !== false; // Default to true if not specified
+    const color = hasGPS ? (isMoving ? '#28a745' : '#ffc107') : '#6c757d';
+    
+    console.log(`Vehicle ${vehicle.trip_id}: GPS=${hasGPS}, Moving=${isMoving}, Color=${color}, Lat=${vehicle.latitude}, Lon=${vehicle.longitude}`);
+    
+    const icon = L.divIcon({
+      className: 'custom-marker',
+      html: `<div style="background: ${color}; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; animation: pulse 2s infinite;">
+        <i class="fas fa-car" style="font-size: 14px;"></i>
+      </div>`,
+      iconSize: [30, 30]
+    });
+
+    if (markers[vehicle.trip_id]) {
+      // Update existing marker
+      console.log('Updating existing marker for trip', vehicle.trip_id);
+      markers[vehicle.trip_id].setLatLng([vehicle.latitude, vehicle.longitude]);
+      markers[vehicle.trip_id].setIcon(icon);
+    } else {
+      // Create new marker
+      console.log('Creating new marker for trip', vehicle.trip_id, 'at', vehicle.latitude, vehicle.longitude);
+      markers[vehicle.trip_id] = L.marker([vehicle.latitude, vehicle.longitude], { icon: icon }).addTo(map);
+    }
+
+    // Update popup
+    const gpsStatus = hasGPS ? `<span class="badge bg-success">GPS Active</span>` : `<span class="badge bg-secondary">Waiting for GPS</span>`;
+    markers[vehicle.trip_id].bindPopup(`
+      <div style="min-width: 200px;">
+        <h6><i class="fas fa-car"></i> ${vehicle.vehicle}</h6>
+        <p class="mb-1"><strong>Driver:</strong> ${vehicle.driver}</p>
+        <p class="mb-1"><strong>Route:</strong> ${vehicle.route}</p>
+        <p class="mb-1"><strong>Speed:</strong> ${vehicle.speed.toFixed(1)} km/h</p>
+        <p class="mb-1"><strong>Distance:</strong> ${vehicle.distance_covered.toFixed(2)} km</p>
+        <p class="mb-2">${gpsStatus}</p>
+        <p class="mb-0"><small class="text-muted">${vehicle.timestamp}</small></p>
+        <a href="{% url 'trip_detail_map' 0 %}".replace('0', vehicle.trip_id) class="btn btn-sm btn-primary mt-2 w-100">
+          <i class="fas fa-map"></i> View Route
+        </a>
+      </div>
+    `);
+  });
+
+  // Fit bounds if first load
+  if (Object.keys(markers).length > 0 && vehicles.length > 0) {
+    const group = new L.featureGroup(Object.values(markers));
+    map.fitBounds(group.getBounds(), { padding: [50, 50] });
+  }
+}
+
+function updateVehicleList(vehicles) {
+  const listContainer = document.getElementById('vehicleList');
+  
+  if (vehicles.length === 0) {
+    listContainer.innerHTML = `
+      <div class="p-4 text-center text-muted">
+        <i class="fas fa-info-circle fa-2x mb-2"></i>
+        <p>No active trips at the moment</p>
+      </div>
+    `;
+    return;
+  }
+
+  listContainer.innerHTML = vehicles.map(vehicle => {
+    const isMoving = vehicle.speed > 5;
+    const speedClass = isMoving ? 'speed-moving' : 'speed-idle';
+    const statusText = isMoving ? 'Moving' : 'Idle';
+    
+    return `
+      <div class="vehicle-item" onclick="focusVehicle(${vehicle.trip_id})">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <h6 class="mb-1">
+              <span class="speed-indicator ${speedClass}"></span>
+              ${vehicle.vehicle}
+            </h6>
+            <small class="text-muted d-block">${vehicle.driver}</small>
+            <small class="text-muted d-block">${vehicle.route}</small>
+          </div>
+          <div class="text-end">
+            <span class="badge ${isMoving ? 'bg-success' : 'bg-warning'}">${statusText}</span>
+            <small class="d-block text-muted mt-1">${vehicle.speed.toFixed(1)} km/h</small>
+          </div>
+        </div>
+        <div class="mt-2">
+          <small class="text-muted">
+            <i class="fas fa-road"></i> ${vehicle.distance_covered.toFixed(2)} km
+          </small>
+          <small class="text-muted float-end">
+            <i class="fas fa-clock"></i> ${vehicle.timestamp}
+          </small>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateStatistics(vehicles) {
+  const moving = vehicles.filter(v => v.speed > 5).length;
+  const idle = vehicles.length - moving;
+  
+  document.getElementById('statActive').textContent = vehicles.length;
+  document.getElementById('statMoving').textContent = moving;
+  document.getElementById('statIdle').textContent = idle;
+}
+
+function focusVehicle(tripId) {
+  if (markers[tripId]) {
+    map.setView(markers[tripId].getLatLng(), 15);
+    markers[tripId].openPopup();
+    
+    // Highlight vehicle in list
+    document.querySelectorAll('.vehicle-item').forEach(item => {
+      item.classList.remove('selected');
+    });
+    event.currentTarget.classList.add('selected');
+  }
+}
+</script>
+{% endblock %}

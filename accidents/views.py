@@ -61,7 +61,7 @@ class AccidentListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['vehicles'] = Vehicle.objects.all().order_by('license_plate')
+        context['vehicles'] = Vehicle.objects.filter(ownership_type='company').order_by('license_plate')
         context['statuses'] = dict(Accident.STATUS_CHOICES)
         
         # Get status counts

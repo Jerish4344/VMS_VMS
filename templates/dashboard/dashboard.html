@@ -179,6 +179,7 @@
 {% endblock %}
 
 {% block content %}
+<div class="container-fluid">
 <div class="dashboard-container">
   <div class="row">
     <div class="col-lg-12">
@@ -1269,22 +1270,32 @@
   {% if request.user.user_type == 'personal_vehicle_staff' %}
   {% if has_vehicle %}
   <div class="row">
-    <!-- Vehicle Info Card -->
+    <!-- Vehicle Info Cards -->
     <div class="col-lg-4">
       <div class="card mb-4 border-primary">
         <div class="card-header bg-primary text-white">
-          <h5 class="card-title mb-0"><i class="fas fa-car me-2"></i>My Vehicle</h5>
+          <h5 class="card-title mb-0"><i class="fas fa-car me-2"></i>My Vehicles ({{ total_personal_vehicles }})</h5>
         </div>
         <div class="card-body">
-          <h4>{{ personal_vehicle.make }} {{ personal_vehicle.model }}</h4>
-          <p class="mb-2"><strong>License Plate:</strong> {{ personal_vehicle.license_plate }}</p>
-          <p class="mb-2"><strong>Year:</strong> {{ personal_vehicle.year }}</p>
-          <p class="mb-2"><strong>Current Odometer:</strong> {{ personal_vehicle.current_odometer }} km</p>
-          <p class="mb-2"><strong>Reimbursement Rate:</strong> <span class="badge bg-success">₹{{ reimbursement_rate|floatformat:2 }}/km</span></p>
+          {% for vehicle in personal_vehicles %}
+          <div class="mb-3 {% if not forloop.last %}border-bottom pb-3{% endif %}">
+            <h5>{{ vehicle.make }} {{ vehicle.model }}</h5>
+            <p class="mb-1"><strong>License Plate:</strong> {{ vehicle.license_plate }}</p>
+            <p class="mb-1"><strong>Year:</strong> {{ vehicle.year }}</p>
+            <p class="mb-1"><strong>Current Odometer:</strong> {{ vehicle.current_odometer }} km</p>
+            <p class="mb-1"><strong>Reimbursement Rate:</strong> 
+              {% if vehicle.reimbursement_rate_per_km %}
+                <span class="badge bg-success">₹{{ vehicle.reimbursement_rate_per_km|floatformat:2 }}/km</span>
+              {% else %}
+                <span class="badge bg-warning">Not set</span>
+              {% endif %}
+            </p>
+          </div>
+          {% endfor %}
           <hr>
           <div class="d-grid gap-2">
-            <a href="{% url 'my_vehicle' %}" class="btn btn-primary">
-              <i class="fas fa-info-circle me-1"></i>View Details
+            <a href="{% url 'vehicle_list' %}" class="btn btn-primary">
+              <i class="fas fa-list me-1"></i>View All Vehicles
             </a>
             <a href="{% url 'start_trip' %}" class="btn btn-success">
               <i class="fas fa-play me-1"></i>Start New Trip
@@ -1470,6 +1481,7 @@
       </div>
     </div>
   </div>
+</div>
 </div>
 {% endblock %}
 

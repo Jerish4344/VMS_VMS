@@ -29,9 +29,9 @@ class MaintenanceForm(forms.ModelForm):
         if not self.instance.pk:
             self.fields['date_reported'].initial = timezone.now().date()
         
-        # Only show available vehicles and those under maintenance
+        # Only show company vehicles that are available or under maintenance
         self.fields['vehicle'].queryset = Vehicle.objects.filter(
-            status__in=['available', 'maintenance']
+            ownership_type='company',
         )
         
         # Make optional fields not required by default

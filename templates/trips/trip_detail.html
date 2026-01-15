@@ -256,9 +256,30 @@
                     --
                   {% endif %}
                 </div>
-                <div class="stat-label">Distance (km)</div>
+                <div class="stat-label">Odometer Distance (km)</div>
               </div>
             </div>
+            {% if trip.gps_tracking_enabled %}
+            <div class="col-md-3 col-6">
+              <div class="stat-item">
+                <div class="stat-value">
+                  {% if trip.gps_session.gps_distance %}
+                    {{ trip.gps_session.gps_distance }}
+                    {% if trip.gps_session.variance_percentage %}
+                      <small class="{% if trip.gps_session.variance_percentage > 15 %}text-danger{% elif trip.gps_session.variance_percentage > 10 %}text-warning{% else %}text-success{% endif %}" style="font-size: 0.9rem;">
+                        ({{ trip.gps_session.variance_percentage }}%)
+                      </small>
+                    {% endif %}
+                  {% else %}
+                    <small class="text-muted">No GPS data</small>
+                  {% endif %}
+                </div>
+                <div class="stat-label">
+                  <i class="fas fa-satellite-dish me-1"></i>GPS Distance (km)
+                </div>
+              </div>
+            </div>
+            {% endif %}
             <div class="col-md-3 col-6">
               <div class="stat-item">
                 <div class="stat-value">

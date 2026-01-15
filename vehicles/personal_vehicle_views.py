@@ -9,6 +9,7 @@ from django.urls import reverse_lazy
 from django.db.models import Sum, Q, Count
 from django.utils import timezone
 from datetime import timedelta
+from django.http import HttpResponseRedirect
 
 from .models import Vehicle
 from trips.models import Trip
@@ -29,68 +30,74 @@ class PersonalVehicleStaffTestMixin(UserPassesTestMixin):
         return redirect('dashboard')
 
 
-class MyVehicleDetailView(LoginRequiredMixin, PersonalVehicleStaffTestMixin, DetailView):
-    """View for staff to see their personal vehicle details."""
+class MyVehicleDetailView(LoginRequiredMixin, PersonalVehicleStaffTestMixin, ListView):
+    """View for staff to see all their personal vehicles."""
     model = Vehicle
     template_name = 'vehicles/my_vehicle_detail.html'
-    context_object_name = 'vehicle'
+    context_object_name = 'vehicles'
     
-    def get_object(self):
-        """Get the vehicle owned by the current user."""
-        return get_object_or_404(
-            Vehicle, 
+    def get_queryset(self):
+        """Get all vehicles owned by the current user."""
+        return Vehicle.objects.filter(
             ownership_type='personal',
             owned_by=self.request.user
-        )
+        ).order_by('license_plate')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        vehicle = self.get_object()
+        vehicles = self.get_queryset()
         
-        # Get trip statistics
-        trips = Trip.objects.filter(
-            vehicle=vehicle,
-            driver=self.request.user,
-            status='completed',
-            is_deleted=False
-        )
-        
-        # Current month statistics
+        # Add statistics for each vehicle
+        vehicles_with_stats = []
         current_month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        current_month_trips = trips.filter(start_time__gte=current_month_start)
         
-        # Calculate total distance for current month
-        total_distance = 0
-        for trip in current_month_trips:
-            if trip.end_odometer is not None and trip.start_odometer is not None:
-                total_distance += (trip.end_odometer - trip.start_odometer)
+        for vehicle in vehicles:
+            # Get trip statistics for this vehicle
+            trips = Trip.objects.filter(
+                vehicle=vehicle,
+                driver=self.request.user,
+                status='completed',
+                is_deleted=False
+            )
+            
+            # Current month statistics
+            current_month_trips = trips.filter(start_time__gte=current_month_start)
+            
+            # Calculate total distance for current month
+            total_distance = 0
+            for trip in current_month_trips:
+                if trip.end_odometer is not None and trip.start_odometer is not None:
+                    total_distance += (trip.end_odometer - trip.start_odometer)
+            
+            # Calculate reimbursement
+            reimbursement_amount = 0
+            if vehicle.reimbursement_rate_per_km:
+                reimbursement_amount = total_distance * vehicle.reimbursement_rate_per_km
+            
+            # Recent trips for this vehicle
+            recent_trips = trips.order_by('-start_time')[:3]
+            for trip in recent_trips:
+                if trip.end_odometer is not None and trip.start_odometer is not None:
+                    trip.distance = trip.end_odometer - trip.start_odometer
+                else:
+                    trip.distance = None
+            
+            # Add stats to vehicle object
+            vehicle.current_month_trips_count = current_month_trips.count()
+            vehicle.current_month_distance = total_distance
+            vehicle.current_month_reimbursement = reimbursement_amount
+            vehicle.total_trips = trips.count()
+            vehicle.pending_trips = Trip.objects.filter(
+                vehicle=vehicle,
+                driver=self.request.user,
+                status='ongoing'
+            ).count()
+            vehicle.recent_trips = recent_trips
+            
+            vehicles_with_stats.append(vehicle)
         
-        # Calculate reimbursement
-        reimbursement_amount = 0
-        if vehicle.reimbursement_rate_per_km:
-            reimbursement_amount = total_distance * vehicle.reimbursement_rate_per_km
-        
-        context['current_month_trips_count'] = current_month_trips.count()
-        context['current_month_distance'] = total_distance
-        context['current_month_reimbursement'] = reimbursement_amount
-        
-        # All-time statistics
-        context['total_trips'] = trips.count()
-        context['pending_trips'] = Trip.objects.filter(
-            vehicle=vehicle,
-            driver=self.request.user,
-            status='ongoing'
-        ).count()
-        
-        # Recent trips with distance calculation
-        recent_trips = trips.order_by('-start_time')[:5]
-        for trip in recent_trips:
-            if trip.end_odometer is not None and trip.start_odometer is not None:
-                trip.distance = trip.end_odometer - trip.start_odometer
-            else:
-                trip.distance = None
-        
-        context['recent_trips'] = recent_trips
+        context['vehicles_with_stats'] = vehicles_with_stats
+        context['total_vehicles'] = vehicles.count()
         
         return context
 
@@ -103,12 +110,27 @@ class MyVehicleUpdateView(LoginRequiredMixin, PersonalVehicleStaffTestMixin, Upd
     success_url = reverse_lazy('my_vehicle')
     
     def get_object(self):
-        """Get the vehicle owned by the current user."""
-        return get_object_or_404(
-            Vehicle, 
-            ownership_type='personal',
-            owned_by=self.request.user
-        )
+        """Get the specific vehicle owned by the current user."""
+        vehicle_id = self.kwargs.get('pk')
+        if vehicle_id:
+            return get_object_or_404(
+                Vehicle, 
+                pk=vehicle_id,
+                ownership_type='personal',
+                owned_by=self.request.user
+            )
+        else:
+            # If no ID provided, try to get the first vehicle
+            vehicles = Vehicle.objects.filter(
+                ownership_type='personal',
+                owned_by=self.request.user
+            )
+            if vehicles.count() == 1:
+                return vehicles.first()
+            else:
+                # Multiple vehicles, need to specify which one
+                messages.error(self.request, "Please select a specific vehicle to update.")
+                return HttpResponseRedirect(reverse_lazy('my_vehicle'))
     
     def form_valid(self, form):
         messages.success(self.request, "Your vehicle information has been updated successfully!")
@@ -135,15 +157,17 @@ class MyReimbursementView(LoginRequiredMixin, PersonalVehicleStaffTestMixin, Lis
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Get the user's personal vehicle
-        try:
-            vehicle = Vehicle.objects.get(
-                ownership_type='personal',
-                owned_by=self.request.user
-            )
-            context['vehicle'] = vehicle
+        # Get the user's personal vehicles
+        vehicles = Vehicle.objects.filter(
+            ownership_type='personal',
+            owned_by=self.request.user
+        )
+        
+        if vehicles.exists():
+            context['vehicles'] = vehicles
+            context['has_vehicles'] = True
             
-            # Calculate monthly reimbursements
+            # Calculate monthly reimbursements across all vehicles
             trips = self.get_queryset()
             
             # Add distance and reimbursement to each trip
@@ -151,8 +175,8 @@ class MyReimbursementView(LoginRequiredMixin, PersonalVehicleStaffTestMixin, Lis
             for trip in trips_list:
                 if trip.end_odometer is not None and trip.start_odometer is not None:
                     trip.distance = trip.end_odometer - trip.start_odometer
-                    if vehicle.reimbursement_rate_per_km:
-                        trip.reimbursement = trip.distance * vehicle.reimbursement_rate_per_km
+                    if trip.vehicle.reimbursement_rate_per_km:
+                        trip.reimbursement = trip.distance * trip.vehicle.reimbursement_rate_per_km
                     else:
                         trip.reimbursement = 0
                 else:
@@ -162,7 +186,7 @@ class MyReimbursementView(LoginRequiredMixin, PersonalVehicleStaffTestMixin, Lis
             # Override the trips in context with calculated trips
             context['trips'] = trips_list
             
-            # Group by month
+            # Group by month across all vehicles
             monthly_data = []
             current_date = timezone.now()
             
@@ -179,26 +203,28 @@ class MyReimbursementView(LoginRequiredMixin, PersonalVehicleStaffTestMixin, Lis
                 )
                 
                 total_distance = 0
+                total_reimbursement = 0
                 for trip in month_trips:
                     if trip.end_odometer is not None and trip.start_odometer is not None:
-                        total_distance += (trip.end_odometer - trip.start_odometer)
-                
-                reimbursement = 0
-                if vehicle.reimbursement_rate_per_km:
-                    reimbursement = total_distance * vehicle.reimbursement_rate_per_km
+                        distance = trip.end_odometer - trip.start_odometer
+                        total_distance += distance
+                        
+                        if trip.vehicle.reimbursement_rate_per_km:
+                            total_reimbursement += distance * trip.vehicle.reimbursement_rate_per_km
                 
                 monthly_data.append({
                     'month': month_start.strftime('%B %Y'),
                     'trips_count': month_trips.count(),
                     'distance': total_distance,
-                    'reimbursement': reimbursement
+                    'reimbursement': total_reimbursement
                 })
             
             context['monthly_data'] = monthly_data
             
-        except Vehicle.DoesNotExist:
-            context['vehicle'] = None
+        else:
+            context['vehicles'] = []
+            context['has_vehicles'] = False
             context['monthly_data'] = []
-            messages.warning(self.request, "You don't have a personal vehicle registered yet.")
+            messages.warning(self.request, "You don't have any personal vehicles registered yet.")
         
         return context

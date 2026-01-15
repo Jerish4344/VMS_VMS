@@ -1,0 +1,422 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Staff Trips Monitoring - GPS Tracking{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stats-card {
+    border-radius: 0.5rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    border: none;
+    transition: all 0.3s;
+  }
+  
+  .stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 2rem 0 rgba(58, 59, 69, 0.2);
+  }
+  
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  
+  .stat-label {
+    font-size: 0.875rem;
+    color: #858796;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .variance-badge {
+    padding: 0.35rem 0.65rem;
+    border-radius: 0.25rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+  
+  .variance-low {
+    background: #d4edda;
+    color: #155724;
+  }
+  
+  .variance-medium {
+    background: #fff3cd;
+    color: #856404;
+  }
+  
+  .variance-high {
+    background: #f8d7da;
+    color: #721c24;
+  }
+  
+  .gps-icon {
+    color: #4e73df;
+  }
+  
+  .filter-card {
+    background: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .table-responsive {
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+  
+  .trip-table {
+    margin-bottom: 0;
+  }
+  
+  .trip-table thead th {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    border: none;
+    padding: 1rem;
+  }
+  
+  .trip-table tbody tr {
+    transition: all 0.3s;
+  }
+  
+  .trip-table tbody tr:hover {
+    background-color: #f8f9fc;
+    transform: scale(1.01);
+  }
+  
+  .trip-table tbody td {
+    vertical-align: middle;
+    padding: 1rem;
+    border-bottom: 1px solid #e3e6f0;
+  }
+  
+  .review-required {
+    background-color: #fff5f5 !important;
+  }
+  
+  .review-badge {
+    background: #e74a3b;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  
+  .no-data {
+    text-align: center;
+    padding: 3rem;
+    color: #858796;
+  }
+  
+  .distance-comparison {
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+  
+  .btn-filter {
+    border-radius: 2rem;
+    padding: 0.5rem 1.25rem;
+    font-weight: 600;
+    transition: all 0.3s;
+  }
+  
+  .btn-filter.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: #667eea;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="fas fa-user-clock me-2 gps-icon"></i>Staff Trips Monitoring
+      <small class="text-muted">(GPS Tracking)</small>
+    </h1>
+    <div>
+      <a href="{% url 'live_tracking' %}" class="btn btn-success btn-sm me-2">
+        <i class="fas fa-satellite-dish me-1"></i>Live Tracking
+      </a>
+      <button class="btn btn-primary btn-sm" onclick="window.print()">
+        <i class="fas fa-print me-1"></i>Print Report
+      </button>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card border-left-primary">
+        <div class="card-body">
+          <div class="stat-label">Total Staff Trips</div>
+          <div class="stat-value text-primary">{{ total_staff_trips }}</div>
+          <small class="text-muted">With GPS tracking</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card border-left-danger">
+        <div class="card-body">
+          <div class="stat-label">Flagged for Review</div>
+          <div class="stat-value text-danger">{{ flagged_trips }}</div>
+          <small class="text-muted">Requires attention</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card border-left-warning">
+        <div class="card-body">
+          <div class="stat-label">High Variance</div>
+          <div class="stat-value text-warning">{{ high_variance_trips }}</div>
+          <small class="text-muted">&gt;15% difference</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card border-left-info">
+        <div class="card-body">
+          <div class="stat-label">Pending Review</div>
+          <div class="stat-value text-info">{{ pending_review_trips }}</div>
+          <small class="text-muted">Awaiting approval</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-card">
+    <form method="get" id="filterForm">
+      <div class="row mb-3">
+        <div class="col-md-12">
+          <h6 class="text-gray-700 mb-3">
+            <i class="fas fa-filter me-2"></i>Filter Options
+          </h6>
+          <div class="btn-group" role="group">
+            <input type="radio" class="btn-check" name="review_filter" value="all" id="filter_all" {% if review_filter == 'all' %}checked{% endif %}>
+            <label class="btn btn-outline-primary btn-filter" for="filter_all">All Trips</label>
+
+            <input type="radio" class="btn-check" name="review_filter" value="flagged" id="filter_flagged" {% if review_filter == 'flagged' %}checked{% endif %}>
+            <label class="btn btn-outline-danger btn-filter" for="filter_flagged">Flagged Only</label>
+
+            <input type="radio" class="btn-check" name="review_filter" value="high_variance" id="filter_variance" {% if review_filter == 'high_variance' %}checked{% endif %}>
+            <label class="btn btn-outline-warning btn-filter" for="filter_variance">High Variance (&gt;15%)</label>
+
+            <input type="radio" class="btn-check" name="review_filter" value="pending_review" id="filter_pending" {% if review_filter == 'pending_review' %}checked{% endif %}>
+            <label class="btn btn-outline-info btn-filter" for="filter_pending">Pending Review</label>
+          </div>
+        </div>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-4">
+          <div class="form-group">
+            <label>Search</label>
+            <input type="text" name="search" class="form-control" placeholder="Driver name, vehicle, route..." value="{{ search }}">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group">
+            <label>From Date</label>
+            <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group">
+            <label>To Date</label>
+            <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+          </div>
+        </div>
+        <div class="col-md-2">
+          <div class="form-group">
+            <label>&nbsp;</label>
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="fas fa-search me-1"></i>Apply
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Trips Table -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h6 class="m-0 font-weight-bold text-primary">
+        Staff Trip Records ({{ page_obj.paginator.count }} trips)
+      </h6>
+    </div>
+    <div class="card-body p-0">
+      {% if trips %}
+      <div class="table-responsive">
+        <table class="table trip-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Driver</th>
+              <th>Vehicle</th>
+              <th>Route</th>
+              <th>Odometer (km)</th>
+              <th>GPS Distance (km)</th>
+              <th>Variance</th>
+              <th>GPS Points</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for trip in trips %}
+            <tr {% if trip.gps_session.requires_review %}class="review-required"{% endif %}>
+              <td>
+                <div>{{ trip.start_time|date:"d M Y" }}</div>
+                <small class="text-muted">{{ trip.start_time|date:"H:i" }}</small>
+              </td>
+              <td>
+                <strong>{{ trip.driver.get_full_name }}</strong>
+                <br><small class="text-muted">{{ trip.driver.employee_id }}</small>
+              </td>
+              <td>
+                <span class="badge bg-secondary">{{ trip.vehicle.license_plate }}</span>
+                <br><small>{{ trip.vehicle.vehicle_type.name }}</small>
+              </td>
+              <td>
+                <div class="distance-comparison">
+                  <i class="fas fa-map-marker-alt text-success me-1"></i>{{ trip.origin|truncatewords:3 }}
+                  <br>
+                  <i class="fas fa-map-marker-alt text-danger me-1"></i>{{ trip.destination|truncatewords:3 }}
+                </div>
+              </td>
+              <td>
+                <strong>{{ trip.distance_traveled }}</strong>
+              </td>
+              <td>
+                {% if trip.gps_session.gps_distance %}
+                  <i class="fas fa-satellite-dish gps-icon me-1"></i>
+                  <strong>{{ trip.gps_session.gps_distance }}</strong>
+                {% else %}
+                  <span class="text-muted">No data</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if trip.gps_session.variance_percentage %}
+                  {% if trip.gps_session.variance_percentage <= 10 %}
+                    <span class="variance-badge variance-low">
+                      <i class="fas fa-check-circle me-1"></i>{{ trip.gps_session.variance_percentage }}%
+                    </span>
+                  {% elif trip.gps_session.variance_percentage <= 15 %}
+                    <span class="variance-badge variance-medium">
+                      <i class="fas fa-exclamation-triangle me-1"></i>{{ trip.gps_session.variance_percentage }}%
+                    </span>
+                  {% else %}
+                    <span class="variance-badge variance-high">
+                      <i class="fas fa-exclamation-circle me-1"></i>{{ trip.gps_session.variance_percentage }}%
+                    </span>
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td>
+                <div>{{ trip.gps_session.total_points }} total</div>
+                <small class="text-success">{{ trip.gps_session.valid_points }} valid</small>
+                {% if trip.gps_session.gaps_detected > 0 %}
+                  <br><small class="text-warning">{{ trip.gps_session.gaps_detected }} gaps</small>
+                {% endif %}
+              </td>
+              <td>
+                {% if trip.gps_session.requires_review %}
+                  <span class="review-badge">
+                    <i class="fas fa-flag me-1"></i>Review
+                  </span>
+                  {% if trip.gps_session.approved == True %}
+                    <br><small class="text-success">Approved</small>
+                  {% elif trip.gps_session.approved == False %}
+                    <br><small class="text-danger">Rejected</small>
+                  {% else %}
+                    <br><small class="text-warning">Pending</small>
+                  {% endif %}
+                {% else %}
+                  <span class="badge bg-success">OK</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="btn-group" role="group">
+                  <a href="{% url 'trip_detail_map' trip.id %}" class="btn btn-sm btn-success" title="View Route Map">
+                    <i class="fas fa-map-marked-alt"></i>
+                  </a>
+                  <a href="{% url 'trip_detail' trip.id %}" class="btn btn-sm btn-primary" title="View Details">
+                    <i class="fas fa-eye"></i>
+                  </a>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Pagination -->
+      {% if page_obj.has_other_pages %}
+      <div class="card-footer">
+        <nav>
+          <ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page=1{% if review_filter %}&review_filter={{ review_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">First</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if review_filter %}&review_filter={{ review_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">Previous</a>
+              </li>
+            {% endif %}
+
+            <li class="page-item active">
+              <span class="page-link">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+              </span>
+            </li>
+
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if review_filter %}&review_filter={{ review_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">Next</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if review_filter %}&review_filter={{ review_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">Last</a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
+      
+      {% else %}
+      <div class="no-data">
+        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">No Staff Trips Found</h5>
+        <p class="text-muted">No trips matching your filter criteria. Try adjusting the filters.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  // Auto-submit form on radio button change
+  document.querySelectorAll('input[name="review_filter"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+      document.getElementById('filterForm').submit();
+    });
+  });
+</script>
+{% endblock %}

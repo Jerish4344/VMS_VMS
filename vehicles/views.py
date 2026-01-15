@@ -25,7 +25,8 @@ class VehicleListView(VehicleViewPermissionMixin, ListView):
     paginate_by = 10 # Optional: if you want pagination
 
     def get_queryset(self):
-        queryset = super().get_queryset().order_by('license_plate') # Start with the base queryset
+        # Only show company vehicles, exclude personal vehicles
+        queryset = Vehicle.objects.filter(ownership_type='company').order_by('license_plate')
 
         search_query = self.request.GET.get('search', '').strip()
         vehicle_type_filter = self.request.GET.get('vehicle_type', '').strip()
@@ -49,8 +50,8 @@ class VehicleListView(VehicleViewPermissionMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Calculate status counts from all vehicles (not just the filtered ones)
-        all_vehicles = Vehicle.objects.all()
+        # Calculate status counts from company vehicles only (exclude personal)
+        all_vehicles = Vehicle.objects.filter(ownership_type='company')
         context['available_count'] = all_vehicles.filter(status='available').count()
         context['in_use_count'] = all_vehicles.filter(status='in_use').count()
         context['maintenance_count'] = all_vehicles.filter(status='maintenance').count()

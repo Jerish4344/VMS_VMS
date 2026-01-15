@@ -1122,5 +1122,97 @@
       document.getElementById('date_from').setAttribute('max', dateTo);
     });
   });
+  
+  // GPS Tracking Auto-Start
+  {% if start_gps_tracking %}
+  console.log('Auto-starting GPS tracking for trip:', {{ start_gps_tracking }});
+  
+  // Load GPS tracker if not already loaded
+  if (typeof gpsTracker === 'undefined') {
+    const script = document.createElement('script');
+    script.src = "{% static 'js/gps-tracker.js' %}";
+    script.onload = function() {
+      initializeGPSTracking({{ start_gps_tracking }});
+    };
+    document.head.appendChild(script);
+  } else {
+    initializeGPSTracking({{ start_gps_tracking }});
+  }
+  
+  async function initializeGPSTracking(tripId) {
+    try {
+      // ====== KEEP TAB ACTIVE FOR GPS TRACKING ======
+      // Prevent tab closing
+      window.addEventListener('beforeunload', function (e) {
+        e.preventDefault();
+        e.returnValue = '⚠️ GPS tracking is active! Closing will stop location recording.';
+        return e.returnValue;
+      });
+      
+      // Keep screen awake
+      if ('wakeLock' in navigator) {
+        try {
+          const wakeLock = await navigator.wakeLock.request('screen');
+          console.log('✅ Screen will stay awake during tracking');
+        } catch (err) {
+          console.warn('Wake Lock not available:', err);
+        }
+      }
+      
+      // Monitor tab visibility
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+          console.warn('⚠️ Tab hidden - GPS tracking may be paused by browser');
+        }
+      });
+      // ====== END KEEP TAB ACTIVE ======
+      
+      // Request permission if not already granted
+      if (!gpsTracker.permissionGranted) {
+        console.log('Requesting GPS permission for tracking...');
+        await gpsTracker.requestPermission();
+      }
+      
+      // Start tracking
+      await gpsTracker.startTracking(tripId);
+      console.log('GPS tracking started successfully for trip', tripId);
+      
+      // Show notification to user
+      const notificationDiv = document.createElement('div');
+      notificationDiv.className = 'alert alert-success alert-dismissible fade show position-fixed';
+      notificationDiv.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
+      notificationDiv.innerHTML = `
+        <i class="fas fa-map-marker-alt me-2"></i>
+        <strong>GPS Tracking Active</strong>
+        <p class="mb-0 mt-1 small"><strong>⚠️ KEEP THIS TAB OPEN</strong> and screen unlocked for continuous tracking.</p>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      document.body.appendChild(notificationDiv);
+      
+      // Keep notification visible longer
+      setTimeout(() => {
+        notificationDiv.remove();
+      }, 10000);
+    } catch (error) {
+      console.error('Failed to start GPS tracking:', error);
+      
+      // Show user-friendly error
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'alert alert-warning alert-dismissible fade show position-fixed';
+      errorDiv.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
+      errorDiv.innerHTML = `
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>GPS Tracking Issue</strong>
+        <p class="mb-0 mt-1 small">${error.message}</p>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      document.body.appendChild(errorDiv);
+      
+      setTimeout(() => {
+        errorDiv.remove();
+      }, 8000);
+    }
+  }
+  {% endif %}
 </script>
 {% endblock %}
