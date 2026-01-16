@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.db import connection
+from django.views.generic import TemplateView
 from dashboard.views import DashboardView
 
 def health_check(request):
@@ -25,6 +26,12 @@ def health_check(request):
 urlpatterns = [
     # Health check endpoint (no auth required)
     path('health/', health_check, name='health_check'),
+
+    # Privacy Policy (for Google Play Store)
+    path('privacy-policy/', TemplateView.as_view(template_name='privacy_policy.html'), name='privacy_policy'),
+    
+    # Data Deletion Request (for Google Play Store)
+    path('data-deletion/', TemplateView.as_view(template_name='data_deletion.html'), name='data_deletion'),
 
     path('admin/', admin.site.urls),
     
