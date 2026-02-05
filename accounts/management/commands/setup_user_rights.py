@@ -143,7 +143,7 @@ class Command(BaseCommand):
                         {
                             'action': 'view', 
                             'admin_default': True, 'manager_default': True, 'vehicle_manager_default': True,
-                            'driver_default': True, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
+                            'driver_default': False, 'personal_vehicle_staff_default': False, 'generator_default': False, 'sor_default': False
                         },
                         {
                             'action': 'add', 

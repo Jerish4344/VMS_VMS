@@ -448,6 +448,44 @@
         </div>
       </div>
 
+      <!-- Odometer Images -->
+      {% if trip.start_odometer_image or trip.end_odometer_image %}
+      <div class="card info-card">
+        <div class="card-header">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-camera me-2"></i>Odometer Photos
+          </h6>
+        </div>
+        <div class="card-body">
+          {% if trip.start_odometer_image %}
+          <div class="mb-3">
+            <label class="detail-label d-block mb-2">
+              <i class="fas fa-play-circle text-success me-1"></i>Start Odometer ({{ trip.start_odometer }} km)
+            </label>
+            <a href="{{ trip.start_odometer_image.url }}" target="_blank" class="d-block">
+              <img src="{{ trip.start_odometer_image.url }}" class="img-fluid rounded shadow-sm" 
+                   alt="Start Odometer" style="max-height: 200px; cursor: pointer;">
+            </a>
+            <small class="text-muted">Click to view full size</small>
+          </div>
+          {% endif %}
+          
+          {% if trip.end_odometer_image %}
+          <div class="mb-0">
+            <label class="detail-label d-block mb-2">
+              <i class="fas fa-stop-circle text-danger me-1"></i>End Odometer ({{ trip.end_odometer }} km)
+            </label>
+            <a href="{{ trip.end_odometer_image.url }}" target="_blank" class="d-block">
+              <img src="{{ trip.end_odometer_image.url }}" class="img-fluid rounded shadow-sm" 
+                   alt="End Odometer" style="max-height: 200px; cursor: pointer;">
+            </a>
+            <small class="text-muted">Click to view full size</small>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
       <!-- Quick Actions -->
       {% if trip.status == 'ongoing' and can_end_trip %}
       <div class="card info-card">

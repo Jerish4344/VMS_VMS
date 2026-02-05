@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     
     # Third-party apps
     'rest_framework',
+    'rest_framework.authtoken',
+    'corsheaders',
     'crispy_forms',
     'crispy_bootstrap5',
     
@@ -66,6 +68,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -347,6 +350,7 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -355,6 +359,10 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
 }
+
+# CORS Settings for Mobile App
+CORS_ALLOW_ALL_ORIGINS = True  # For development - restrict in production
+CORS_ALLOW_CREDENTIALS = True
 
 # Email settings (update these for production)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' # For development
@@ -405,7 +413,6 @@ def status_color(status):
 
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
-
 AUTHENTICATION_BACKENDS = [
     'accounts.backends.StyleHRAuthBackend',  # Primary: StyleHR authentication
     'django.contrib.auth.backends.ModelBackend',  # Fallback: Django default
@@ -420,7 +427,6 @@ CSRF_TRUSTED_ORIGINS = [
 # StyleHR API Configuration
 STYLEHR_API_URL = 'https://stylehr.in/api/login/'
 STYLEHR_API_TIMEOUT = 30  # seconds
-
 
 import logging
 
@@ -503,4 +509,3 @@ DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000    # For many records
 
 # Disable atomic requests for bulk operations
 ATOMIC_REQUESTS = False
-

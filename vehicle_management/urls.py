@@ -75,6 +75,9 @@ urlpatterns = [
     
     # API Endpoints
     path('api/', include('geolocation.urls')),
+
+    # Mobile API Endpoints
+    path('api/', include('core.api_urls')),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -97,6 +97,21 @@ class Trip(models.Model):
     gps_start_lon = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, help_text="GPS longitude at trip start")
     gps_end_lat = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, help_text="GPS latitude at trip end")
     gps_end_lon = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, help_text="GPS longitude at trip end")
+
+    # Odometer photo fields for verification
+    start_odometer_image = models.ImageField(
+        upload_to='trips/odometer_images/',
+        null=True,
+        blank=True,
+        help_text="Photo of odometer at trip start for verification"
+    )
+    end_odometer_image = models.ImageField(
+        upload_to='trips/odometer_images/',
+        null=True,
+        blank=True,
+        help_text="Photo of odometer at trip end for verification"
+    )
+
     def soft_delete(self, user):
         """
         Soft delete the trip, recording who deleted and when.
