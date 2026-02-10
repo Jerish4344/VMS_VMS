@@ -30,13 +30,13 @@ class VehicleTypeAdmin(admin.ModelAdmin):
 class VehicleAdmin(admin.ModelAdmin):
     list_display = [
         'license_plate', 'make', 'model', 'vehicle_type', 
-        'year', 'status', 'ownership_type', 'owned_by',  # Added ownership fields
+        'year', 'status', 'ownership_type', 'department', 'owned_by',  # Added department
         'fuel_or_electric', 'capacity_display',
         'rate_per_km', 'reimbursement_rate_per_km', 'current_odometer', 'odometer_actions'  # Added reimbursement_rate_per_km
     ]
     list_filter = [
         'status', 'vehicle_type', 'vehicle_type__category', 
-        'ownership_type',  # Added ownership_type filter
+        'ownership_type', 'department',  # Added department filter
         'year', 'fuel_type', 'company_owned'
     ]
     search_fields = [
@@ -71,8 +71,8 @@ class VehicleAdmin(admin.ModelAdmin):
             )
         }),
         ('Ownership & Reimbursement', {
-            'fields': ('ownership_type', 'owned_by', 'reimbursement_rate_per_km'),
-            'description': 'For personal vehicles: select staff owner and set reimbursement rate per km'
+            'fields': ('ownership_type', 'owned_by', 'department', 'reimbursement_rate_per_km'),
+            'description': 'For personal vehicles: select staff owner and set reimbursement rate. For company vehicles: select department.'
         }),
         ('Pricing', {
             'fields': ('rate_per_km',),

@@ -4,6 +4,37 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
+class Department(models.Model):
+    """
+    Department/Team in the organization.
+    Used to group employees and vehicles for reporting and management.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=20, blank=True, help_text="Short code like 'HR', 'IT', 'SALES'")
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Department'
+        verbose_name_plural = 'Departments'
+    
+    def __str__(self):
+        if self.code:
+            return f"{self.name} ({self.code})"
+        return self.name
+    
+    def get_employee_count(self):
+        """Count employees in this department"""
+        return self.employees.count()
+    
+    def get_vehicle_count(self):
+        """Count company vehicles assigned to this department"""
+        from vehicles.models import Vehicle
+        return Vehicle.objects.filter(department=self, ownership_type='company').count()
+
 class CustomUser(AbstractUser):
     """
     Custom user model with approval-based access for employees
@@ -68,6 +99,16 @@ class CustomUser(AbstractUser):
     hr_department = models.CharField(max_length=100, blank=True, help_text="Department from HR")
     hr_designation = models.CharField(max_length=100, blank=True, help_text="Designation from HR")
     hr_employee_type = models.CharField(max_length=50, blank=True, help_text="Employee type from HR")
+    
+    # Department assignment (Admin managed)
+    department = models.ForeignKey(
+        'Department',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='employees',
+        help_text="Department this user belongs to (assigned by admin)"
+    )
     
     # Generator user specific fields
     assigned_stores = models.ManyToManyField(

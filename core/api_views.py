@@ -7,9 +7,11 @@ from django.contrib.auth import authenticate
 from django.utils import timezone
 from django.db.models import Sum, Count, F
 from datetime import timedelta
+from decimal import Decimal
 
 from vehicles.models import Vehicle, VehicleType
 from trips.models import Trip
+from trips.gps_models import TripLocation, GPSTrackingSession
 from maintenance.models import Maintenance, MaintenanceType, MaintenanceProvider
 from fuel.models import FuelTransaction, FuelStation
 from documents.models import Document, DocumentType
@@ -108,6 +110,321 @@ class UserProfileStatsView(APIView):
             'total_trips': total_trips,
             'total_distance': total_distance,
             'total_fuel_entries': total_fuel_entries,
+        })
+
+
+class PersonalVehicleListView(APIView):
+    """Get personal vehicles owned by the logged-in user"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        if user.user_type != 'personal_vehicle_staff':
+            return Response(
+                {'detail': 'This endpoint is only for personal vehicle staff'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        vehicles = Vehicle.objects.filter(
+            ownership_type='personal',
+            owned_by=user
+        ).order_by('license_plate')
+        
+        today = timezone.now().date()
+        first_of_month = today.replace(day=1)
+        
+        vehicles_data = []
+        for vehicle in vehicles:
+            # Get trip statistics for this vehicle
+            trips = Trip.objects.filter(
+                vehicle=vehicle,
+                driver=user,
+                is_deleted=False
+            )
+            
+            # Current month completed trips
+            current_month_trips = trips.filter(
+                start_time__gte=first_of_month,
+                status='completed',
+                end_odometer__isnull=False,
+                start_odometer__isnull=False
+            )
+            
+            # Calculate total distance for current month
+            total_distance = current_month_trips.aggregate(
+                total=Sum(F('end_odometer') - F('start_odometer'))
+            )['total'] or 0
+            
+            # Calculate reimbursement
+            reimbursement_amount = 0
+            if vehicle.reimbursement_rate_per_km:
+                reimbursement_amount = float(total_distance) * float(vehicle.reimbursement_rate_per_km)
+            
+            # Ongoing trips
+            ongoing_trips = trips.filter(status='ongoing').count()
+            
+            vehicle_data = VehicleSerializer(vehicle).data
+            vehicle_data.update({
+                'current_month_trips_count': current_month_trips.count(),
+                'current_month_distance': total_distance,
+                'current_month_reimbursement': round(reimbursement_amount, 2),
+                'reimbursement_rate_per_km': float(vehicle.reimbursement_rate_per_km) if vehicle.reimbursement_rate_per_km else 0,
+                'total_trips': trips.count(),
+                'ongoing_trips': ongoing_trips,
+            })
+            vehicles_data.append(vehicle_data)
+        
+        return Response(vehicles_data)
+
+
+class PersonalVehicleDetailView(APIView):
+    """Get details of a specific personal vehicle"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, pk):
+        user = request.user
+        
+        try:
+            vehicle = Vehicle.objects.get(
+                pk=pk,
+                ownership_type='personal',
+                owned_by=user
+            )
+        except Vehicle.DoesNotExist:
+            return Response(
+                {'detail': 'Vehicle not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        today = timezone.now().date()
+        first_of_month = today.replace(day=1)
+        
+        # Get trip statistics
+        trips = Trip.objects.filter(
+            vehicle=vehicle,
+            driver=user,
+            is_deleted=False
+        )
+        
+        # Current month completed trips
+        current_month_trips = trips.filter(
+            start_time__gte=first_of_month,
+            status='completed',
+            end_odometer__isnull=False,
+            start_odometer__isnull=False
+        )
+        
+        total_distance = current_month_trips.aggregate(
+            total=Sum(F('end_odometer') - F('start_odometer'))
+        )['total'] or 0
+        
+        reimbursement_amount = 0
+        if vehicle.reimbursement_rate_per_km:
+            reimbursement_amount = float(total_distance) * float(vehicle.reimbursement_rate_per_km)
+        
+        # Recent trips
+        recent_trips = trips.filter(
+            status='completed'
+        ).order_by('-start_time')[:10]
+        
+        vehicle_data = VehicleSerializer(vehicle).data
+        vehicle_data.update({
+            'current_month_trips_count': current_month_trips.count(),
+            'current_month_distance': total_distance,
+            'current_month_reimbursement': round(reimbursement_amount, 2),
+            'reimbursement_rate_per_km': float(vehicle.reimbursement_rate_per_km) if vehicle.reimbursement_rate_per_km else 0,
+            'total_trips': trips.count(),
+            'ongoing_trips': trips.filter(status='ongoing').count(),
+            'recent_trips': TripSerializer(recent_trips, many=True).data,
+        })
+        
+        return Response(vehicle_data)
+    
+    def patch(self, request, pk):
+        """Update personal vehicle (limited fields)"""
+        user = request.user
+        
+        try:
+            vehicle = Vehicle.objects.get(
+                pk=pk,
+                ownership_type='personal',
+                owned_by=user
+            )
+        except Vehicle.DoesNotExist:
+            return Response(
+                {'detail': 'Vehicle not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Only allow updating certain fields
+        allowed_fields = ['current_odometer', 'notes']
+        for field in allowed_fields:
+            if field in request.data:
+                setattr(vehicle, field, request.data[field])
+        
+        vehicle.save()
+        return Response(VehicleSerializer(vehicle).data)
+
+
+class PersonalVehicleReimbursementView(APIView):
+    """Get reimbursement summary and history for personal vehicle staff"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        if user.user_type != 'personal_vehicle_staff':
+            return Response(
+                {'detail': 'This endpoint is only for personal vehicle staff'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get user's personal vehicles
+        vehicles = Vehicle.objects.filter(
+            ownership_type='personal',
+            owned_by=user
+        )
+        
+        if not vehicles.exists():
+            return Response({
+                'has_vehicles': False,
+                'message': 'No personal vehicles registered'
+            })
+        
+        today = timezone.now().date()
+        first_of_month = today.replace(day=1)
+        
+        # Get all completed trips for this month across all personal vehicles
+        trips = Trip.objects.filter(
+            driver=user,
+            vehicle__in=vehicles,
+            status='completed',
+            is_deleted=False,
+            end_odometer__isnull=False,
+            start_odometer__isnull=False
+        ).select_related('vehicle').order_by('-start_time')
+        
+        current_month_trips = trips.filter(start_time__gte=first_of_month)
+        
+        # Calculate totals
+        total_distance = 0
+        total_reimbursement = 0
+        trips_data = []
+        
+        for trip in current_month_trips:
+            distance = trip.end_odometer - trip.start_odometer
+            rate = float(trip.vehicle.reimbursement_rate_per_km) if trip.vehicle.reimbursement_rate_per_km else 0
+            reimbursement = distance * rate
+            
+            total_distance += distance
+            total_reimbursement += reimbursement
+            
+            trip_data = TripSerializer(trip).data
+            trip_data['distance'] = distance
+            trip_data['reimbursement_rate'] = rate
+            trip_data['reimbursement_amount'] = round(reimbursement, 2)
+            trips_data.append(trip_data)
+        
+        # Monthly history (last 6 months)
+        monthly_history = []
+        for i in range(6):
+            month_date = (today - timedelta(days=30*i))
+            month_start = month_date.replace(day=1)
+            if i == 0:
+                month_end = today
+            else:
+                # Get last day of month
+                if month_start.month == 12:
+                    month_end = month_start.replace(year=month_start.year + 1, month=1, day=1) - timedelta(days=1)
+                else:
+                    month_end = month_start.replace(month=month_start.month + 1, day=1) - timedelta(days=1)
+            
+            month_trips = trips.filter(
+                start_time__gte=month_start,
+                start_time__lte=month_end
+            )
+            
+            month_distance = 0
+            month_reimbursement = 0
+            
+            for trip in month_trips:
+                distance = trip.end_odometer - trip.start_odometer
+                rate = float(trip.vehicle.reimbursement_rate_per_km) if trip.vehicle.reimbursement_rate_per_km else 0
+                month_distance += distance
+                month_reimbursement += distance * rate
+            
+            monthly_history.append({
+                'month': month_start.strftime('%B %Y'),
+                'month_short': month_start.strftime('%b'),
+                'year': month_start.year,
+                'trips_count': month_trips.count(),
+                'total_distance': month_distance,
+                'total_reimbursement': round(month_reimbursement, 2),
+            })
+        
+        return Response({
+            'has_vehicles': True,
+            'current_month': {
+                'month': first_of_month.strftime('%B %Y'),
+                'trips_count': current_month_trips.count(),
+                'total_distance': total_distance,
+                'total_reimbursement': round(total_reimbursement, 2),
+            },
+            'trips': trips_data,
+            'monthly_history': monthly_history,
+        })
+
+
+class PersonalVehicleDashboardView(APIView):
+    """Get dashboard stats specifically for personal vehicle staff"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        today = timezone.now().date()
+        first_of_month = today.replace(day=1)
+        
+        # Get user's personal vehicles
+        vehicles = Vehicle.objects.filter(
+            ownership_type='personal',
+            owned_by=user
+        )
+        
+        # Active trips
+        active_trips = Trip.objects.filter(
+            driver=user,
+            status='ongoing',
+            is_deleted=False
+        ).count()
+        
+        # Monthly trips
+        monthly_trips = Trip.objects.filter(
+            driver=user,
+            vehicle__in=vehicles,
+            start_time__gte=first_of_month,
+            status='completed',
+            is_deleted=False,
+            end_odometer__isnull=False,
+            start_odometer__isnull=False
+        )
+        
+        # Calculate monthly distance and reimbursement
+        monthly_distance = 0
+        monthly_reimbursement = 0
+        
+        for trip in monthly_trips:
+            distance = trip.end_odometer - trip.start_odometer
+            monthly_distance += distance
+            if trip.vehicle.reimbursement_rate_per_km:
+                monthly_reimbursement += distance * float(trip.vehicle.reimbursement_rate_per_km)
+        
+        return Response({
+            'total_vehicles': vehicles.count(),
+            'active_trips': active_trips,
+            'monthly_trips': monthly_trips.count(),
+            'monthly_distance': monthly_distance,
+            'monthly_reimbursement': round(monthly_reimbursement, 2),
         })
 
 
@@ -261,6 +578,37 @@ class StartTripView(APIView):
         return Response(TripSerializer(trip).data, status=status.HTTP_201_CREATED)
 
 
+class TripUploadOdometerImageView(APIView):
+    """Upload odometer image for a trip (start or end) - for background uploads"""
+    permission_classes = [IsAuthenticated]
+    
+    def patch(self, request, pk):
+        try:
+            trip = Trip.objects.get(pk=pk, is_deleted=False)
+        except Trip.DoesNotExist:
+            return Response({'detail': 'Trip not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Only the driver who created the trip can upload images
+        if trip.driver != request.user:
+            return Response({'detail': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+        
+        image_type = request.data.get('image_type', 'start')  # 'start' or 'end'
+        image = request.FILES.get('image')
+        
+        if not image:
+            return Response({'detail': 'No image provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if image_type == 'start':
+            trip.start_odometer_image = image
+        elif image_type == 'end':
+            trip.end_odometer_image = image
+        else:
+            return Response({'detail': 'Invalid image_type. Use "start" or "end"'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        trip.save()
+        return Response({'detail': 'Image uploaded successfully', 'trip_id': trip.id})
+
+
 class EndTripView(APIView):
     permission_classes = [IsAuthenticated]
     
@@ -402,11 +750,84 @@ class DocumentViewSet(viewsets.ModelViewSet):
     serializer_class = DocumentSerializer
     
     def get_queryset(self):
-        queryset = Document.objects.all().select_related('vehicle', 'document_type')
+        user = self.request.user
+        is_admin = user.user_type in ['admin', 'manager', 'vehicle_manager']
+        is_personal_vehicle_staff = user.user_type == 'personal_vehicle_staff'
+        
+        if is_admin:
+            # Admins see all documents
+            queryset = Document.objects.all()
+        elif is_personal_vehicle_staff:
+            # Personal vehicle staff only see documents for their personal vehicles
+            personal_vehicles = Vehicle.objects.filter(ownership_type='personal', owned_by=user)
+            queryset = Document.objects.filter(vehicle__in=personal_vehicles)
+        else:
+            # Other users (drivers) see documents for vehicles assigned to them or no documents
+            queryset = Document.objects.none()
+        
+        queryset = queryset.select_related('vehicle', 'document_type')
+        
         vehicle_id = self.request.query_params.get('vehicle')
         if vehicle_id:
             queryset = queryset.filter(vehicle_id=vehicle_id)
+        
         return queryset
+    
+    def perform_create(self, serializer):
+        """Validate that Personal Vehicle Staff can only create documents for their vehicles"""
+        user = self.request.user
+        is_admin = user.user_type in ['admin', 'manager', 'vehicle_manager']
+        is_personal_vehicle_staff = user.user_type == 'personal_vehicle_staff'
+        
+        vehicle = serializer.validated_data.get('vehicle')
+        
+        if is_personal_vehicle_staff:
+            # Verify the vehicle belongs to this user
+            if not vehicle or vehicle.ownership_type != 'personal' or vehicle.owned_by != user:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You can only add documents to your own personal vehicles")
+        elif not is_admin:
+            # Drivers cannot create documents
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You do not have permission to create documents")
+        
+        serializer.save()
+    
+    def perform_update(self, serializer):
+        """Validate that Personal Vehicle Staff can only update their own documents"""
+        user = self.request.user
+        is_admin = user.user_type in ['admin', 'manager', 'vehicle_manager']
+        is_personal_vehicle_staff = user.user_type == 'personal_vehicle_staff'
+        
+        document = self.get_object()
+        
+        if is_personal_vehicle_staff:
+            # Verify the document belongs to user's vehicle
+            if document.vehicle.ownership_type != 'personal' or document.vehicle.owned_by != user:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You can only update documents for your own personal vehicles")
+        elif not is_admin:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You do not have permission to update documents")
+        
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Validate that Personal Vehicle Staff can only delete their own documents"""
+        user = self.request.user
+        is_admin = user.user_type in ['admin', 'manager', 'vehicle_manager']
+        is_personal_vehicle_staff = user.user_type == 'personal_vehicle_staff'
+        
+        if is_personal_vehicle_staff:
+            # Verify the document belongs to user's vehicle
+            if instance.vehicle.ownership_type != 'personal' or instance.vehicle.owned_by != user:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You can only delete documents for your own personal vehicles")
+        elif not is_admin:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You do not have permission to delete documents")
+        
+        instance.delete()
 
 
 class DocumentTypeListView(generics.ListAPIView):
@@ -420,11 +841,30 @@ class ExpiringDocumentsView(generics.ListAPIView):
     serializer_class = DocumentSerializer
     
     def get_queryset(self):
+        user = self.request.user
+        is_admin = user.user_type in ['admin', 'manager', 'vehicle_manager']
+        is_personal_vehicle_staff = user.user_type == 'personal_vehicle_staff'
+        
         today = timezone.now().date()
         thirty_days_later = today + timedelta(days=30)
-        return Document.objects.filter(
-            expiry_date__range=[today, thirty_days_later]
-        ).select_related('vehicle', 'document_type').order_by('expiry_date')
+        
+        if is_admin:
+            # Admins see all expiring documents
+            queryset = Document.objects.filter(
+                expiry_date__range=[today, thirty_days_later]
+            )
+        elif is_personal_vehicle_staff:
+            # Personal vehicle staff only see expiring documents for their personal vehicles
+            personal_vehicles = Vehicle.objects.filter(ownership_type='personal', owned_by=user)
+            queryset = Document.objects.filter(
+                vehicle__in=personal_vehicles,
+                expiry_date__range=[today, thirty_days_later]
+            )
+        else:
+            # Other users see no expiring documents
+            queryset = Document.objects.none()
+        
+        return queryset.select_related('vehicle', 'document_type').order_by('expiry_date')
 
 
 # ============== SOR API Views ==============
@@ -600,3 +1040,309 @@ class SORNotificationMarkAllReadView(APIView):
             is_read=False
         ).update(is_read=True)
         return Response({'detail': f'{count} notifications marked as read.'})
+
+
+# ============================================
+# GPS Tracking API Views for Mobile App
+# ============================================
+
+class GPSRecordLocationView(APIView):
+    """
+    Record GPS location points during an ongoing trip.
+    Called periodically by the mobile app while trip is active.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        trip_id = request.data.get('trip_id')
+        if not trip_id:
+            return Response({'error': 'trip_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verify trip exists and belongs to current user
+        try:
+            trip = Trip.objects.get(id=trip_id, driver=request.user, status='ongoing')
+        except Trip.DoesNotExist:
+            return Response({'error': 'Trip not found or not accessible'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get or create GPS session
+        gps_session, created = GPSTrackingSession.objects.get_or_create(
+            trip=trip,
+            defaults={'status': 'active'}
+        )
+        
+        # Create location record
+        latitude = request.data.get('latitude')
+        longitude = request.data.get('longitude')
+        
+        if not latitude or not longitude:
+            return Response({'error': 'latitude and longitude are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        location = TripLocation.objects.create(
+            trip=trip,
+            latitude=Decimal(str(latitude)),
+            longitude=Decimal(str(longitude)),
+            accuracy=float(request.data.get('accuracy', 0)),
+            speed=float(request.data.get('speed')) if request.data.get('speed') else None,
+            altitude=float(request.data.get('altitude')) if request.data.get('altitude') else None,
+            heading=float(request.data.get('heading')) if request.data.get('heading') else None,
+            battery_level=int(request.data.get('battery_level')) if request.data.get('battery_level') else None,
+            timestamp=timezone.now()
+        )
+        
+        # Update session statistics
+        gps_session.total_points += 1
+        if location.accuracy < 50:  # Consider points with accuracy < 50m as valid
+            gps_session.valid_points += 1
+        
+        # Check for gaps (if last point was more than 60 seconds ago)
+        last_location = TripLocation.objects.filter(
+            trip=trip
+        ).exclude(id=location.id).order_by('-timestamp').first()
+        
+        if last_location:
+            gap_seconds = (location.timestamp - last_location.timestamp).total_seconds()
+            if gap_seconds > 60:  # More than 1 minute gap
+                gps_session.gaps_detected += 1
+                if gap_seconds > gps_session.longest_gap_seconds:
+                    gps_session.longest_gap_seconds = int(gap_seconds)
+        
+        gps_session.save()
+        
+        return Response({
+            'success': True,
+            'location_id': location.id,
+            'total_points': gps_session.total_points,
+        })
+
+
+class GPSBatchRecordView(APIView):
+    """
+    Record multiple GPS location points at once.
+    Useful when the app was offline and needs to sync buffered locations.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        trip_id = request.data.get('trip_id')
+        locations = request.data.get('locations', [])
+        
+        if not trip_id:
+            return Response({'error': 'trip_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not locations:
+            return Response({'error': 'locations array is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verify trip exists and belongs to current user
+        try:
+            trip = Trip.objects.get(id=trip_id, driver=request.user)
+        except Trip.DoesNotExist:
+            return Response({'error': 'Trip not found or not accessible'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get or create GPS session
+        gps_session, created = GPSTrackingSession.objects.get_or_create(
+            trip=trip,
+            defaults={'status': 'active'}
+        )
+        
+        saved_count = 0
+        for loc_data in locations:
+            try:
+                latitude = loc_data.get('latitude')
+                longitude = loc_data.get('longitude')
+                
+                if not latitude or not longitude:
+                    continue
+                
+                TripLocation.objects.create(
+                    trip=trip,
+                    latitude=Decimal(str(latitude)),
+                    longitude=Decimal(str(longitude)),
+                    accuracy=float(loc_data.get('accuracy', 0)),
+                    speed=float(loc_data.get('speed')) if loc_data.get('speed') else None,
+                    altitude=float(loc_data.get('altitude')) if loc_data.get('altitude') else None,
+                    heading=float(loc_data.get('heading')) if loc_data.get('heading') else None,
+                    battery_level=int(loc_data.get('battery_level')) if loc_data.get('battery_level') else None,
+                    timestamp=timezone.now()
+                )
+                saved_count += 1
+                gps_session.total_points += 1
+            except Exception as e:
+                continue
+        
+        gps_session.save()
+        
+        return Response({
+            'success': True,
+            'saved_count': saved_count,
+            'total_points': gps_session.total_points,
+        })
+
+
+class GPSTripStatusView(APIView):
+    """
+    Get GPS tracking status for a trip.
+    Returns session statistics and recent locations.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, trip_id):
+        try:
+            trip = Trip.objects.get(id=trip_id, driver=request.user)
+        except Trip.DoesNotExist:
+            return Response({'error': 'Trip not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            session = GPSTrackingSession.objects.get(trip=trip)
+            locations = TripLocation.objects.filter(trip=trip).order_by('-timestamp')[:10]
+            
+            return Response({
+                'has_gps_data': True,
+                'session': {
+                    'status': session.status,
+                    'total_points': session.total_points,
+                    'valid_points': session.valid_points,
+                    'gaps_detected': session.gaps_detected,
+                    'gps_distance': float(session.gps_distance) if session.gps_distance else None,
+                },
+                'recent_locations': [
+                    {
+                        'latitude': float(loc.latitude),
+                        'longitude': float(loc.longitude),
+                        'accuracy': loc.accuracy,
+                        'timestamp': loc.timestamp.isoformat(),
+                    }
+                    for loc in locations
+                ]
+            })
+        except GPSTrackingSession.DoesNotExist:
+            return Response({
+                'has_gps_data': False,
+                'session': None,
+                'recent_locations': []
+            })
+
+
+class GPSFinalizeView(APIView):
+    """
+    Finalize GPS tracking when a trip ends.
+    Calculates total GPS distance and variance from odometer.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, trip_id):
+        try:
+            trip = Trip.objects.get(id=trip_id, driver=request.user)
+        except Trip.DoesNotExist:
+            return Response({'error': 'Trip not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            session = GPSTrackingSession.objects.get(trip=trip)
+        except GPSTrackingSession.DoesNotExist:
+            return Response({'error': 'No GPS session found for this trip'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Calculate GPS distance
+        gps_distance = session.calculate_gps_distance()
+        session.gps_distance = gps_distance
+        
+        # Get odometer distance
+        if trip.start_odometer and trip.end_odometer:
+            odometer_distance = trip.end_odometer - trip.start_odometer
+            session.odometer_distance = Decimal(str(odometer_distance))
+            
+            # Calculate variance
+            if odometer_distance > 0:
+                variance = abs(float(gps_distance) - odometer_distance) / odometer_distance * 100
+                session.variance_percentage = Decimal(str(round(variance, 2)))
+                
+                # Flag for review if variance is too high (>15%)
+                if variance > 15:
+                    session.requires_review = True
+                    session.review_reason = f"High variance detected: GPS shows {gps_distance:.2f} km, odometer shows {odometer_distance} km ({variance:.1f}% difference)"
+        
+        session.status = 'completed'
+        session.ended_at = timezone.now()
+        session.save()
+        
+        return Response({
+            'success': True,
+            'gps_distance': float(gps_distance),
+            'odometer_distance': float(session.odometer_distance) if session.odometer_distance else None,
+            'variance_percentage': float(session.variance_percentage) if session.variance_percentage else None,
+            'requires_review': session.requires_review,
+        })
+
+
+class GPSTripRouteView(APIView):
+    """
+    Get all GPS locations for a trip to display on a map.
+    Returns the full route with coordinates.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, trip_id):
+        try:
+            trip = Trip.objects.get(id=trip_id, driver=request.user)
+        except Trip.DoesNotExist:
+            return Response({'error': 'Trip not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get all locations ordered by timestamp
+        locations = TripLocation.objects.filter(trip=trip).order_by('timestamp')
+        
+        if not locations.exists():
+            return Response({
+                'has_route': False,
+                'message': 'No GPS data available for this trip',
+                'route': [],
+                'trip_info': {
+                    'id': trip.id,
+                    'origin': trip.origin,
+                    'destination': trip.destination,
+                    'status': trip.status,
+                }
+            })
+        
+        # Get GPS session for statistics
+        try:
+            session = GPSTrackingSession.objects.get(trip=trip)
+            gps_distance = float(session.gps_distance) if session.gps_distance else None
+            total_points = session.total_points
+        except GPSTrackingSession.DoesNotExist:
+            gps_distance = None
+            total_points = locations.count()
+        
+        # Build route data
+        route = [
+            {
+                'latitude': float(loc.latitude),
+                'longitude': float(loc.longitude),
+                'accuracy': loc.accuracy,
+                'speed': loc.speed,
+                'timestamp': loc.timestamp.isoformat(),
+            }
+            for loc in locations
+        ]
+        
+        # Calculate bounding box for map display
+        lats = [loc.latitude for loc in locations]
+        lons = [loc.longitude for loc in locations]
+        
+        return Response({
+            'has_route': True,
+            'route': route,
+            'total_points': total_points,
+            'gps_distance': gps_distance,
+            'bounding_box': {
+                'min_lat': float(min(lats)),
+                'max_lat': float(max(lats)),
+                'min_lon': float(min(lons)),
+                'max_lon': float(max(lons)),
+            },
+            'trip_info': {
+                'id': trip.id,
+                'origin': trip.origin,
+                'destination': trip.destination,
+                'status': trip.status,
+                'start_time': trip.start_time.isoformat() if trip.start_time else None,
+                'end_time': trip.end_time.isoformat() if trip.end_time else None,
+            }
+        })

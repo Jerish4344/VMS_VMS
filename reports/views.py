@@ -1615,3 +1615,181 @@ class StaffReportView(ReportBaseView):
             })
         
         return export_data, filename, headers
+
+class DepartmentReportView(ReportBaseView):
+    """
+    View for generating department-wise reports.
+    Shows trips, fuel consumption, distance, and costs per department.
+    """
+    template_name = 'reports/department_report.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        start_date, end_date = self.get_date_range_filters()
+        
+        # Convert to datetime objects
+        try:
+            start_date_obj = datetime.fromisoformat(start_date).date()
+            end_date_obj = datetime.fromisoformat(end_date).date()
+        except ValueError:
+            start_date_obj = timezone.now().date() - timedelta(days=30)
+            end_date_obj = timezone.now().date()
+            start_date = start_date_obj.isoformat()
+            end_date = end_date_obj.isoformat()
+        
+        # Create timezone-aware datetime objects for filtering
+        start_datetime = timezone.make_aware(
+            datetime.combine(start_date_obj, datetime.min.time())
+        )
+        end_datetime = timezone.make_aware(
+            datetime.combine(end_date_obj, datetime.max.time())
+        )
+        
+        # Import Department model
+        from accounts.models import Department
+        
+        # Get all departments
+        departments = Department.objects.filter(is_active=True)
+        
+        # Filter by department if specified
+        department_id = self.request.GET.get('department')
+        
+        department_report = []
+        
+        for dept in departments:
+            # Get employees in this department
+            employees = CustomUser.objects.filter(department=dept)
+            employee_ids = list(employees.values_list('id', flat=True))
+            
+            # Get company vehicles assigned to this department
+            dept_vehicles = Vehicle.objects.filter(department=dept, ownership_type='company')
+            vehicle_ids = list(dept_vehicles.values_list('id', flat=True))
+            
+            # Get trips by employees in this department OR using department vehicles
+            dept_trips = Trip.objects.filter(
+                Q(driver_id__in=employee_ids) | Q(vehicle_id__in=vehicle_ids),
+                status='completed',
+                start_time__gte=start_datetime,
+                end_time__lte=end_datetime,
+                is_deleted=False
+            ).distinct()
+            
+            # Calculate trip statistics
+            trip_count = dept_trips.count()
+            total_distance = 0
+            for trip in dept_trips:
+                if trip.end_odometer and trip.start_odometer:
+                    dist = trip.end_odometer - trip.start_odometer
+                    if dist > 0:
+                        total_distance += dist
+            
+            # Get fuel transactions by employees in this department
+            dept_fuel = FuelTransaction.objects.filter(
+                driver_id__in=employee_ids,
+                date__gte=start_date_obj,
+                date__lte=end_date_obj
+            )
+            
+            fuel_count = dept_fuel.count()
+            fuel_cost = dept_fuel.aggregate(total=Sum('total_cost'))['total'] or 0
+            fuel_quantity = dept_fuel.aggregate(total=Sum('quantity'))['total'] or 0
+            
+            # Calculate reimbursements for personal vehicle staff in this department
+            personal_vehicle_employees = employees.filter(user_type='personal_vehicle_staff')
+            pv_employee_ids = list(personal_vehicle_employees.values_list('id', flat=True))
+            
+            # Get personal vehicles of these employees
+            personal_vehicles = Vehicle.objects.filter(
+                owned_by_id__in=pv_employee_ids,
+                ownership_type='personal'
+            )
+            
+            # Get trips using personal vehicles
+            pv_trips = Trip.objects.filter(
+                vehicle__in=personal_vehicles,
+                status='completed',
+                start_time__gte=start_datetime,
+                end_time__lte=end_datetime,
+                is_deleted=False
+            ).select_related('vehicle')
+            
+            total_reimbursement = 0
+            for trip in pv_trips:
+                if trip.end_odometer and trip.start_odometer and trip.vehicle.reimbursement_rate_per_km:
+                    dist = trip.end_odometer - trip.start_odometer
+                    if dist > 0:
+                        total_reimbursement += float(dist) * float(trip.vehicle.reimbursement_rate_per_km)
+            
+            department_report.append({
+                'id': dept.id,
+                'name': dept.name,
+                'code': dept.code,
+                'employee_count': employees.count(),
+                'vehicle_count': dept_vehicles.count(),
+                'trip_count': trip_count,
+                'total_distance': total_distance,
+                'fuel_transactions': fuel_count,
+                'fuel_quantity': float(fuel_quantity) if fuel_quantity else 0,
+                'fuel_cost': float(fuel_cost) if fuel_cost else 0,
+                'reimbursement': total_reimbursement,
+                'total_cost': float(fuel_cost or 0) + total_reimbursement
+            })
+        
+        # Filter by selected department if specified
+        if department_id:
+            department_report = [d for d in department_report if str(d['id']) == department_id]
+        
+        # Sort by total cost descending
+        department_report.sort(key=lambda x: x['total_cost'], reverse=True)
+        
+        # Calculate totals
+        totals = {
+            'employees': sum(d['employee_count'] for d in department_report),
+            'vehicles': sum(d['vehicle_count'] for d in department_report),
+            'trips': sum(d['trip_count'] for d in department_report),
+            'distance': sum(d['total_distance'] for d in department_report),
+            'fuel_transactions': sum(d['fuel_transactions'] for d in department_report),
+            'fuel_quantity': sum(d['fuel_quantity'] for d in department_report),
+            'fuel_cost': sum(d['fuel_cost'] for d in department_report),
+            'reimbursement': sum(d['reimbursement'] for d in department_report),
+            'total_cost': sum(d['total_cost'] for d in department_report)
+        }
+        
+        context.update({
+            'department_report': department_report,
+            'totals': totals,
+            'departments': departments,
+            'start_date': start_date,
+            'end_date': end_date,
+            'selected_department': department_id
+        })
+        
+        return context
+    
+    def get_export_data(self, context):
+        """Prepare data for export"""
+        headers = [
+            'Department', 'Code', 'Employees', 'Vehicles', 'Trips', 
+            'Distance (km)', 'Fuel Transactions', 'Fuel (L)', 
+            'Fuel Cost (₹)', 'Reimbursement (₹)', 'Total Cost (₹)'
+        ]
+        
+        filename = f"department_report_{context['start_date']}_to_{context['end_date']}"
+        
+        export_data = []
+        for dept in context['department_report']:
+            export_data.append({
+                'department': dept['name'],
+                'code': dept['code'],
+                'employees': dept['employee_count'],
+                'vehicles': dept['vehicle_count'],
+                'trips': dept['trip_count'],
+                'distance_(km)': dept['total_distance'],
+                'fuel_transactions': dept['fuel_transactions'],
+                'fuel_(l)': round(dept['fuel_quantity'], 2),
+                'fuel_cost_(₹)': round(dept['fuel_cost'], 2),
+                'reimbursement_(₹)': round(dept['reimbursement'], 2),
+                'total_cost_(₹)': round(dept['total_cost'], 2)
+            })
+        
+        return export_data, filename, headers

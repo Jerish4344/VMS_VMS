@@ -94,6 +94,11 @@ class TripCreateSerializer(serializers.ModelSerializer):
         validated_data['start_time'] = timezone.now()
         validated_data['status'] = 'ongoing'
         validated_data['entry_type'] = 'real_time'
+        
+        # Auto-enable GPS tracking for personal vehicle staff
+        if request.user.user_type == 'personal_vehicle_staff':
+            validated_data['gps_tracking_enabled'] = True
+        
         return super().create(validated_data)
 
 
@@ -208,6 +213,7 @@ class DocumentSerializer(serializers.ModelSerializer):
     )
     status = serializers.SerializerMethodField()
     days_until_expiry = serializers.SerializerMethodField()
+    issuing_authority = serializers.CharField(required=False, allow_blank=True, default='')
     
     class Meta:
         model = Document

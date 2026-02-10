@@ -338,6 +338,11 @@ class StaffReportPermissionMixin(UserPassesTestMixin):
         return (self.request.user.is_authenticated and 
                 self.request.user.has_module_permission('reports', 'staff_report'))
 
+class DepartmentReportPermissionMixin(UserPassesTestMixin):
+    def test_func(self):
+        return (self.request.user.is_authenticated and 
+                self.request.user.has_module_permission('reports', 'department_report'))
+
 class DailyUsageCostPermissionMixin(UserPassesTestMixin):
     def test_func(self):
         return (self.request.user.is_authenticated and 

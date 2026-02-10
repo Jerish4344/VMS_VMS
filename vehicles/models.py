@@ -124,6 +124,15 @@ class Vehicle(models.Model):
         related_name='owned_vehicles',
         help_text="Staff member who owns this vehicle (for personal vehicles only)"
     )
+    # Department assignment (for company vehicles)
+    department = models.ForeignKey(
+        'accounts.Department',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='vehicles',
+        help_text="Department this vehicle is assigned to (for company vehicles)"
+    )
     reimbursement_rate_per_km = models.DecimalField(
         max_digits=8,
         decimal_places=2,

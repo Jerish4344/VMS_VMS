@@ -95,7 +95,7 @@ class Document(models.Model):
     document_number = models.CharField(max_length=100)
     issue_date = models.DateField()
     expiry_date = models.DateField()
-    issuing_authority = models.CharField(max_length=100)
+    issuing_authority = models.CharField(max_length=100, blank=True, default='')
     file = models.FileField(upload_to='vehicle_documents/', null=True, blank=True)
     notes = models.TextField(blank=True)
     

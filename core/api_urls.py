@@ -25,6 +25,7 @@ urlpatterns = [
     path('trips/my-trips/', api_views.MyTripsView.as_view(), name='api-my-trips'),
     path('trips/ongoing/', api_views.OngoingTripsView.as_view(), name='api-ongoing-trips'),
     path('trips/<int:pk>/end/', api_views.EndTripView.as_view(), name='api-end-trip'),
+    path('trips/<int:pk>/upload-odometer-image/', api_views.TripUploadOdometerImageView.as_view(), name='api-trip-upload-odometer-image'),
     
     # Vehicle types
     path('vehicles/types/', api_views.VehicleTypeListView.as_view(), name='api-vehicle-types'),
@@ -47,6 +48,19 @@ urlpatterns = [
     path('sor/notifications/', api_views.SORNotificationsView.as_view(), name='api-sor-notifications'),
     path('sor/notifications/<int:pk>/read/', api_views.SORNotificationMarkReadView.as_view(), name='api-sor-notification-read'),
     path('sor/notifications/mark-all-read/', api_views.SORNotificationMarkAllReadView.as_view(), name='api-sor-notifications-mark-all-read'),
+    
+    # Personal Vehicle Staff endpoints
+    path('personal-vehicles/', api_views.PersonalVehicleListView.as_view(), name='api-personal-vehicles'),
+    path('personal-vehicles/<int:pk>/', api_views.PersonalVehicleDetailView.as_view(), name='api-personal-vehicle-detail'),
+    path('personal-vehicles/reimbursement/', api_views.PersonalVehicleReimbursementView.as_view(), name='api-personal-vehicle-reimbursement'),
+    path('personal-vehicles/dashboard/', api_views.PersonalVehicleDashboardView.as_view(), name='api-personal-vehicle-dashboard'),
+    
+    # GPS Tracking endpoints for mobile app
+    path('gps/record/', api_views.GPSRecordLocationView.as_view(), name='api-gps-record'),
+    path('gps/batch/', api_views.GPSBatchRecordView.as_view(), name='api-gps-batch'),
+    path('gps/status/<int:trip_id>/', api_views.GPSTripStatusView.as_view(), name='api-gps-status'),
+    path('gps/finalize/<int:trip_id>/', api_views.GPSFinalizeView.as_view(), name='api-gps-finalize'),
+    path('gps/route/<int:trip_id>/', api_views.GPSTripRouteView.as_view(), name='api-gps-route'),
     
     # Router URLs (ViewSets) - must be last to not override specific paths
     path('', include(router.urls)),

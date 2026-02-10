@@ -1,0 +1,323 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Department Report | Vehicle Management System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card {
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+    }
+    .report-card:hover {
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+    .report-header {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border-radius: 15px 15px 0 0;
+        padding: 20px;
+    }
+    .report-body {
+        padding: 25px;
+    }
+    .report-footer {
+        background-color: #f8f9fc;
+        border-radius: 0 0 15px 15px;
+        padding: 15px 25px;
+    }
+    .summary-card {
+        border-radius: 15px;
+        border: none;
+        transition: all 0.3s ease;
+    }
+    .summary-card:hover {
+        transform: translateY(-5px);
+    }
+    .summary-icon {
+        font-size: 2rem;
+        opacity: 0.8;
+    }
+    .filter-form .form-control, .filter-form .form-select {
+        border-radius: 10px;
+    }
+    .btn-export {
+        border-radius: 10px;
+        font-weight: 600;
+    }
+    .cost-value {
+        font-weight: 700;
+        color: #e74a3b;
+    }
+    .fuel-value {
+        font-weight: 600;
+        color: #f6c23e;
+    }
+    .distance-value {
+        font-weight: 600;
+        color: #4e73df;
+    }
+    .reimbursement-value {
+        font-weight: 600;
+        color: #1cc88a;
+    }
+    .table-responsive {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .table th {
+        background-color: #f8f9fc;
+        font-weight: 600;
+    }
+    .dept-row {
+        transition: all 0.2s ease;
+    }
+    .dept-row:hover {
+        background-color: rgba(102, 126, 234, 0.05);
+        transform: translateX(5px);
+    }
+    .no-data {
+        text-align: center;
+        padding: 50px 0;
+        color: #6c757d;
+    }
+    .dept-badge {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+    }
+    .totals-row {
+        background-color: #f8f9fc;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-building me-2"></i> Department Report
+        </h1>
+        <div class="btn-group">
+            <a href="{% url 'department_report' %}?{% if request.GET.department %}department={{ request.GET.department }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}export=csv" class="btn btn-success btn-export">
+                <i class="fas fa-file-csv me-2"></i> Export CSV
+            </a>
+            <a href="{% url 'department_report' %}?{% if request.GET.department %}department={{ request.GET.department }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}export=excel" class="btn btn-primary btn-export">
+                <i class="fas fa-file-excel me-2"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-filter me-2"></i> Filter Report
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3 filter-form">
+                <div class="col-md-3">
+                    <label for="start_date" class="form-label">Start Date</label>
+                    <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="end_date" class="form-label">End Date</label>
+                    <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="department" class="form-label">Department</label>
+                    <select class="form-select" id="department" name="department">
+                        <option value="">All Departments</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if selected_department|stringformat:"s" == dept.id|stringformat:"s" %}selected{% endif %}>
+                            {{ dept.name }} {% if dept.code %}({{ dept.code }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-search me-2"></i> Apply Filters
+                    </button>
+                    <a href="{% url 'department_report' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-undo me-2"></i> Reset
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card bg-white shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Trips</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ totals.trips }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-route summary-icon text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card bg-white shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Distance</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ totals.distance|floatformat:1 }} km</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-road summary-icon text-info"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card bg-white shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Total Fuel Cost</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">₹{{ totals.fuel_cost|floatformat:2 }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-gas-pump summary-icon text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card bg-white shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Total Cost</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">₹{{ totals.total_cost|floatformat:2 }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-rupee-sign summary-icon text-danger"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Department Report Table -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-building me-2"></i> Department-wise Summary
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Department</th>
+                            <th class="text-center">Employees</th>
+                            <th class="text-center">Vehicles</th>
+                            <th class="text-center">Trips</th>
+                            <th class="text-end">Distance (km)</th>
+                            <th class="text-center">Fuel Txns</th>
+                            <th class="text-end">Fuel (L)</th>
+                            <th class="text-end">Fuel Cost (₹)</th>
+                            <th class="text-end">Reimbursement (₹)</th>
+                            <th class="text-end">Total Cost (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dept in department_report %}
+                        <tr class="dept-row">
+                            <td>
+                                <span class="dept-badge">{{ dept.name }}</span>
+                                {% if dept.code %}<small class="text-muted ms-2">({{ dept.code }})</small>{% endif %}
+                            </td>
+                            <td class="text-center">{{ dept.employee_count }}</td>
+                            <td class="text-center">{{ dept.vehicle_count }}</td>
+                            <td class="text-center">{{ dept.trip_count }}</td>
+                            <td class="text-end distance-value">{{ dept.total_distance|floatformat:1 }}</td>
+                            <td class="text-center">{{ dept.fuel_transactions }}</td>
+                            <td class="text-end fuel-value">{{ dept.fuel_quantity|floatformat:2 }}</td>
+                            <td class="text-end fuel-value">₹{{ dept.fuel_cost|floatformat:2 }}</td>
+                            <td class="text-end reimbursement-value">₹{{ dept.reimbursement|floatformat:2 }}</td>
+                            <td class="text-end cost-value">₹{{ dept.total_cost|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="10" class="no-data">
+                                <i class="fas fa-building fa-3x mb-3 text-muted"></i>
+                                <p class="mb-0">No department data available for the selected period.</p>
+                                <p class="text-muted small">Try adjusting the date range or create departments first.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if department_report %}
+                    <tfoot>
+                        <tr class="totals-row">
+                            <td><strong>TOTAL</strong></td>
+                            <td class="text-center"><strong>{{ totals.employees }}</strong></td>
+                            <td class="text-center"><strong>{{ totals.vehicles }}</strong></td>
+                            <td class="text-center"><strong>{{ totals.trips }}</strong></td>
+                            <td class="text-end"><strong class="distance-value">{{ totals.distance|floatformat:1 }}</strong></td>
+                            <td class="text-center"><strong>{{ totals.fuel_transactions }}</strong></td>
+                            <td class="text-end"><strong class="fuel-value">{{ totals.fuel_quantity|floatformat:2 }}</strong></td>
+                            <td class="text-end"><strong class="fuel-value">₹{{ totals.fuel_cost|floatformat:2 }}</strong></td>
+                            <td class="text-end"><strong class="reimbursement-value">₹{{ totals.reimbursement|floatformat:2 }}</strong></td>
+                            <td class="text-end"><strong class="cost-value">₹{{ totals.total_cost|floatformat:2 }}</strong></td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Card -->
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="font-weight-bold text-primary mb-3">
+                        <i class="fas fa-info-circle me-2"></i> About This Report
+                    </h6>
+                    <ul class="mb-0">
+                        <li><strong>Employees:</strong> Users assigned to the department</li>
+                        <li><strong>Vehicles:</strong> Company vehicles assigned to the department</li>
+                        <li><strong>Trips:</strong> Completed trips by department employees or using department vehicles</li>
+                        <li><strong>Fuel:</strong> Fuel transactions recorded by department employees</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="font-weight-bold text-primary mb-3">
+                        <i class="fas fa-calculator me-2"></i> Cost Calculation
+                    </h6>
+                    <ul class="mb-0">
+                        <li><strong>Fuel Cost:</strong> Total fuel expenses by department employees</li>
+                        <li><strong>Reimbursement:</strong> Personal vehicle trip reimbursements</li>
+                        <li><strong>Total Cost:</strong> Fuel Cost + Reimbursement</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

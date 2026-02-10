@@ -5,7 +5,7 @@ from django.utils.html import format_html
 from django.utils import timezone
 from datetime import timedelta
 from django.utils.html import format_html
-from .models import CustomUser, Module, Permission, UserPermission, UserRole
+from .models import CustomUser, Module, Permission, UserPermission, UserRole, Department
 from django.contrib.auth.forms import UserChangeForm, UserCreationForm
 
 # Should match the value in backends.py
@@ -25,8 +25,8 @@ class CustomUserAdmin(DefaultUserAdmin):
     form = CustomUserChangeForm
     add_form = CustomUserCreationForm
     
-    list_display = ('username', 'email', 'first_name', 'last_name', 'user_type', 'is_active', 'approval_status', 'cached_password_status', 'hr_authenticated_at', 'get_assigned_stores_count')
-    list_filter = ('user_type', 'approval_status', 'is_active', 'is_staff', 'assigned_stores')
+    list_display = ('username', 'email', 'first_name', 'last_name', 'user_type', 'department', 'is_active', 'approval_status', 'cached_password_status', 'hr_authenticated_at', 'get_assigned_stores_count')
+    list_filter = ('user_type', 'department', 'approval_status', 'is_active', 'is_staff', 'assigned_stores')
     search_fields = ('username', 'email', 'first_name', 'last_name')
     ordering = ('username',)
     filter_horizontal = ('assigned_stores',)  # Makes the many-to-many field easier to manage
@@ -63,7 +63,7 @@ class CustomUserAdmin(DefaultUserAdmin):
         (None, {'fields': ('username', 'password')}),
         (_('Personal info'), {'fields': ('first_name', 'last_name', 'email', 'phone_number', 'address', 'profile_picture')}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
-        (_('User Type'), {'fields': ('user_type',)}),
+        (_('User Type & Department'), {'fields': ('user_type', 'department')}),
         (_('Driver Info'), {'fields': ('license_number', 'license_expiry')}),
         (_('Generator Access'), {'fields': ('assigned_stores',)}),
         (_('Approval System'), {'fields': ('approval_status', 'approved_by', 'approved_at', 'rejection_reason')}),
@@ -164,6 +164,30 @@ class UserRoleAdmin(admin.ModelAdmin):
             count
         )
     permissions_count.short_description = 'Default Permissions'
+
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'is_active', 'get_employee_count', 'get_vehicle_count', 'created_at')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'code', 'description')
+    ordering = ('name',)
+    list_editable = ('is_active',)
+    
+    fieldsets = (
+        (None, {'fields': ('name', 'code', 'description')}),
+        ('Status', {'fields': ('is_active',)}),
+    )
+    
+    def get_employee_count(self, obj):
+        count = obj.get_employee_count()
+        return format_html('<span style="color: blue;">{}</span>', count)
+    get_employee_count.short_description = 'Employees'
+    
+    def get_vehicle_count(self, obj):
+        count = obj.get_vehicle_count()
+        return format_html('<span style="color: green;">{}</span>', count)
+    get_vehicle_count.short_description = 'Vehicles'
 
 
 # Customize the admin site

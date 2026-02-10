@@ -208,14 +208,16 @@ class TripListView(LoginRequiredMixin, ListView):
         context['total_completed_count'] = full_queryset.filter(status='completed').count()
         context['total_cancelled_count'] = full_queryset.filter(status='cancelled').count()
         
-        # Add vehicles for filter
+        # Add vehicles for filter - exclude personal vehicles for drivers
         if self.request.user.user_type == 'driver':
             context['vehicles'] = Vehicle.objects.filter(
+                ownership_type='company'
+            ).filter(
                 Q(assigned_driver=self.request.user) | 
                 Q(trips__driver=self.request.user)
             ).distinct()
         else:
-            context['vehicles'] = Vehicle.objects.all()
+            context['vehicles'] = Vehicle.objects.filter(ownership_type='company')
         # Vehicle types for UI filter
         context['vehicle_types'] = VehicleType.objects.all().order_by('name')
         
@@ -238,7 +240,7 @@ class TripListView(LoginRequiredMixin, ListView):
         
         # Add user permissions context
         context['can_start_trip'] = self.request.user.user_type in ['driver', 'admin', 'manager', 'vehicle_manager']
-        
+
         # Check if GPS tracking should be auto-started for a newly created trip
         if 'start_gps_tracking' in self.request.session:
             context['start_gps_tracking'] = self.request.session.pop('start_gps_tracking')
@@ -519,7 +521,7 @@ class StartTripView(LoginRequiredMixin, CanDriveVehicleMixin, CreateView):
         
         # Set the start time to the current time automatically
         form.instance.start_time = timezone.now()
-        
+
         # Auto-enable GPS tracking for ALL trips (even if browser location permission denied)
         form.instance.gps_tracking_enabled = True
         
@@ -545,7 +547,7 @@ class StartTripView(LoginRequiredMixin, CanDriveVehicleMixin, CreateView):
         vehicle = form.instance.vehicle
         vehicle.status = 'in_use'
         vehicle.save()
-        
+
         # Save the trip first to get the trip ID
         response = super().form_valid(form)
         
@@ -618,7 +620,7 @@ class EndTripView(LoginRequiredMixin, UpdateView):
         trip = form.instance
         destination = form.cleaned_data.get('destination')
         end_odometer = form.cleaned_data.get('end_odometer')
-        
+
         # Handle GPS end coordinates if tracking was enabled
         if trip.gps_tracking_enabled:
             gps_end_lat = self.request.POST.get('gps_end_lat')
@@ -631,7 +633,7 @@ class EndTripView(LoginRequiredMixin, UpdateView):
                     trip.gps_end_lon = Decimal(gps_end_lon)
                 except (ValueError, Exception) as e:
                     messages.warning(self.request, f'GPS end coordinates could not be saved: {str(e)}')
-        
+
         try:
             # Use the model's end_trip method
             trip.end_trip(
@@ -699,8 +701,8 @@ class ManualTripCreateView(LoginRequiredMixin, VehicleManagerRequiredMixin, Crea
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Get all vehicles for selection
-        context['vehicles'] = Vehicle.objects.all().select_related('vehicle_type')
+        # Get company vehicles only for selection
+        context['vehicles'] = Vehicle.objects.filter(ownership_type='company').select_related('vehicle_type')
         
         # Get all drivers
         from accounts.models import CustomUser
@@ -1054,7 +1056,7 @@ class ManualTripListView(LoginRequiredMixin, VehicleManagerRequiredMixin, ListVi
         }
 
         context['all_drivers'] = CustomUser.objects.filter(user_type='driver').order_by('first_name', 'last_name')
-        context['all_vehicles'] = Vehicle.objects.all().order_by('license_plate')
+        context['all_vehicles'] = Vehicle.objects.filter(ownership_type='company').order_by('license_plate')
 
         all_trips = self.get_queryset()
         context['total_trips'] = all_trips.count()
@@ -1276,8 +1278,8 @@ def get_edit_context(trip):
     # Get all drivers - you can customize this based on your User model
     drivers = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
     
-    # Get all vehicles
-    vehicles = Vehicle.objects.all().order_by('license_plate')
+    # Get company vehicles only
+    vehicles = Vehicle.objects.filter(ownership_type='company').order_by('license_plate')
     
     return {
         'trip': trip,
@@ -1291,8 +1293,8 @@ def get_edit_context(trip):
     # Get all drivers - you can customize this based on your User model
     drivers = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
     
-    # Get all vehicles
-    vehicles = Vehicle.objects.all().order_by('license_plate')
+    # Get company vehicles only
+    vehicles = Vehicle.objects.filter(ownership_type='company').order_by('license_plate')
     
     return {
         'trip': trip,
@@ -1313,9 +1315,8 @@ def trip_edit_filtered(request, pk):
     # Get drivers - you can customize this based on your User model
     drivers = User.objects.all()
     
-    # Get vehicles with proper filtering based on your status field
-    # Check what status values you have in your database first
-    vehicles = Vehicle.objects.all()
+    # Get company vehicles only
+    vehicles = Vehicle.objects.filter(ownership_type='company')
     
     # If you know the exact status values, use something like:
     # vehicles = Vehicle.objects.filter(status__in=['active', 'available', 'operational'])
@@ -1905,7 +1906,7 @@ def export_trips(request):
         return export_trips_pdf(queryset, include_notes, include_driver, include_vehicle)
     else:
         return HttpResponse('Invalid format', status=400)
-
+    
 
 class StaffTripsView(AdminRequiredMixin, ListView):
     """
@@ -1922,8 +1923,15 @@ class StaffTripsView(AdminRequiredMixin, ListView):
         queryset = Trip.objects.filter(
             driver__user_type='personal_vehicle_staff',
             gps_tracking_enabled=True,
-            status='completed'
+            status__in=['ongoing', 'completed']
         ).select_related('driver', 'vehicle', 'gps_session').order_by('-start_time')
+        
+        # Filter by status
+        status_filter = self.request.GET.get('status_filter', 'all')
+        if status_filter == 'ongoing':
+            queryset = queryset.filter(status='ongoing')
+        elif status_filter == 'completed':
+            queryset = queryset.filter(status='completed')
         
         # Filter by review status
         review_filter = self.request.GET.get('review_filter', 'all')
@@ -1971,22 +1979,26 @@ class StaffTripsView(AdminRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Calculate summary statistics
+        # Calculate summary statistics - include all status for count
         all_staff_trips = Trip.objects.filter(
             driver__user_type='personal_vehicle_staff',
             gps_tracking_enabled=True,
-            status='completed'
+            status__in=['ongoing', 'completed']
         )
+        completed_trips = all_staff_trips.filter(status='completed')
         
         context['total_staff_trips'] = all_staff_trips.count()
-        context['flagged_trips'] = all_staff_trips.filter(gps_session__requires_review=True).count()
-        context['high_variance_trips'] = all_staff_trips.filter(gps_session__variance_percentage__gt=15).count()
-        context['pending_review_trips'] = all_staff_trips.filter(
+        context['ongoing_trips'] = all_staff_trips.filter(status='ongoing').count()
+        context['completed_trips'] = completed_trips.count()
+        context['flagged_trips'] = completed_trips.filter(gps_session__requires_review=True).count()
+        context['high_variance_trips'] = completed_trips.filter(gps_session__variance_percentage__gt=15).count()
+        context['pending_review_trips'] = completed_trips.filter(
             gps_session__requires_review=True,
             gps_session__approved__isnull=True
         ).count()
         
         # Pass current filters
+        context['status_filter'] = self.request.GET.get('status_filter', 'all')
         context['review_filter'] = self.request.GET.get('review_filter', 'all')
         context['search'] = self.request.GET.get('search', '')
         context['date_from'] = self.request.GET.get('date_from', '')
@@ -2153,5 +2165,3 @@ class LiveTrackingDataView(LoginRequiredMixin, View):
             'count': len(vehicles_data),
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         })
-
-

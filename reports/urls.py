@@ -2,7 +2,7 @@ from django.urls import path
 # Import FirmReportView from new file
 from .views import (
     VehicleReportView, DriverReportView, MaintenanceReportView, FuelReportView, 
-    DailyUsageCostView, StaffReportView
+    DailyUsageCostView, StaffReportView, DepartmentReportView
 )
 from .firm_report_view import FirmReportView
 # Consultant report view resides in a separate module to keep code modular
@@ -17,4 +17,5 @@ urlpatterns = [
     path('daily-usage-cost/', DailyUsageCostView.as_view(), name='daily_usage_cost'),
     path('firm/', FirmReportView.as_view(), name='firm_report'),
     path('staff/', StaffReportView.as_view(), name='staff_report'),
+    path('department/', DepartmentReportView.as_view(), name='department_report'),
 ]
