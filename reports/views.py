@@ -49,9 +49,9 @@ class ReportBaseView(LoginRequiredMixin, VehicleManagerRequiredMixin, TemplateVi
         start_date = self.request.GET.get('start_date')
         end_date = self.request.GET.get('end_date')
         
-        # Default to last 30 days if no dates provided
+        # Default to today if no dates provided
         if not start_date:
-            start_date = (timezone.now().date() - timedelta(days=30)).isoformat()
+            start_date = timezone.now().date().isoformat()
         if not end_date:
             end_date = timezone.now().date().isoformat()
             
@@ -115,7 +115,7 @@ class VehicleReportView(ReportBaseView):
             start_date_obj = datetime.fromisoformat(start_date).date()
             end_date_obj = datetime.fromisoformat(end_date).date()
         except ValueError:
-            start_date_obj = timezone.now().date() - timedelta(days=30)
+            start_date_obj = timezone.now().date()
             end_date_obj = timezone.now().date()
             start_date = start_date_obj.isoformat()
             end_date = end_date_obj.isoformat()
@@ -370,9 +370,9 @@ class DriverReportView(ReportBaseView):
         start_date = self.request.GET.get('start_date')
         end_date = self.request.GET.get('end_date')
         
-        # Default to last 90 days instead of 30 days to catch more data
+        # Default to today
         if not start_date:
-            start_date = (timezone.now().date() - timedelta(days=90)).isoformat()
+            start_date = timezone.now().date().isoformat()
         if not end_date:
             end_date = timezone.now().date().isoformat()
             
@@ -387,7 +387,7 @@ class DriverReportView(ReportBaseView):
             start_date_obj = datetime.fromisoformat(start_date).date()
             end_date_obj = datetime.fromisoformat(end_date).date()
         except ValueError:
-            start_date_obj = timezone.now().date() - timedelta(days=90)
+            start_date_obj = timezone.now().date()
             end_date_obj = timezone.now().date()
             start_date = start_date_obj.isoformat()
             end_date = end_date_obj.isoformat()
@@ -615,9 +615,38 @@ class DriverReportView(ReportBaseView):
             'Accident Count', 'Accidents per 1000 km'
         ]
         
+        # Map data keys to match headers format
+        export_data = []
+        for row in context['driver_report_all']:
+            export_row = {
+                'name': row.get('name', ''),
+                'username': row.get('username', ''),
+                'license_number': row.get('license_number', ''),
+                'license_expiry': row.get('license_expiry', ''),
+                'trip_count': row.get('trip_count', 0),
+                'completed_trips': row.get('completed_trip_count', 0),
+                'ongoing_trips': row.get('ongoing_trip_count', 0),
+                'cancelled_trips': row.get('cancelled_trip_count', 0),
+                'total_distance_(km)': row.get('total_distance', 0),
+                'avg_trip_distance_(km)': row.get('avg_distance', 0),
+                'total_hours': row.get('total_hours', 0),
+                'avg_speed_(km/h)': row.get('avg_speed', 0),
+                'fuel_transactions': row.get('fuel_count', 0),
+                'total_fuel_(l)': row.get('total_fuel', 0),
+                'total_fuel_cost': row.get('total_fuel_cost', 0),
+                'fuel_efficiency_(km/l)': row.get('fuel_efficiency', 0),
+                'energy_transactions': row.get('energy_count', 0),
+                'total_energy_(kwh)': row.get('total_energy', 0),
+                'total_energy_cost': row.get('total_energy_cost', 0),
+                'energy_efficiency_(km/kwh)': row.get('energy_efficiency', 0),
+                'accident_count': row.get('accident_count', 0),
+                'accidents_per_1000_km': row.get('accidents_per_1000km', 0),
+            }
+            export_data.append(export_row)
+        
         filename = f"optimized_driver_report_{context['start_date']}_to_{context['end_date']}"
         
-        return context['driver_report_all'], filename, headers
+        return export_data, filename, headers
 
 
 class MaintenanceReportView(ReportBaseView):
@@ -632,7 +661,7 @@ class MaintenanceReportView(ReportBaseView):
             start_date_obj = datetime.fromisoformat(start_date).date()
             end_date_obj = datetime.fromisoformat(end_date).date()
         except ValueError:
-            start_date_obj = timezone.now().date() - timedelta(days=30)
+            start_date_obj = timezone.now().date()
             end_date_obj = timezone.now().date()
             start_date = start_date_obj.isoformat()
             end_date = end_date_obj.isoformat()
@@ -909,7 +938,7 @@ class FuelReportView(ReportBaseView):
             start_date_obj = datetime.fromisoformat(start_date).date()
             end_date_obj = datetime.fromisoformat(end_date).date()
         except ValueError:
-            start_date_obj = timezone.now().date() - timedelta(days=30)
+            start_date_obj = timezone.now().date()
             end_date_obj = timezone.now().date()
             start_date = start_date_obj.isoformat()
             end_date = end_date_obj.isoformat()
@@ -1227,7 +1256,7 @@ class DailyUsageCostView(ReportBaseView):
         # Get date range from request
         start_date, end_date = self.get_date_range_filters()
         if not start_date:
-            start_date = timezone.now().date() - timedelta(days=30)
+            start_date = timezone.now().date()
         else:
             start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
         if not end_date:
@@ -1413,7 +1442,7 @@ class StaffReportView(ReportBaseView):
             start_date_obj = datetime.fromisoformat(start_date).date()
             end_date_obj = datetime.fromisoformat(end_date).date()
         except ValueError:
-            start_date_obj = timezone.now().date() - timedelta(days=30)
+            start_date_obj = timezone.now().date()
             end_date_obj = timezone.now().date()
             start_date = start_date_obj.isoformat()
             end_date = end_date_obj.isoformat()
@@ -1616,6 +1645,7 @@ class StaffReportView(ReportBaseView):
         
         return export_data, filename, headers
 
+
 class DepartmentReportView(ReportBaseView):
     """
     View for generating department-wise reports.
@@ -1632,7 +1662,7 @@ class DepartmentReportView(ReportBaseView):
             start_date_obj = datetime.fromisoformat(start_date).date()
             end_date_obj = datetime.fromisoformat(end_date).date()
         except ValueError:
-            start_date_obj = timezone.now().date() - timedelta(days=30)
+            start_date_obj = timezone.now().date()
             end_date_obj = timezone.now().date()
             start_date = start_date_obj.isoformat()
             end_date = end_date_obj.isoformat()
@@ -1662,77 +1692,117 @@ class DepartmentReportView(ReportBaseView):
             employee_ids = list(employees.values_list('id', flat=True))
             
             # Get company vehicles assigned to this department
-            dept_vehicles = Vehicle.objects.filter(department=dept, ownership_type='company')
-            vehicle_ids = list(dept_vehicles.values_list('id', flat=True))
+            company_vehicles = Vehicle.objects.filter(department=dept, ownership_type='company')
+            company_vehicle_ids = list(company_vehicles.values_list('id', flat=True))
             
-            # Get trips by employees in this department OR using department vehicles
-            dept_trips = Trip.objects.filter(
-                Q(driver_id__in=employee_ids) | Q(vehicle_id__in=vehicle_ids),
-                status='completed',
-                start_time__gte=start_datetime,
-                end_time__lte=end_datetime,
-                is_deleted=False
-            ).distinct()
-            
-            # Calculate trip statistics
-            trip_count = dept_trips.count()
-            total_distance = 0
-            for trip in dept_trips:
-                if trip.end_odometer and trip.start_odometer:
-                    dist = trip.end_odometer - trip.start_odometer
-                    if dist > 0:
-                        total_distance += dist
-            
-            # Get fuel transactions by employees in this department
-            dept_fuel = FuelTransaction.objects.filter(
-                driver_id__in=employee_ids,
-                date__gte=start_date_obj,
-                date__lte=end_date_obj
-            )
-            
-            fuel_count = dept_fuel.count()
-            fuel_cost = dept_fuel.aggregate(total=Sum('total_cost'))['total'] or 0
-            fuel_quantity = dept_fuel.aggregate(total=Sum('quantity'))['total'] or 0
-            
-            # Calculate reimbursements for personal vehicle staff in this department
+            # Get personal vehicles of employees in this department
             personal_vehicle_employees = employees.filter(user_type='personal_vehicle_staff')
             pv_employee_ids = list(personal_vehicle_employees.values_list('id', flat=True))
-            
-            # Get personal vehicles of these employees
             personal_vehicles = Vehicle.objects.filter(
                 owned_by_id__in=pv_employee_ids,
                 ownership_type='personal'
             )
+            personal_vehicle_ids = list(personal_vehicles.values_list('id', flat=True))
             
-            # Get trips using personal vehicles
-            pv_trips = Trip.objects.filter(
-                vehicle__in=personal_vehicles,
+            # ========== COMPANY VEHICLE STATS ==========
+            # Get trips using company vehicles
+            company_trips = Trip.objects.filter(
+                vehicle_id__in=company_vehicle_ids,
                 status='completed',
                 start_time__gte=start_datetime,
                 end_time__lte=end_datetime,
                 is_deleted=False
             ).select_related('vehicle')
             
-            total_reimbursement = 0
-            for trip in pv_trips:
-                if trip.end_odometer and trip.start_odometer and trip.vehicle.reimbursement_rate_per_km:
+            company_trip_count = company_trips.count()
+            company_distance = 0
+            for trip in company_trips:
+                if trip.end_odometer and trip.start_odometer:
                     dist = trip.end_odometer - trip.start_odometer
                     if dist > 0:
-                        total_reimbursement += float(dist) * float(trip.vehicle.reimbursement_rate_per_km)
+                        company_distance += dist
+            
+            # Get fuel transactions for company vehicles
+            company_fuel = FuelTransaction.objects.filter(
+                vehicle_id__in=company_vehicle_ids,
+                date__gte=start_date_obj,
+                date__lte=end_date_obj
+            )
+            company_fuel_count = company_fuel.count()
+            company_fuel_cost = company_fuel.aggregate(total=Sum('total_cost'))['total'] or 0
+            company_fuel_quantity = company_fuel.aggregate(total=Sum('quantity'))['total'] or 0
+            
+            # ========== PERSONAL VEHICLE STATS ==========
+            # Get trips using personal vehicles
+            personal_trips = Trip.objects.filter(
+                vehicle_id__in=personal_vehicle_ids,
+                status='completed',
+                start_time__gte=start_datetime,
+                end_time__lte=end_datetime,
+                is_deleted=False
+            ).select_related('vehicle')
+            
+            personal_trip_count = personal_trips.count()
+            personal_distance = 0
+            total_reimbursement = 0
+            for trip in personal_trips:
+                if trip.end_odometer and trip.start_odometer:
+                    dist = trip.end_odometer - trip.start_odometer
+                    if dist > 0:
+                        personal_distance += dist
+                        if trip.vehicle.reimbursement_rate_per_km:
+                            total_reimbursement += float(dist) * float(trip.vehicle.reimbursement_rate_per_km)
+            
+            # Get fuel transactions for personal vehicles
+            personal_fuel = FuelTransaction.objects.filter(
+                vehicle_id__in=personal_vehicle_ids,
+                date__gte=start_date_obj,
+                date__lte=end_date_obj
+            )
+            personal_fuel_count = personal_fuel.count()
+            personal_fuel_cost = personal_fuel.aggregate(total=Sum('total_cost'))['total'] or 0
+            personal_fuel_quantity = personal_fuel.aggregate(total=Sum('quantity'))['total'] or 0
+            
+            # Calculate totals
+            total_vehicles = company_vehicles.count() + personal_vehicles.count()
+            total_trips = company_trip_count + personal_trip_count
+            total_distance = company_distance + personal_distance
+            total_fuel_transactions = company_fuel_count + personal_fuel_count
+            total_fuel_quantity = float(company_fuel_quantity or 0) + float(personal_fuel_quantity or 0)
+            total_fuel_cost = float(company_fuel_cost or 0) + float(personal_fuel_cost or 0)
+            total_cost = total_fuel_cost + total_reimbursement
             
             department_report.append({
                 'id': dept.id,
                 'name': dept.name,
                 'code': dept.code,
                 'employee_count': employees.count(),
-                'vehicle_count': dept_vehicles.count(),
-                'trip_count': trip_count,
+                # Company vehicle stats
+                'company_vehicle_count': company_vehicles.count(),
+                'company_trip_count': company_trip_count,
+                'company_distance': company_distance,
+                'company_fuel_transactions': company_fuel_count,
+                'company_fuel_quantity': float(company_fuel_quantity) if company_fuel_quantity else 0,
+                'company_fuel_cost': float(company_fuel_cost) if company_fuel_cost else 0,
+                'company_total_cost': float(company_fuel_cost) if company_fuel_cost else 0,
+                # Personal vehicle stats
+                'personal_vehicle_count': personal_vehicles.count(),
+                'personal_trip_count': personal_trip_count,
+                'personal_distance': personal_distance,
+                'personal_fuel_transactions': personal_fuel_count,
+                'personal_fuel_quantity': float(personal_fuel_quantity) if personal_fuel_quantity else 0,
+                'personal_fuel_cost': float(personal_fuel_cost) if personal_fuel_cost else 0,
+                'personal_reimbursement': total_reimbursement,
+                'personal_total_cost': float(personal_fuel_cost or 0) + total_reimbursement,
+                # Overall totals (for sorting and grand totals)
+                'vehicle_count': total_vehicles,
+                'trip_count': total_trips,
                 'total_distance': total_distance,
-                'fuel_transactions': fuel_count,
-                'fuel_quantity': float(fuel_quantity) if fuel_quantity else 0,
-                'fuel_cost': float(fuel_cost) if fuel_cost else 0,
+                'fuel_transactions': total_fuel_transactions,
+                'fuel_quantity': total_fuel_quantity,
+                'fuel_cost': total_fuel_cost,
                 'reimbursement': total_reimbursement,
-                'total_cost': float(fuel_cost or 0) + total_reimbursement
+                'total_cost': total_cost
             })
         
         # Filter by selected department if specified
@@ -1752,7 +1822,24 @@ class DepartmentReportView(ReportBaseView):
             'fuel_quantity': sum(d['fuel_quantity'] for d in department_report),
             'fuel_cost': sum(d['fuel_cost'] for d in department_report),
             'reimbursement': sum(d['reimbursement'] for d in department_report),
-            'total_cost': sum(d['total_cost'] for d in department_report)
+            'total_cost': sum(d['total_cost'] for d in department_report),
+            # Company vehicle totals
+            'company_vehicles': sum(d['company_vehicle_count'] for d in department_report),
+            'company_trips': sum(d['company_trip_count'] for d in department_report),
+            'company_distance': sum(d['company_distance'] for d in department_report),
+            'company_fuel_transactions': sum(d['company_fuel_transactions'] for d in department_report),
+            'company_fuel_quantity': sum(d['company_fuel_quantity'] for d in department_report),
+            'company_fuel_cost': sum(d['company_fuel_cost'] for d in department_report),
+            'company_total_cost': sum(d['company_total_cost'] for d in department_report),
+            # Personal vehicle totals
+            'personal_vehicles': sum(d['personal_vehicle_count'] for d in department_report),
+            'personal_trips': sum(d['personal_trip_count'] for d in department_report),
+            'personal_distance': sum(d['personal_distance'] for d in department_report),
+            'personal_fuel_transactions': sum(d['personal_fuel_transactions'] for d in department_report),
+            'personal_fuel_quantity': sum(d['personal_fuel_quantity'] for d in department_report),
+            'personal_fuel_cost': sum(d['personal_fuel_cost'] for d in department_report),
+            'personal_reimbursement': sum(d['personal_reimbursement'] for d in department_report),
+            'personal_total_cost': sum(d['personal_total_cost'] for d in department_report),
         }
         
         context.update({
@@ -1769,7 +1856,7 @@ class DepartmentReportView(ReportBaseView):
     def get_export_data(self, context):
         """Prepare data for export"""
         headers = [
-            'Department', 'Code', 'Employees', 'Vehicles', 'Trips', 
+            'Department', 'Vehicle Type', 'Vehicles', 'Trips', 
             'Distance (km)', 'Fuel Transactions', 'Fuel (L)', 
             'Fuel Cost (₹)', 'Reimbursement (₹)', 'Total Cost (₹)'
         ]
@@ -1778,18 +1865,31 @@ class DepartmentReportView(ReportBaseView):
         
         export_data = []
         for dept in context['department_report']:
+            # Company Vehicle row
             export_data.append({
                 'department': dept['name'],
-                'code': dept['code'],
-                'employees': dept['employee_count'],
-                'vehicles': dept['vehicle_count'],
-                'trips': dept['trip_count'],
-                'distance_(km)': dept['total_distance'],
-                'fuel_transactions': dept['fuel_transactions'],
-                'fuel_(l)': round(dept['fuel_quantity'], 2),
-                'fuel_cost_(₹)': round(dept['fuel_cost'], 2),
-                'reimbursement_(₹)': round(dept['reimbursement'], 2),
-                'total_cost_(₹)': round(dept['total_cost'], 2)
+                'vehicle_type': 'Company Vehicle',
+                'vehicles': dept['company_vehicle_count'],
+                'trips': dept['company_trip_count'],
+                'distance_(km)': dept['company_distance'],
+                'fuel_transactions': dept['company_fuel_transactions'],
+                'fuel_(l)': round(dept['company_fuel_quantity'], 2),
+                'fuel_cost_(₹)': round(dept['company_fuel_cost'], 2),
+                'reimbursement_(₹)': 0,
+                'total_cost_(₹)': round(dept['company_total_cost'], 2)
+            })
+            # Personal Vehicle row
+            export_data.append({
+                'department': dept['name'],
+                'vehicle_type': 'Personal Vehicle',
+                'vehicles': dept['personal_vehicle_count'],
+                'trips': dept['personal_trip_count'],
+                'distance_(km)': dept['personal_distance'],
+                'fuel_transactions': dept['personal_fuel_transactions'],
+                'fuel_(l)': round(dept['personal_fuel_quantity'], 2),
+                'fuel_cost_(₹)': round(dept['personal_fuel_cost'], 2),
+                'reimbursement_(₹)': round(dept['personal_reimbursement'], 2),
+                'total_cost_(₹)': round(dept['personal_total_cost'], 2)
             })
         
         return export_data, filename, headers

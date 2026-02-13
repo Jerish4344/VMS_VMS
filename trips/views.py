@@ -47,14 +47,14 @@ logger = logging.getLogger(__name__)
 class CanDriveVehicleMixin:
     """
     Mixin to check if user can drive vehicles.
-    Allows: drivers, admins, managers, vehicle_managers, and personal_vehicle_staff
+    Allows: drivers, admins, managers, vehicle_managers, personal_vehicle_staff, and company_vehicle_staff
     """
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect('login')
         
         # Allow these user types to drive vehicles
-        allowed_user_types = ['driver', 'admin', 'manager', 'vehicle_manager', 'personal_vehicle_staff']
+        allowed_user_types = ['driver', 'admin', 'manager', 'vehicle_manager', 'personal_vehicle_staff', 'company_vehicle_staff']
         
         if request.user.user_type not in allowed_user_types:
             messages.error(request, 'You do not have permission to access this feature.')
@@ -239,7 +239,7 @@ class TripListView(LoginRequiredMixin, ListView):
         context['search_params'] = search_params
         
         # Add user permissions context
-        context['can_start_trip'] = self.request.user.user_type in ['driver', 'admin', 'manager', 'vehicle_manager']
+        context['can_start_trip'] = self.request.user.user_type in ['driver', 'admin', 'manager', 'vehicle_manager', 'personal_vehicle_staff', 'company_vehicle_staff']
 
         # Check if GPS tracking should be auto-started for a newly created trip
         if 'start_gps_tracking' in self.request.session:

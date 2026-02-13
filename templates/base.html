@@ -405,6 +405,28 @@
             </a>
           </li>
           
+        {% elif request.user.user_type == 'company_vehicle_staff' %}
+          <!-- Company Vehicle Staff - Staff using company vehicles (bikes, etc.) -->
+          
+          <!-- Trips Section - Only see their own trips -->
+          <li>
+            <a href="#tripSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-route"></i> My Trips
+            </a>
+            <ul class="collapse list-unstyled {% if 'trip' in request.resolver_match.url_name %}show{% endif %}" id="tripSubmenu">
+              <li>
+                <a href="{% url 'driver_trips' %}" class="menu-item-enhanced">
+                  <i class="fas fa-list-alt me-2"></i>All My Trips
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'start_trip' %}" class="menu-item-enhanced">
+                  <i class="fas fa-play me-2"></i>Start Trip
+                </a>
+              </li>
+            </ul>
+          </li>
+          
         {% elif request.user.user_type == 'sor_team' %}
           <!-- SOR Team - SOR Section -->
           <li>
@@ -1498,6 +1520,26 @@
 
     // Enhanced menu interactions
     document.addEventListener('DOMContentLoaded', function() {
+      // Set default dates for date filters (Both today)
+      const today = new Date();
+      const formatDate = (date) => date.toISOString().split('T')[0];
+      
+      // Find date inputs and set defaults if empty
+      const dateFromInputs = document.querySelectorAll('input[type="date"][name="date_from"], input[type="date"][name="start_date"]');
+      const dateToInputs = document.querySelectorAll('input[type="date"][name="date_to"], input[type="date"][name="end_date"]');
+      
+      dateFromInputs.forEach(input => {
+        if (!input.value) {
+          input.value = formatDate(today);
+        }
+      });
+      
+      dateToInputs.forEach(input => {
+        if (!input.value) {
+          input.value = formatDate(today);
+        }
+      });
+
       // Add smooth transitions to menu items
       const menuItems = document.querySelectorAll('.menu-item-enhanced');
       menuItems.forEach(item => {

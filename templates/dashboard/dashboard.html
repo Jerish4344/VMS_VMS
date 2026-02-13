@@ -294,7 +294,7 @@
     </div>
     {% endif %}
     
-    {% if request.user.user_type == 'driver' %}
+    {% if request.user.user_type == 'driver' or request.user.user_type == 'company_vehicle_staff' %}
     <div class="col-lg-3 col-md-6">
       <div class="card stats-card mb-4">
         <div class="card-body">

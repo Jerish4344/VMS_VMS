@@ -385,7 +385,12 @@ REST_FRAMEWORK = {
 }
 
 # CORS Settings for Mobile App
-CORS_ALLOW_ALL_ORIGINS = True  # For development - restrict in production
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = [
+    "https://vms.jeyarama.com",
+    "http://44.202.73.68",
+    "https://44.202.73.68",
+]
 CORS_ALLOW_CREDENTIALS = True
 
 # Email settings (update these for production)

@@ -4,6 +4,7 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
+
 class Department(models.Model):
     """
     Department/Team in the organization.
@@ -35,6 +36,7 @@ class Department(models.Model):
         from vehicles.models import Vehicle
         return Vehicle.objects.filter(department=self, ownership_type='company').count()
 
+
 class CustomUser(AbstractUser):
     """
     Custom user model with approval-based access for employees
@@ -45,8 +47,9 @@ class CustomUser(AbstractUser):
         ('admin', 'Administrator'),
         ('manager', 'Manager'),
         ('vehicle_manager', 'Vehicle Manager'),
-        ('driver', 'Employee (Vehicle Access)'),  # Updated label
-        ('personal_vehicle_staff', 'Personal Vehicle Staff'),  # Staff using own vehicles for reimbursement
+        ('driver', 'Driver'),  # Professional drivers
+        ('company_vehicle_staff', 'Staff (Company Vehicle)'),  # Staff using company vehicles (bikes, etc.)
+        ('personal_vehicle_staff', 'Staff (Personal Vehicle)'),  # Staff using own vehicles for reimbursement
         ('generator_user', 'Generator User'),  # New role for generator-only access
 	('sor_team', 'SOR Team'),  # SOR team role
     )
@@ -146,7 +149,7 @@ class CustomUser(AbstractUser):
     
     def can_access_system(self):
         """Check if user can access the system"""
-        if self.user_type in ['driver', 'generator_user']:  # Include generator users
+        if self.user_type in ['driver', 'company_vehicle_staff', 'generator_user']:  # Include all field users
             return self.is_active and self.approval_status == 'approved'
         else:
             # Admins, managers, vehicle managers use normal Django auth
@@ -154,11 +157,11 @@ class CustomUser(AbstractUser):
     
     def is_pending_approval(self):
         """Check if employee is pending approval"""
-        return self.user_type in ['driver', 'generator_user'] and self.approval_status == 'pending'
+        return self.user_type in ['driver', 'company_vehicle_staff', 'generator_user'] and self.approval_status == 'pending'
     
     def needs_approval(self):
         """Check if user needs approval for system access"""
-        return self.user_type in ['driver', 'generator_user']
+        return self.user_type in ['driver', 'company_vehicle_staff', 'generator_user']
     
     def approve_access(self, approved_by_user, access_type='driver', save=True):
         """Approve employee access with specified access type"""
@@ -171,6 +174,9 @@ class CustomUser(AbstractUser):
             # Set the user type and access flags based on access type granted
             if access_type == 'driver':
                 self.user_type = 'driver'
+                self.has_full_access = False
+            elif access_type == 'company_vehicle_staff':
+                self.user_type = 'company_vehicle_staff'
                 self.has_full_access = False
             elif access_type == 'generator_user':
                 self.user_type = 'generator_user'
@@ -216,13 +222,17 @@ class CustomUser(AbstractUser):
     def is_vehicle_manager(self):
         return self.user_type == 'vehicle_manager'
     
+    def is_company_vehicle_staff(self):
+        """Check if user is staff with company vehicle"""
+        return self.user_type == 'company_vehicle_staff'
+    
     def is_generator_user(self):
         """Check if user is a generator user or has generator access"""
         return self.user_type == 'generator_user' or self.has_full_access
     
     def has_vehicle_access(self):
         """Check if user has vehicle system access"""
-        return self.user_type == 'driver' or self.has_full_access
+        return self.user_type in ['driver', 'company_vehicle_staff'] or self.has_full_access
     
     def has_generator_access(self):
         """Check if user has generator system access"""
@@ -315,6 +325,8 @@ class CustomUser(AbstractUser):
                 return permission.is_default_for_vehicle_manager
             elif self.user_type == 'driver':
                 return permission.is_default_for_driver
+            elif self.user_type == 'company_vehicle_staff':
+                return permission.is_default_for_company_vehicle_staff
             elif self.user_type == 'personal_vehicle_staff':
                 return permission.is_default_for_personal_vehicle_staff
             elif self.user_type == 'generator_user':
@@ -450,6 +462,7 @@ class Permission(models.Model):
     is_default_for_manager = models.BooleanField(default=False, help_text="Default permission for manager role")
     is_default_for_vehicle_manager = models.BooleanField(default=False, help_text="Default permission for vehicle manager role")
     is_default_for_driver = models.BooleanField(default=False, help_text="Default permission for driver role")
+    is_default_for_company_vehicle_staff = models.BooleanField(default=False, help_text="Default permission for staff with company vehicle")
     is_default_for_personal_vehicle_staff = models.BooleanField(default=False, help_text="Default permission for personal vehicle staff role")
     is_default_for_generator_user = models.BooleanField(default=False, help_text="Default permission for generator user role")
     is_default_for_sor_team = models.BooleanField(default=False, help_text="Default permission for SOR team role")

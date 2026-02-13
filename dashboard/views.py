@@ -39,7 +39,7 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
             self.add_admin_manager_data(context)
         elif user_type == 'vehicle_manager':
             self.add_vehicle_manager_data(context)
-        elif user_type == 'driver':
+        elif user_type in ['driver', 'company_vehicle_staff']:
             self.add_driver_data(context)
         elif user_type == 'personal_vehicle_staff':
             self.add_personal_vehicle_staff_data(context)
