@@ -6,6 +6,9 @@
 {% block extra_css %}
 <link href="{% static 'css/dashboard.css' %}" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<!-- Leaflet CSS and JS for maps -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   .stats-card {
     transition: all 0.3s ease;
@@ -166,6 +169,7 @@
                       <th>To</th>
                       <th>Start Time</th>
                       <th>Duration</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -192,6 +196,19 @@
                         {% else %}
                           <span class="text-muted">-</span>
                         {% endif %}
+                      </td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <button class="btn btn-outline-primary view-location" data-trip-id="{{ trip.id }}" title="View Location">
+                            <i class="fas fa-map-marker-alt"></i>
+                          </button>
+                          <a href="{% url 'track_trip' trip.id %}" class="btn btn-outline-success" title="Live Tracking">
+                            <i class="fas fa-satellite-dish"></i>
+                          </a>
+                          <a href="{% url 'trip_detail' trip.id %}" class="btn btn-outline-info" title="Trip Details">
+                            <i class="fas fa-info-circle"></i>
+                          </a>
+                        </div>
                       </td>
                     </tr>
                     {% endfor %}
@@ -321,6 +338,21 @@
 
   </div>
 </div>
+
+<!-- Location Map Modal -->
+<div class="modal fade" id="locationMapModal" tabindex="-1" aria-labelledby="locationMapModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="locationMapModalLabel">Vehicle Location</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="locationMap" style="height: 400px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -377,6 +409,168 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   } catch (e) {
     console.error('Error creating personal vehicle status chart:', e);
+  }
+
+  // Location Map Functionality - Using Leaflet
+  let map = null;
+  let currentMarkers = [];
+  let currentPolyline = null;
+  const viewLocationButtons = document.querySelectorAll('.view-location');
+  const locationMapModal = document.getElementById('locationMapModal');
+  
+  // Clear all markers and polylines from the map
+  function clearMapElements() {
+    if (!map) return;
+    
+    currentMarkers.forEach(marker => {
+      map.removeLayer(marker);
+    });
+    currentMarkers = [];
+    
+    if (currentPolyline) {
+      map.removeLayer(currentPolyline);
+      currentPolyline = null;
+    }
+  }
+  
+  if (viewLocationButtons.length > 0 && locationMapModal) {
+    viewLocationButtons.forEach(button => {
+      button.addEventListener('click', async function() {
+        const tripId = this.dataset.tripId;
+        
+        try {
+          const mapElement = document.getElementById('locationMap');
+          mapElement.innerHTML = '';
+          
+          if (!map) {
+            map = L.map('locationMap').setView([0, 0], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+              maxZoom: 19
+            }).addTo(map);
+          }
+          
+          mapElement.style.opacity = '0.5';
+          
+          const response = await fetch(`/trips/api/gps/locations/${tripId}/`);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          clearMapElements();
+          
+          if (data.length > 0) {
+            const latestLocation = data[data.length - 1];
+            const position = [latestLocation.latitude, latestLocation.longitude];
+            
+            map.setView(position, 13);
+            
+            const redIcon = L.divIcon({
+              className: 'custom-marker',
+              html: '<div style="background-color: #dc3545; width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>',
+              iconSize: [15, 15],
+              iconAnchor: [7, 7]
+            });
+            
+            const latestMarker = L.marker(position, { icon: redIcon }).addTo(map);
+            latestMarker.bindPopup(`
+              <div>
+                <strong>Latest Location</strong><br>
+                Time: ${new Date(latestLocation.timestamp).toLocaleString()}<br>
+                ${latestLocation.speed ? `Speed: ${(latestLocation.speed * 3.6).toFixed(1)} km/h` : ''}
+              </div>
+            `).openPopup();
+            currentMarkers.push(latestMarker);
+            
+            if (data.length > 1) {
+              const startLocation = data[0];
+              const startPosition = [startLocation.latitude, startLocation.longitude];
+              
+              const greenIcon = L.divIcon({
+                className: 'custom-marker',
+                html: '<div style="background-color: #28a745; width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>',
+                iconSize: [15, 15],
+                iconAnchor: [7, 7]
+              });
+              
+              const startMarker = L.marker(startPosition, { icon: greenIcon }).addTo(map);
+              startMarker.bindPopup(`
+                <div>
+                  <strong>Trip Start</strong><br>
+                  Time: ${new Date(startLocation.timestamp).toLocaleString()}
+                </div>
+              `);
+              currentMarkers.push(startMarker);
+            }
+            
+            const tripPath = data.map(log => [log.latitude, log.longitude]);
+            
+            currentPolyline = L.polyline(tripPath, {
+              color: '#2563EB',
+              weight: 3,
+              opacity: 1
+            }).addTo(map);
+            
+            if (tripPath.length > 1) {
+              map.fitBounds(currentPolyline.getBounds(), { padding: [50, 50] });
+            }
+            
+          } else {
+            map.setView([0, 0], 2);
+            
+            L.popup()
+              .setLatLng([0, 0])
+              .setContent('<div style="color: #dc3545;"><strong>No location data available for this trip.</strong></div>')
+              .openOn(map);
+          }
+          
+          mapElement.style.opacity = '1';
+          
+        } catch (error) {
+          console.error('Error loading map:', error);
+          
+          const mapElement = document.getElementById('locationMap');
+          if (mapElement) {
+            mapElement.style.opacity = '1';
+            mapElement.innerHTML = `
+              <div style="display: flex; align-items: center; justify-content: center; height: 100%; background-color: #f8f9fa; color: #dc3545; text-align: center; padding: 20px;">
+                <div>
+                  <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 10px;"></i><br>
+                  <strong>Map Loading Error</strong><br>
+                  <small>${error.message}</small>
+                </div>
+              </div>
+            `;
+          }
+        }
+        
+        const modal = new bootstrap.Modal(locationMapModal);
+        modal.show();
+      });
+    });
+    
+    if (locationMapModal) {
+      locationMapModal.addEventListener('shown.bs.modal', function() {
+        if (map) {
+          setTimeout(() => {
+            map.invalidateSize();
+            if (currentPolyline) {
+              map.fitBounds(currentPolyline.getBounds(), { padding: [50, 50] });
+            }
+          }, 100);
+        }
+      });
+      
+      locationMapModal.addEventListener('hidden.bs.modal', function() {
+        if (map) {
+          map.remove();
+          map = null;
+        }
+      });
+    }
   }
 });
 </script>

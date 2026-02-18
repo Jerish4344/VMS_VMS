@@ -4,7 +4,7 @@
 {% block title %}Track Trip - {{ trip.vehicle.license_plate }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   #locationMap {
     height: 400px;
@@ -98,6 +98,31 @@
           <h5 class="card-title">Location Tracking</h5>
         </div>
         <div class="card-body">
+          {% if is_viewer %}
+          <!-- VIEWER MODE: Admin/Manager viewing driver's location -->
+          <div id="statusIndicator" class="status-indicator text-primary">
+            <i class="fas fa-eye me-2"></i> Viewing {{ trip.driver.get_full_name }}'s location (Auto-refresh: 10 seconds)
+          </div>
+          
+          <div id="locationMap"></div>
+          
+          <div class="text-center mt-3">
+            <button id="refreshBtn" class="btn btn-primary">
+              <i class="fas fa-sync-alt"></i> Refresh Now
+            </button>
+            <span class="ms-3 text-muted">
+              <i class="fas fa-clock me-1"></i> Last updated: <span id="lastUpdated">-</span>
+            </span>
+          </div>
+          
+          <div class="alert alert-info mt-3">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Viewing Mode:</strong> You are viewing {{ trip.driver.get_full_name }}'s trip location. 
+            The map shows GPS data recorded by the driver's device.
+            Data refreshes automatically every 10 seconds.
+          </div>
+          {% else %}
+          <!-- DRIVER MODE: Recording own location -->
           <div id="statusIndicator" class="status-indicator text-info">
             Ready to track your location
           </div>
@@ -119,6 +144,7 @@
             The tracking will automatically send your position to the server every 30 seconds.
             Please keep this page open during your trip.
           </div>
+          {% endif %}
         </div>
       </div>
       
@@ -219,8 +245,8 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-<script src="{% static 'js/geolocation.js' %}"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{% static 'js/geolocation.js' %}?v=3"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     // Trip timer
@@ -248,6 +274,141 @@
     updateTripDuration();
     setInterval(updateTripDuration, 1000);
     
+    {% if is_viewer %}
+    // ==================== VIEWER MODE ====================
+    // Admin/Manager viewing driver's recorded GPS locations
+    
+    let map = null;
+    let markers = [];
+    let pathLine = null;
+    let refreshInterval = null;
+    
+    // Initialize map
+    map = L.map('locationMap').setView([10.0, 76.0], 10); // Default to Kerala area
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    }).addTo(map);
+    
+    // Initialize path polyline
+    pathLine = L.polyline([], {
+      color: '#2563EB',
+      weight: 4,
+      opacity: 1
+    }).addTo(map);
+    
+    function clearMarkers() {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+    }
+    
+    function loadGPSData() {
+      fetch('/trips/api/gps/locations/{{ trip.id }}/')
+        .then(response => {
+          if (!response.ok) throw new Error('HTTP error: ' + response.status);
+          return response.json();
+        })
+        .then(data => {
+          clearMarkers();
+          
+          // Update last updated time
+          const lastUpdatedEl = document.getElementById('lastUpdated');
+          if (lastUpdatedEl) {
+            lastUpdatedEl.textContent = new Date().toLocaleTimeString();
+          }
+          
+          // Update location count
+          const locationCountEl = document.getElementById('locationCount');
+          if (locationCountEl) {
+            locationCountEl.textContent = data.length;
+          }
+          
+          if (data.length === 0) {
+            document.getElementById('statusIndicator').innerHTML = 
+              '<i class="fas fa-clock me-2"></i> Waiting for driver to start GPS tracking...';
+            document.getElementById('statusIndicator').className = 'status-indicator text-warning';
+            return;
+          }
+          
+          document.getElementById('statusIndicator').innerHTML = 
+            '<i class="fas fa-eye me-2"></i> Viewing {{ trip.driver.get_full_name }}\'s location (Auto-refresh: 10 seconds)';
+          document.getElementById('statusIndicator').className = 'status-indicator text-primary';
+          
+          // Create path from GPS points
+          const path = data.map(loc => [loc.latitude, loc.longitude]);
+          pathLine.setLatLngs(path);
+          
+          // Add start marker (green)
+          const startLoc = data[0];
+          const greenIcon = L.divIcon({
+            className: 'custom-marker',
+            html: '<div style="background-color: #28a745; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>',
+            iconSize: [18, 18],
+            iconAnchor: [9, 9]
+          });
+          const startMarker = L.marker([startLoc.latitude, startLoc.longitude], { icon: greenIcon }).addTo(map);
+          startMarker.bindPopup('<strong>Trip Start</strong><br>Time: ' + new Date(startLoc.timestamp).toLocaleString());
+          markers.push(startMarker);
+          
+          // Add current/latest position marker (red, larger)
+          const latestLoc = data[data.length - 1];
+          const redIcon = L.divIcon({
+            className: 'current-marker',
+            html: '<div style="background-color: #dc3545; width: 24px; height: 24px; border-radius: 50%; border: 4px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.4); animation: pulse 1.5s infinite;"></div>',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+          });
+          const latestMarker = L.marker([latestLoc.latitude, latestLoc.longitude], { icon: redIcon }).addTo(map);
+          latestMarker.bindPopup(
+            '<strong>Current Location</strong><br>' +
+            'Time: ' + new Date(latestLoc.timestamp).toLocaleString() + '<br>' +
+            (latestLoc.speed ? 'Speed: ' + (latestLoc.speed * 3.6).toFixed(1) + ' km/h' : '')
+          ).openPopup();
+          markers.push(latestMarker);
+          
+          // Update speed display
+          const speedEl = document.getElementById('currentSpeed');
+          if (speedEl && latestLoc.speed) {
+            speedEl.textContent = (latestLoc.speed * 3.6).toFixed(1) + ' km/h';
+          }
+          
+          // Fit map to show all points
+          if (path.length > 0) {
+            map.fitBounds(pathLine.getBounds(), { padding: [50, 50] });
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching GPS data:', error);
+          document.getElementById('statusIndicator').innerHTML = 
+            '<i class="fas fa-exclamation-triangle me-2"></i> Error loading GPS data';
+          document.getElementById('statusIndicator').className = 'status-indicator text-danger';
+        });
+    }
+    
+    // Initial load
+    loadGPSData();
+    
+    // Auto-refresh every 10 seconds
+    refreshInterval = setInterval(loadGPSData, 10000);
+    
+    // Manual refresh button
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+        loadGPSData();
+        setTimeout(() => {
+          this.disabled = false;
+          this.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Now';
+        }, 1000);
+      });
+    }
+    
+    {% else %}
+    // ==================== DRIVER MODE ====================
+    // Driver recording their own location
+    
     // Initialize trip tracker
     const tripTracker = new TripTracker({
       tripId: {{ trip.id }},
@@ -256,123 +417,8 @@
       startButton: document.getElementById('startTrackingBtn'),
       stopButton: document.getElementById('stopTrackingBtn'),
       intervalTime: 30000, // 30 seconds
-      apiUrl: '{% url "location_update" %}'
+      apiUrl: '{% url "record_gps_location" %}'
     });
-    
-    // ====== KEEP TAB ACTIVE & PREVENT CLOSING ======
-    let wakeLock = null;
-    
-    // 1. Prevent accidental tab closing
-    window.addEventListener('beforeunload', function (e) {
-      e.preventDefault();
-      e.returnValue = '⚠️ GPS tracking is active! Closing this tab will stop location recording. Are you sure?';
-      return e.returnValue;
-    });
-    
-    // 2. Keep screen awake using Wake Lock API
-    async function requestWakeLock() {
-      try {
-        if ('wakeLock' in navigator) {
-          wakeLock = await navigator.wakeLock.request('screen');
-          console.log('✅ Wake Lock activated - screen will stay awake');
-          
-          wakeLock.addEventListener('release', () => {
-            console.log('⚠️ Wake Lock released');
-          });
-        } else {
-          console.log('⚠️ Wake Lock API not supported');
-        }
-      } catch (err) {
-        console.error('Wake Lock error:', err);
-      }
-    }
-    
-    // 3. Detect when tab becomes hidden/inactive
-    document.addEventListener('visibilitychange', function() {
-      if (document.hidden) {
-        console.warn('⚠️ Tab hidden - GPS tracking may be affected');
-        showWarningNotification('Tab is hidden! Keep this tab visible for accurate GPS tracking.');
-      } else {
-        console.log('✅ Tab visible again');
-        // Re-request wake lock if it was released
-        if (wakeLock === null) {
-          requestWakeLock();
-        }
-      }
-    });
-    
-    // 4. Show persistent warning notification
-    function showWarningNotification(message) {
-      // Create notification element if it doesn't exist
-      let notification = document.getElementById('gpsWarningNotification');
-      if (!notification) {
-        notification = document.createElement('div');
-        notification.id = 'gpsWarningNotification';
-        notification.style.cssText = `
-          position: fixed;
-          top: 80px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: #ff6b6b;
-          color: white;
-          padding: 15px 30px;
-          border-radius: 10px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-          z-index: 9999;
-          font-weight: bold;
-          text-align: center;
-          animation: pulse 2s infinite;
-        `;
-        document.body.appendChild(notification);
-        
-        // Add pulse animation
-        const style = document.createElement('style');
-        style.textContent = `
-          @keyframes pulse {
-            0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
-            50% { opacity: 0.8; transform: translateX(-50%) scale(1.05); }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-      notification.textContent = '⚠️ ' + message;
-      notification.style.display = 'block';
-      
-      // Hide after 5 seconds if tab is visible again
-      setTimeout(() => {
-        if (!document.hidden) {
-          notification.style.display = 'none';
-        }
-      }, 5000);
-    }
-    
-    // 5. Request notification permission (for background alerts)
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-    
-    // Initialize wake lock on page load
-    requestWakeLock();
-    
-    // Show initial instruction
-    const instructionBanner = document.createElement('div');
-    instructionBanner.style.cssText = `
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 15px;
-      text-align: center;
-      font-weight: bold;
-      margin-bottom: 20px;
-      border-radius: 8px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    `;
-    instructionBanner.innerHTML = `
-      📍 <strong>GPS Tracking Active</strong><br>
-      <small>Keep this tab open and screen unlocked for continuous tracking</small>
-    `;
-    document.querySelector('.container-fluid').insertBefore(instructionBanner, document.querySelector('.container-fluid').firstChild);
-    
-    // ====== END KEEP TAB ACTIVE ======
     
     // Update speed and location count
     let locationCount = 0;
@@ -399,7 +445,7 @@
       }
     );
     
-    // Mock API response to update location count (in real implementation, this would be called after successful API submission)
+    // Update location count on successful send
     const originalSendPositionToServer = tripTracker.sendPositionToServer;
     tripTracker.sendPositionToServer = function(data) {
       // Call the original method
@@ -418,18 +464,14 @@
       const nearbyFuelStationsElement = document.getElementById('nearbyFuelStations');
       if (!nearbyFuelStationsElement) return;
       
-      // In a real implementation, you would call an API to get nearby stations
-      // For this mock, we'll generate some fake fuel stations
       const stations = [
         { name: 'Shell', distance: (Math.random() * 5).toFixed(1) },
         { name: 'BP', distance: (Math.random() * 5).toFixed(1) },
         { name: 'Texaco', distance: (Math.random() * 5).toFixed(1) }
       ];
       
-      // Sort by distance
       stations.sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
       
-      // Generate HTML
       let html = '<ul class="list-group">';
       stations.forEach(station => {
         html += `
@@ -443,6 +485,14 @@
       
       nearbyFuelStationsElement.innerHTML = html;
     }
+    {% endif %}
   });
 </script>
+<style>
+  @keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+</style>
 {% endblock %}

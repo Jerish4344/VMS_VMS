@@ -1276,12 +1276,17 @@ class GPSTripRouteView(APIView):
     """
     Get all GPS locations for a trip to display on a map.
     Returns the full route with coordinates.
+    Accessible by: trip driver OR admin/manager/vehicle_manager
     """
     permission_classes = [IsAuthenticated]
     
     def get(self, request, trip_id):
         try:
-            trip = Trip.objects.get(id=trip_id, driver=request.user)
+            trip = Trip.objects.get(id=trip_id)
+            # Check permission: must be driver OR management
+            allowed_types = ['admin', 'manager', 'vehicle_manager']
+            if trip.driver != request.user and request.user.user_type not in allowed_types:
+                return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
         except Trip.DoesNotExist:
             return Response({'error': 'Trip not found'}, status=status.HTTP_404_NOT_FOUND)
         

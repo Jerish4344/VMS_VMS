@@ -1,6 +1,6 @@
 from django.forms import ValidationError
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, TemplateView, View
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect, render
@@ -396,7 +396,8 @@ class DriverTripsView(LoginRequiredMixin, ListView):
 class TripTrackingView(LoginRequiredMixin, CanDriveVehicleMixin, TemplateView):
     """
     View for users to track their active trip with geolocation.
-    This provides a real-time tracking interface with maps.
+    - Drivers: See tracking controls to record their own location
+    - Admins/Managers: See real-time view of driver's recorded GPS data
     """
     template_name = 'trips/trip_tracking.html'
     
@@ -417,6 +418,10 @@ class TripTrackingView(LoginRequiredMixin, CanDriveVehicleMixin, TemplateView):
             return redirect('trip_list')
         
         context['trip'] = trip
+        
+        # Determine if user is the driver or a viewer (admin/manager watching)
+        context['is_driver'] = (trip.driver == self.request.user)
+        context['is_viewer'] = (trip.driver != self.request.user)
         
         # Get fleet manager for emergency contact
         fleet_managers = CustomUser.objects.filter(user_type__in=['manager', 'vehicle_manager'])

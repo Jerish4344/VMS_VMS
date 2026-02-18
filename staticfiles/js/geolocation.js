@@ -2,6 +2,7 @@
 
 /**
  * Geolocation tracking functionality for the Vehicle Management System
+ * Using Leaflet (OpenStreetMap) - No API key required
  */
 
 class TripTracker {
@@ -34,35 +35,48 @@ class TripTracker {
     this.init();
   }
   
-  init() {
+  async init() {
     // Check if geolocation is supported
     if (!navigator.geolocation) {
       this.updateStatus('Geolocation is not supported by your browser', 'error');
       return;
     }
     
-    // Initialize map if element exists
-    if (this.mapElement) {
-      this.initMap();
-    }
-    
-    // Add event listeners
-    if (this.startButton) {
-      this.startButton.addEventListener('click', this.startTracking);
-    }
-    
-    if (this.stopButton) {
-      this.stopButton.addEventListener('click', this.stopTracking);
+    try {
+      // Initialize map if element exists
+      if (this.mapElement) {
+        this.initMap();
+      }
+      
+      // Add event listeners
+      if (this.startButton) {
+        this.startButton.addEventListener('click', this.startTracking);
+      }
+      
+      if (this.stopButton) {
+        this.stopButton.addEventListener('click', this.stopTracking);
+      }
+    } catch (error) {
+      console.error('Error initializing map:', error);
+      this.updateStatus('Failed to load map', 'error');
     }
   }
   
   initMap() {
-    // Create map
+    // Create map with default center using Leaflet
     this.map = L.map(this.mapElement).setView([0, 0], 2);
     
-    // Add tile layer
+    // Add OpenStreetMap tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    }).addTo(this.map);
+    
+    // Initialize path polyline
+    this.pathLine = L.polyline([], {
+      color: '#FF0000',
+      weight: 3,
+      opacity: 1
     }).addTo(this.map);
     
     // Get initial position
@@ -143,9 +157,10 @@ class TripTracker {
         this.sendPositionToServer({
           latitude,
           longitude,
+          accuracy: accuracy || 0,
           altitude: altitude || null,
           speed: speed || null,
-          trip: this.tripId
+          trip_id: this.tripId
         });
       },
       this.handleLocationError,
@@ -161,36 +176,40 @@ class TripTracker {
     const { latitude, longitude, accuracy } = coords;
     const position = [latitude, longitude];
     
+    // Create custom icon for current position
+    const currentPositionIcon = L.divIcon({
+      className: 'current-position-marker',
+      html: '<div style="width: 24px; height: 24px; background-color: #4285F4; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><div style="width: 8px; height: 8px; background-color: white; border-radius: 50%;"></div></div>',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    });
+    
     // Update marker or create new one
     if (this.positionMarker) {
       this.positionMarker.setLatLng(position);
     } else {
-      this.positionMarker = L.marker(position).addTo(this.map);
+      this.positionMarker = L.marker(position, { icon: currentPositionIcon }).addTo(this.map);
+      this.positionMarker.bindPopup('Current Position');
     }
     
     // Update accuracy circle
     if (accuracy) {
       if (this.accuracyCircle) {
-        this.accuracyCircle.setLatLng(position).setRadius(accuracy);
+        this.accuracyCircle.setLatLng(position);
+        this.accuracyCircle.setRadius(accuracy);
       } else {
         this.accuracyCircle = L.circle(position, {
-          radius: accuracy,
-          color: 'blue',
-          fillColor: '#3388ff',
-          fillOpacity: 0.1
+          color: '#4285F4',
+          fillColor: '#4285F4',
+          fillOpacity: 0.1,
+          radius: accuracy
         }).addTo(this.map);
       }
     }
     
     // Update path
     this.path.push(position);
-    
-    // Update or create path line
-    if (this.pathLine) {
-      this.pathLine.setLatLngs(this.path);
-    } else if (this.path.length > 1) {
-      this.pathLine = L.polyline(this.path, {color: 'blue'}).addTo(this.map);
-    }
+    this.pathLine.setLatLngs(this.path);
     
     // Center map on current position
     this.map.panTo(position);
@@ -207,7 +226,7 @@ class TripTracker {
     })
       .then(response => {
         if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+          throw new Error('HTTP error! Status: ' + response.status);
         }
         return response.json();
       })
@@ -216,7 +235,7 @@ class TripTracker {
       })
       .catch(error => {
         console.error('Error sending location data:', error);
-        this.updateStatus(`Error updating location: ${error.message}`, 'error');
+        this.updateStatus('Error updating location: ' + error.message, 'error');
       });
   }
   
@@ -241,7 +260,8 @@ class TripTracker {
     console.error('Geolocation error:', error);
   }
   
-  updateStatus(message, type = 'info') {
+  updateStatus(message, type) {
+    type = type || 'info';
     if (!this.statusElement) return;
     
     this.statusElement.textContent = message;
@@ -269,10 +289,9 @@ class TripTracker {
   getCSRFToken() {
     const cookieValue = document.cookie
       .split('; ')
-      .find(row => row.startsWith('csrftoken='))
-      ?.split('=')[1];
+      .find(function(row) { return row.startsWith('csrftoken='); });
     
-    return cookieValue || '';
+    return cookieValue ? cookieValue.split('=')[1] : '';
   }
 }
 
@@ -281,7 +300,7 @@ class TripMapViewer {
   constructor(options) {
     this.tripId = options.tripId;
     this.mapElement = options.mapElement;
-    this.apiUrl = options.apiUrl || `/api/location-logs/?trip=${this.tripId}`;
+    this.apiUrl = options.apiUrl || '/trips/api/gps/locations/' + this.tripId + '/';
     this.map = null;
     this.markers = [];
     this.path = [];
@@ -292,122 +311,122 @@ class TripMapViewer {
     this.init();
   }
   
-  init() {
+  async init() {
     if (!this.mapElement) return;
     
-    // Create map
-    this.map = L.map(this.mapElement).setView([0, 0], 2);
-    
-    // Add tile layer
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(this.map);
-    
-    // Load trip data
-    this.loadTripData();
+    try {
+      // Create map using Leaflet
+      this.map = L.map(this.mapElement).setView([0, 0], 2);
+      
+      // Add OpenStreetMap tile layer
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19
+      }).addTo(this.map);
+      
+      // Initialize path polyline
+      this.pathLine = L.polyline([], {
+        color: '#FF0000',
+        weight: 3,
+        opacity: 1
+      }).addTo(this.map);
+      
+      // Load trip data
+      this.loadTripData();
+    } catch (error) {
+      console.error('Error initializing map:', error);
+      this.showMapError('Failed to load map');
+    }
   }
   
   loadTripData() {
+    var self = this;
     fetch(this.apiUrl)
-      .then(response => {
+      .then(function(response) {
         if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+          throw new Error('HTTP error! Status: ' + response.status);
         }
         return response.json();
       })
-      .then(data => {
-        this.processLocationData(data);
+      .then(function(data) {
+        self.processLocationData(data);
       })
-      .catch(error => {
+      .catch(function(error) {
         console.error('Error loading trip data:', error);
-        // Show error on map
-        this.showMapError('Error loading trip data');
+        self.showMapError('Error loading trip data');
       });
   }
   
   processLocationData(locations) {
+    var self = this;
     if (!locations || locations.length === 0) {
       this.showMapError('No location data available for this trip');
       return;
     }
     
-    // Create path and markers
-    this.path = locations.map(location => [location.latitude, location.longitude]);
+    // Create path
+    this.path = locations.map(function(location) {
+      return [location.latitude, location.longitude];
+    });
     
-    // Create path line
-    this.pathLine = L.polyline(this.path, {color: 'blue'}).addTo(this.map);
+    // Update path line
+    this.pathLine.setLatLngs(this.path);
     
-    // Add start and end markers
-    const startLocation = locations[0];
-    const endLocation = locations[locations.length - 1];
+    // Create green icon for start
+    var greenIcon = L.divIcon({
+      className: 'custom-marker',
+      html: '<div style="background-color: #28a745; width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>',
+      iconSize: [15, 15],
+      iconAnchor: [7, 7]
+    });
     
-    // Start marker (green)
-    const startMarker = L.marker([startLocation.latitude, startLocation.longitude], {
-      icon: L.divIcon({
-        className: 'custom-div-icon',
-        html: `<div class="marker-pin marker-pin-start"></div><i class="fas fa-play-circle marker-icon"></i>`,
-        iconSize: [30, 42],
-        iconAnchor: [15, 42]
-      })
-    }).addTo(this.map);
+    // Create red icon for end/latest
+    var redIcon = L.divIcon({
+      className: 'custom-marker',
+      html: '<div style="background-color: #dc3545; width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>',
+      iconSize: [15, 15],
+      iconAnchor: [7, 7]
+    });
     
-    startMarker.bindPopup(`
-      <strong>Trip Start</strong><br>
-      Time: ${new Date(startLocation.timestamp).toLocaleString()}<br>
-      ${startLocation.speed ? `Speed: ${(startLocation.speed * 3.6).toFixed(1)} km/h` : ''}
-    `);
+    // Add start marker (green)
+    var startLocation = locations[0];
+    var startMarker = L.marker([startLocation.latitude, startLocation.longitude], { icon: greenIcon }).addTo(this.map);
+    startMarker.bindPopup(
+      '<div><strong>Trip Start</strong><br>Time: ' + new Date(startLocation.timestamp).toLocaleString() + '<br>' +
+      (startLocation.speed ? 'Speed: ' + (startLocation.speed * 3.6).toFixed(1) + ' km/h' : '') + '</div>'
+    );
     
-    // End marker (red)
-    const endMarker = L.marker([endLocation.latitude, endLocation.longitude], {
-      icon: L.divIcon({
-        className: 'custom-div-icon',
-        html: `<div class="marker-pin marker-pin-end"></div><i class="fas fa-flag-checkered marker-icon"></i>`,
-        iconSize: [30, 42],
-        iconAnchor: [15, 42]
-      })
-    }).addTo(this.map);
+    // Add end marker (red)
+    var endLocation = locations[locations.length - 1];
+    var endMarker = L.marker([endLocation.latitude, endLocation.longitude], { icon: redIcon }).addTo(this.map);
+    endMarker.bindPopup(
+      '<div><strong>Latest Position</strong><br>Time: ' + new Date(endLocation.timestamp).toLocaleString() + '<br>' +
+      (endLocation.speed ? 'Speed: ' + (endLocation.speed * 3.6).toFixed(1) + ' km/h' : '') + '</div>'
+    ).openPopup();
     
-    endMarker.bindPopup(`
-      <strong>Latest Position</strong><br>
-      Time: ${new Date(endLocation.timestamp).toLocaleString()}<br>
-      ${endLocation.speed ? `Speed: ${(endLocation.speed * 3.6).toFixed(1)} km/h` : ''}
-    `);
-    
-    // Add vehicle marker at the latest position (for ongoing trips)
-    this.vehicleMarker = L.marker([endLocation.latitude, endLocation.longitude], {
-      icon: L.divIcon({
-        className: 'custom-div-icon',
-        html: `<div class="marker-pin marker-pin-vehicle"></div><i class="fas fa-car marker-icon"></i>`,
-        iconSize: [30, 42],
-        iconAnchor: [15, 42]
-      })
-    }).addTo(this.map);
-    
-    // Add markers for additional points (optional)
+    // Add intermediate markers if there are many points
     if (locations.length > 10) {
-      // Only add markers for some points to avoid cluttering
-      const step = Math.ceil(locations.length / 10);
-      for (let i = step; i < locations.length - step; i += step) {
-        const location = locations[i];
-        const marker = L.circleMarker([location.latitude, location.longitude], {
-          color: 'blue',
-          radius: 5
-        }).addTo(this.map);
-        
-        marker.bindPopup(`
-          <strong>Location Point</strong><br>
-          Time: ${new Date(location.timestamp).toLocaleString()}<br>
-          ${location.speed ? `Speed: ${(location.speed * 3.6).toFixed(1)} km/h` : ''}
-        `);
-        
+      var blueIcon = L.divIcon({
+        className: 'custom-marker',
+        html: '<div style="background-color: #007bff; width: 10px; height: 10px; border-radius: 50%; border: 1px solid white;"></div>',
+        iconSize: [10, 10],
+        iconAnchor: [5, 5]
+      });
+      
+      var step = Math.ceil(locations.length / 10);
+      for (var i = step; i < locations.length - step; i += step) {
+        var location = locations[i];
+        var marker = L.marker([location.latitude, location.longitude], { icon: blueIcon }).addTo(this.map);
+        marker.bindPopup(
+          '<div><strong>Location Point</strong><br>Time: ' + new Date(location.timestamp).toLocaleString() + '<br>' +
+          (location.speed ? 'Speed: ' + (location.speed * 3.6).toFixed(1) + ' km/h' : '') + '</div>'
+        );
         this.markers.push(marker);
       }
     }
     
-    // Fit map to path bounds
-    this.map.fitBounds(this.pathLine.getBounds(), {
-      padding: [50, 50]
-    });
+    // Fit map to show all markers
+    this.map.fitBounds(this.pathLine.getBounds(), { padding: [50, 50] });
   }
   
   showMapError(message) {
@@ -417,7 +436,7 @@ class TripMapViewer {
     // Show error popup
     L.popup()
       .setLatLng([0, 0])
-      .setContent(`<div class="text-danger">${message}</div>`)
+      .setContent('<div style="color: red;">' + message + '</div>')
       .openOn(this.map);
   }
 }

@@ -538,3 +538,7 @@ DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000    # For many records
 
 # Disable atomic requests for bulk operations
 ATOMIC_REQUESTS = False
+
+
+# Google Maps API Configuration
+GOOGLE_MAPS_API_KEY = 'AIzaSyC1PNkpdm5RwNn4F7zPOE_ZyU2g97lG3NU'

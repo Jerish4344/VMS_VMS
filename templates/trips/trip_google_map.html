@@ -1,0 +1,444 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Trip Route - Google Maps - {{ trip.id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  #map {
+    height: 600px;
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+  }
+  
+  .info-card {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+  }
+  
+  .stat-box {
+    padding: 1rem;
+    text-align: center;
+    border-right: 1px solid #e3e6f0;
+  }
+  
+  .stat-box:last-child {
+    border-right: none;
+  }
+  
+  .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #4e73df;
+  }
+  
+  .stat-label {
+    font-size: 0.75rem;
+    color: #858796;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  
+  .legend-item {
+    display: flex;
+    align-items: center;
+    margin-right: 1.5rem;
+  }
+  
+  .legend-line {
+    width: 30px;
+    height: 4px;
+    margin-right: 8px;
+    border-radius: 2px;
+  }
+  
+  .legend-marker {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 8px;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    border-radius: 8px;
+  }
+  
+  @media print {
+    .btn, .no-print { display: none !important; }
+    #map { height: 800px !important; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <!-- Header -->
+  <div class="row mb-3">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h2 class="mb-2">
+          <i class="fas fa-route text-primary"></i> Trip Route (Google Maps)
+        </h2>
+        <div class="no-print">
+          <a href="{% url 'trip_detail' trip.id %}" class="btn btn-secondary btn-sm">
+            <i class="fas fa-arrow-left"></i> Back to Trip
+          </a>
+          <a href="{% url 'trip_detail_map' trip.id %}" class="btn btn-info btn-sm">
+            <i class="fas fa-map"></i> View Leaflet Map
+          </a>
+          <button onclick="window.print()" class="btn btn-primary btn-sm">
+            <i class="fas fa-print"></i> Print
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trip Info Card -->
+  <div class="row mb-3">
+    <div class="col-12">
+      <div class="card info-card">
+        <div class="card-body py-2">
+          <div class="row">
+            <div class="col-md-3 stat-box">
+              <div class="stat-label">Driver</div>
+              <div class="text-dark">
+                <i class="fas fa-user text-primary"></i>
+                {{ trip.driver.get_full_name }}
+              </div>
+            </div>
+            <div class="col-md-3 stat-box">
+              <div class="stat-label">Vehicle</div>
+              <div class="text-dark">
+                <i class="fas fa-car text-success"></i>
+                {{ trip.vehicle.license_plate }}
+              </div>
+            </div>
+            <div class="col-md-3 stat-box">
+              <div class="stat-label">Date</div>
+              <div class="text-dark">
+                <i class="fas fa-calendar text-info"></i>
+                {{ trip.start_time|date:"M d, Y" }}
+              </div>
+            </div>
+            <div class="col-md-3 stat-box">
+              <div class="stat-label">Time</div>
+              <div class="text-dark">
+                <i class="fas fa-clock text-warning"></i>
+                {{ trip.start_time|date:"h:i A" }} - {{ trip.end_time|date:"h:i A"|default:"Ongoing" }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Route Stats Card -->
+  <div class="row mb-3">
+    <div class="col-12">
+      <div class="card info-card">
+        <div class="card-body py-2">
+          <div class="row align-items-center">
+            <div class="col-md-3 stat-box">
+              <div class="stat-label">Route</div>
+              <div class="text-dark small">
+                <strong>{{ trip.origin }}</strong> → <strong>{{ trip.destination|default:"N/A" }}</strong>
+              </div>
+            </div>
+            <div class="col-md-2 stat-box">
+              <div class="stat-label">Odometer Distance</div>
+              <div class="stat-value" id="odometerDistance">
+                {% if trip.distance_traveled %}
+                  {{ trip.distance_traveled }} km
+                {% else %}
+                  -- km
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-2 stat-box">
+              <div class="stat-label">Road Distance</div>
+              <div class="stat-value text-success" id="roadDistance">
+                <span class="spinner-border spinner-border-sm"></span>
+              </div>
+            </div>
+            <div class="col-md-2 stat-box">
+              <div class="stat-label">GPS Points</div>
+              <div class="stat-value text-info">{{ gps_count }}</div>
+            </div>
+            <div class="col-md-3 stat-box">
+              <div class="stat-label">Est. Drive Time</div>
+              <div class="stat-value text-warning" id="driveTime">
+                <span class="spinner-border spinner-border-sm"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Card -->
+  <div class="row mb-3">
+    <div class="col-12">
+      <div class="card info-card">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center no-print">
+          <div class="d-flex align-items-center">
+            <span class="fw-bold me-4">Map Legend:</span>
+            <div class="legend-item">
+              <div class="legend-line" style="background: #4285F4;"></div>
+              <span>Road Route (Google)</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-line" style="background: #FF9800; border: 1px dashed #e65100;"></div>
+              <span>GPS Track (Raw)</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-marker" style="background: #28a745;"></div>
+              <span>Start</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-marker" style="background: #dc3545;"></div>
+              <span>End</span>
+            </div>
+          </div>
+          <div>
+            <button id="toggleGpsTrack" class="btn btn-outline-warning btn-sm">
+              <i class="fas fa-eye"></i> Toggle GPS Track
+            </button>
+            <button id="fitBounds" class="btn btn-outline-primary btn-sm">
+              <i class="fas fa-expand"></i> Fit Route
+            </button>
+          </div>
+        </div>
+        <div class="card-body position-relative p-0">
+          {% if has_gps_data %}
+            <div id="mapLoading" class="loading-overlay">
+              <div class="text-center">
+                <div class="spinner-border text-primary mb-2" role="status"></div>
+                <div>Loading route from Google Maps...</div>
+              </div>
+            </div>
+            <div id="map"></div>
+          {% else %}
+            <div class="alert alert-warning m-4">
+              <i class="fas fa-exclamation-triangle"></i> 
+              No GPS data available for this trip. GPS tracking may not have been enabled.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Alert -->
+  <div class="row">
+    <div class="col-12">
+      <div class="alert alert-info no-print">
+        <i class="fas fa-info-circle"></i>
+        <strong>Road Route (Blue):</strong> Shows the actual road path calculated by Google Maps.
+        <strong>GPS Track (Orange dashed):</strong> Shows raw GPS points collected during the trip.
+        The road route follows actual streets and highways, providing accurate distance on roads.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if has_gps_data %}
+<script>
+// GPS Points from Django
+const gpsPoints = {{ gps_points|safe }};
+const tripId = {{ trip.id }};
+
+let map;
+let roadRoutePolyline;
+let gpsTrackPolyline;
+let markers = [];
+let showGpsTrack = true;
+
+// Initialize Google Map
+function initMap() {
+  if (!gpsPoints || gpsPoints.length === 0) {
+    document.getElementById('mapLoading').innerHTML = 
+      '<div class="alert alert-warning">No GPS data available</div>';
+    return;
+  }
+
+  // Create map centered on first GPS point
+  const center = { lat: gpsPoints[0].lat, lng: gpsPoints[0].lng };
+  
+  map = new google.maps.Map(document.getElementById('map'), {
+    zoom: 13,
+    center: center,
+    mapTypeId: 'roadmap',
+    mapTypeControl: true,
+    mapTypeControlOptions: {
+      style: google.maps.MapTypeControlStyle.DROPDOWN_MENU
+    },
+    fullscreenControl: true,
+    streetViewControl: false
+  });
+
+  // Draw raw GPS track (orange dashed line)
+  const gpsPath = gpsPoints.map(p => ({ lat: p.lat, lng: p.lng }));
+  gpsTrackPolyline = new google.maps.Polyline({
+    path: gpsPath,
+    geodesic: true,
+    strokeColor: '#FF9800',
+    strokeOpacity: 0.8,
+    strokeWeight: 3,
+    icons: [{
+      icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3 },
+      offset: '0',
+      repeat: '15px'
+    }],
+    map: map
+  });
+
+  // Add start marker
+  const startMarker = new google.maps.Marker({
+    position: gpsPath[0],
+    map: map,
+    title: 'Trip Start',
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 12,
+      fillColor: '#28a745',
+      fillOpacity: 1,
+      strokeColor: '#ffffff',
+      strokeWeight: 3
+    },
+    label: {
+      text: 'S',
+      color: 'white',
+      fontWeight: 'bold'
+    }
+  });
+  markers.push(startMarker);
+
+  // Add end marker
+  const endMarker = new google.maps.Marker({
+    position: gpsPath[gpsPath.length - 1],
+    map: map,
+    title: 'Trip End',
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 12,
+      fillColor: '#dc3545',
+      fillOpacity: 1,
+      strokeColor: '#ffffff',
+      strokeWeight: 3
+    },
+    label: {
+      text: 'E',
+      color: 'white',
+      fontWeight: 'bold'
+    }
+  });
+  markers.push(endMarker);
+
+  // Fit bounds to GPS track
+  const bounds = new google.maps.LatLngBounds();
+  gpsPath.forEach(point => bounds.extend(point));
+  map.fitBounds(bounds, { padding: 50 });
+
+  // Fetch road-snapped route from backend
+  fetchGoogleRoute();
+
+  // Hide loading overlay
+  document.getElementById('mapLoading').style.display = 'none';
+}
+
+// Fetch Google Directions route from backend API
+async function fetchGoogleRoute() {
+  try {
+    const response = await fetch(`/trips/api/google-route/${tripId}/`);
+    const data = await response.json();
+    
+    if (data.success) {
+      // Update distance and duration stats
+      document.getElementById('roadDistance').textContent = data.distance_km + ' km';
+      document.getElementById('driveTime').textContent = 
+        data.duration_minutes ? Math.round(data.duration_minutes) + ' min' : 'N/A';
+      
+      if (data.fallback) {
+        // Using raw GPS - show warning
+        console.warn('Using fallback GPS route:', data.message);
+        document.getElementById('roadDistance').innerHTML = 
+          `<span class="text-warning">${data.distance_km} km</span>`;
+      } else {
+        // Draw road route from Google Directions
+        const routePath = data.route_points.map(p => ({ lat: p.lat, lng: p.lng }));
+        
+        roadRoutePolyline = new google.maps.Polyline({
+          path: routePath,
+          geodesic: true,
+          strokeColor: '#4285F4',
+          strokeOpacity: 1,
+          strokeWeight: 5,
+          map: map
+        });
+        
+        // Fit bounds to include road route
+        const bounds = new google.maps.LatLngBounds();
+        routePath.forEach(point => bounds.extend(point));
+        map.fitBounds(bounds, { padding: 50 });
+      }
+    } else {
+      console.error('Failed to fetch route:', data.error);
+      document.getElementById('roadDistance').textContent = 'Error';
+      document.getElementById('driveTime').textContent = 'Error';
+    }
+  } catch (error) {
+    console.error('Error fetching Google route:', error);
+    document.getElementById('roadDistance').textContent = 'Error';
+    document.getElementById('driveTime').textContent = 'Error';
+  }
+}
+
+// Toggle GPS track visibility
+document.getElementById('toggleGpsTrack').addEventListener('click', function() {
+  showGpsTrack = !showGpsTrack;
+  gpsTrackPolyline.setMap(showGpsTrack ? map : null);
+  this.innerHTML = showGpsTrack 
+    ? '<i class="fas fa-eye"></i> Toggle GPS Track'
+    : '<i class="fas fa-eye-slash"></i> Toggle GPS Track';
+});
+
+// Fit bounds button
+document.getElementById('fitBounds').addEventListener('click', function() {
+  const bounds = new google.maps.LatLngBounds();
+  
+  if (roadRoutePolyline) {
+    roadRoutePolyline.getPath().forEach(point => bounds.extend(point));
+  }
+  gpsTrackPolyline.getPath().forEach(point => bounds.extend(point));
+  
+  map.fitBounds(bounds, { padding: 50 });
+});
+
+// Calculate odometer distance - already displayed from Django template
+</script>
+
+<!-- Google Maps API -->
+<script async defer
+  src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMap">
+</script>
+{% endif %}
+{% endblock %}

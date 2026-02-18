@@ -7,8 +7,9 @@
 <link href="{% static 'css/dashboard.css' %}" rel="stylesheet">
 <!-- Add Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-<!-- Add Leaflet CSS for maps -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<!-- Add Leaflet CSS and JS for maps -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   /* Enhanced dashboard styles */
   .stats-card {
@@ -1076,7 +1077,7 @@
   {% endif %}
 
   <!-- Driver Dashboard -->
-  {% if request.user.user_type == 'driver' %}
+  {% if request.user.user_type == 'driver' or request.user.user_type == 'company_vehicle_staff' %}
   <div class="row">
     <!-- Ongoing Trips -->
     <div class="col-lg-12">
@@ -1487,67 +1488,6 @@
 
 {% block extra_js %}
 <script>
-// Google Maps configuration - REPLACE WITH YOUR ACTUAL API KEY
-const GOOGLE_MAPS_CONFIG = {
-  apiKey: 'AIzaSyDMAkESwj75ZhnMIlLK25zHiM1oAUPZtbo', // Your actual API key
-  libraries: ['geometry', 'places']
-};
-
-// Google Maps API loading utility with better error handling
-function ensureGoogleMapsLoaded() {
-  return new Promise((resolve, reject) => {
-    // Check if Google Maps is already loaded
-    if (window.google && window.google.maps) {
-      resolve();
-      return;
-    }
-    
-    // Validate API key
-    if (!GOOGLE_MAPS_CONFIG.apiKey || GOOGLE_MAPS_CONFIG.apiKey.length < 10) {
-      reject(new Error('Google Maps API key is not configured properly. Please check your API key.'));
-      return;
-    }
-    
-    // Check if script is already being loaded
-    if (document.querySelector('script[src*="maps.googleapis.com"]')) {
-      // Script exists, wait for it to load
-      let attempts = 0;
-      const maxAttempts = 50; // 5 seconds timeout
-      
-      const checkGoogle = setInterval(() => {
-        attempts++;
-        if (window.google && window.google.maps) {
-          clearInterval(checkGoogle);
-          resolve();
-        } else if (attempts >= maxAttempts) {
-          clearInterval(checkGoogle);
-          reject(new Error('Timeout waiting for Google Maps to load'));
-        }
-      }, 100);
-      return;
-    }
-    
-    // Create and load the script
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_CONFIG.apiKey}&libraries=${GOOGLE_MAPS_CONFIG.libraries.join(',')}&callback=initGoogleMaps`;
-    script.async = true;
-    script.defer = true;
-    
-    // Global callback function
-    window.initGoogleMaps = function() {
-      delete window.initGoogleMaps; // Clean up
-      resolve();
-    };
-    
-    script.onerror = (error) => {
-      delete window.initGoogleMaps; // Clean up
-      reject(new Error('Failed to load Google Maps API. Check your API key and network connection.'));
-    };
-    
-    document.head.appendChild(script);
-  });
-}
-
 document.addEventListener('DOMContentLoaded', function() {
   // Chart colors
   const chartColors = {
@@ -2024,7 +1964,7 @@ document.addEventListener('DOMContentLoaded', function() {
   {% endif %}
   
   // Driver Dashboard Charts
-  {% if request.user.user_type == 'driver' %}
+  {% if request.user.user_type == 'driver' or request.user.user_type == 'company_vehicle_staff' %}
   // Monthly Distance Chart
   try {
     const distanceChartCtx = document.getElementById('distanceChart').getContext('2d');
@@ -2373,10 +2313,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   {% endif %}
   
-  // Location Map Functionality - UPDATED TO USE GOOGLE MAPS
+  // Location Map Functionality - Using Leaflet (no API key required)
   let map = null;
   let currentMarkers = [];
-  let currentPolylines = [];
+  let currentPolyline = null;
   const viewLocationButtons = document.querySelectorAll('.view-location');
   const locationMapModal = document.getElementById('locationMapModal');
   
@@ -2386,15 +2326,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Remove all markers
     currentMarkers.forEach(marker => {
-      marker.setMap(null);
+      map.removeLayer(marker);
     });
     currentMarkers = [];
     
-    // Remove all polylines
-    currentPolylines.forEach(polyline => {
-      polyline.setMap(null);
-    });
-    currentPolylines = [];
+    // Remove polyline
+    if (currentPolyline) {
+      map.removeLayer(currentPolyline);
+      currentPolyline = null;
+    }
   }
   
   if (viewLocationButtons.length > 0 && locationMapModal) {
@@ -2403,30 +2343,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const tripId = this.dataset.tripId;
         
         try {
-          // Ensure Google Maps is loaded
-          await ensureGoogleMapsLoaded();
-          
           // Initialize map if not already initialized
+          const mapElement = document.getElementById('locationMap');
+          mapElement.innerHTML = ''; // Clear any previous content
+          
           if (!map) {
-            map = new google.maps.Map(document.getElementById('locationMap'), {
-              zoom: 13,
-              center: { lat: 0, lng: 0 },
-              mapTypeId: google.maps.MapTypeId.ROADMAP,
-              zoomControl: true,
-              mapTypeControl: true,
-              scaleControl: true,
-              streetViewControl: true,
-              rotateControl: true,
-              fullscreenControl: true
-            });
+            map = L.map('locationMap').setView([0, 0], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+              maxZoom: 19
+            }).addTo(map);
           }
           
           // Show loading indicator
-          const mapElement = document.getElementById('locationMap');
           mapElement.style.opacity = '0.5';
           
-          // Fetch trip location data
-          const response = await fetch(`/api/location-logs/?trip=${tripId}`);
+          // Fetch trip location data using the new API endpoint
+          const response = await fetch(`/trips/api/gps/locations/${tripId}/`);
           
           if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
@@ -2439,127 +2372,86 @@ document.addEventListener('DOMContentLoaded', function() {
           
           if (data.length > 0) {
             const latestLocation = data[data.length - 1];
-            const position = { 
-              lat: latestLocation.latitude, 
-              lng: latestLocation.longitude 
-            };
+            const position = [latestLocation.latitude, latestLocation.longitude];
             
             // Center map on the latest location
-            map.setCenter(position);
-            map.setZoom(13);
+            map.setView(position, 13);
             
-            // Add marker for the latest location
-            const latestMarker = new google.maps.Marker({
-              position: position,
-              map: map,
-              title: 'Latest Location',
-              icon: {
-                url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
-              }
+            // Add marker for the latest location (red)
+            const redIcon = L.divIcon({
+              className: 'custom-marker',
+              html: '<div style="background-color: #dc3545; width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>',
+              iconSize: [15, 15],
+              iconAnchor: [7, 7]
             });
             
-            // Create info window for latest location
-            const latestInfoWindow = new google.maps.InfoWindow({
-              content: `
-                <div>
-                  <strong>Latest Location</strong><br>
-                  Time: ${new Date(latestLocation.timestamp).toLocaleString()}<br>
-                  ${latestLocation.speed ? `Speed: ${(latestLocation.speed * 3.6).toFixed(1)} km/h` : ''}
-                </div>
-              `
-            });
-            
-            // Open info window immediately and add click listener
-            latestInfoWindow.open(map, latestMarker);
-            latestMarker.addListener('click', () => {
-              latestInfoWindow.open(map, latestMarker);
-            });
-            
+            const latestMarker = L.marker(position, { icon: redIcon }).addTo(map);
+            latestMarker.bindPopup(`
+              <div>
+                <strong>Latest Location</strong><br>
+                Time: ${new Date(latestLocation.timestamp).toLocaleString()}<br>
+                ${latestLocation.speed ? `Speed: ${(latestLocation.speed * 3.6).toFixed(1)} km/h` : ''}
+              </div>
+            `).openPopup();
             currentMarkers.push(latestMarker);
             
-            // Add start location marker if there are multiple points
+            // Add start location marker if there are multiple points (green)
             if (data.length > 1) {
               const startLocation = data[0];
-              const startPosition = {
-                lat: startLocation.latitude,
-                lng: startLocation.longitude
-              };
+              const startPosition = [startLocation.latitude, startLocation.longitude];
               
-              const startMarker = new google.maps.Marker({
-                position: startPosition,
-                map: map,
-                title: 'Trip Start',
-                icon: {
-                  url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png'
-                }
+              const greenIcon = L.divIcon({
+                className: 'custom-marker',
+                html: '<div style="background-color: #28a745; width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>',
+                iconSize: [15, 15],
+                iconAnchor: [7, 7]
               });
               
-              const startInfoWindow = new google.maps.InfoWindow({
-                content: `
-                  <div>
-                    <strong>Trip Start</strong><br>
-                    Time: ${new Date(startLocation.timestamp).toLocaleString()}<br>
-                    ${startLocation.speed ? `Speed: ${(startLocation.speed * 3.6).toFixed(1)} km/h` : ''}
-                  </div>
-                `
-              });
-              
-              startMarker.addListener('click', () => {
-                startInfoWindow.open(map, startMarker);
-              });
-              
+              const startMarker = L.marker(startPosition, { icon: greenIcon }).addTo(map);
+              startMarker.bindPopup(`
+                <div>
+                  <strong>Trip Start</strong><br>
+                  Time: ${new Date(startLocation.timestamp).toLocaleString()}<br>
+                  ${startLocation.speed ? `Speed: ${(startLocation.speed * 3.6).toFixed(1)} km/h` : ''}
+                </div>
+              `);
               currentMarkers.push(startMarker);
             }
             
             // Create polyline for the trip path
-            const tripPath = data.map(log => ({
-              lat: log.latitude,
-              lng: log.longitude
-            }));
+            const tripPath = data.map(log => [log.latitude, log.longitude]);
             
-            const polyline = new google.maps.Polyline({
-              path: tripPath,
-              geodesic: true,
-              strokeColor: '#2563EB',
-              strokeOpacity: 1.0,
-              strokeWeight: 3
-            });
-            
-            polyline.setMap(map);
-            currentPolylines.push(polyline);
+            currentPolyline = L.polyline(tripPath, {
+              color: '#2563EB',
+              weight: 3,
+              opacity: 1
+            }).addTo(map);
             
             // Fit map to show all points
             if (tripPath.length > 1) {
-              const bounds = new google.maps.LatLngBounds();
-              tripPath.forEach(point => bounds.extend(point));
-              map.fitBounds(bounds, { padding: 50 });
+              map.fitBounds(currentPolyline.getBounds(), { padding: [50, 50] });
             }
             
           } else {
             // No location data available
-            map.setCenter({ lat: 0, lng: 0 });
-            map.setZoom(2);
+            map.setView([0, 0], 2);
             
-            const noDataInfoWindow = new google.maps.InfoWindow({
-              content: '<div style="color: #dc3545;"><strong>No location data available for this trip.</strong></div>',
-              position: { lat: 0, lng: 0 }
-            });
-            
-            noDataInfoWindow.open(map);
+            const noDataPopup = L.popup()
+              .setLatLng([0, 0])
+              .setContent('<div style="color: #dc3545;"><strong>No location data available for this trip.</strong></div>')
+              .openOn(map);
           }
           
           // Remove loading indicator
           mapElement.style.opacity = '1';
           
         } catch (error) {
-          console.error('Error with Google Maps:', error);
+          console.error('Error loading map:', error);
           
-          // Remove loading indicator
+          // Show error message in the map container
           const mapElement = document.getElementById('locationMap');
           if (mapElement) {
             mapElement.style.opacity = '1';
-            
-            // Show error message in the map container
             mapElement.innerHTML = `
               <div style="display: flex; align-items: center; justify-content: center; height: 100%; background-color: #f8f9fa; color: #dc3545; text-align: center; padding: 20px;">
                 <div>
@@ -2567,12 +2459,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   <strong>Map Loading Error</strong><br>
                   <small>${error.message}</small><br><br>
                   <small style="color: #6c757d;">
-                    Please check:
-                    <ul style="list-style: none; padding: 0; margin: 10px 0;">
-                      <li>• Google Maps API key is valid</li>
-                      <li>• Maps JavaScript API is enabled</li>
-                      <li>• Internet connection is working</li>
-                    </ul>
+                    Please check that the trip has GPS data recorded.
                   </small>
                 </div>
               </div>
@@ -2589,28 +2476,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle modal events
     if (locationMapModal) {
       locationMapModal.addEventListener('shown.bs.modal', function() {
-        // Trigger resize event for Google Maps when modal is shown
+        // Invalidate map size when modal is shown (Leaflet needs this)
         if (map) {
           setTimeout(() => {
-            google.maps.event.trigger(map, 'resize');
-            // Re-center the map if needed
-            if (currentMarkers.length > 0) {
-              const bounds = new google.maps.LatLngBounds();
-              currentMarkers.forEach(marker => {
-                bounds.extend(marker.getPosition());
-              });
-              if (!bounds.isEmpty()) {
-                map.fitBounds(bounds, { padding: 50 });
-              }
+            map.invalidateSize();
+            // Re-fit bounds if we have a polyline
+            if (currentPolyline) {
+              map.fitBounds(currentPolyline.getBounds(), { padding: [50, 50] });
             }
           }, 100);
         }
       });
       
-      // Optional: Clear markers when modal is hidden to free memory
+      // Clear map when modal is hidden to prevent issues
       locationMapModal.addEventListener('hidden.bs.modal', function() {
-        // Uncomment if you want to clear the map when modal closes
-        // clearMapElements();
+        if (map) {
+          map.remove();
+          map = null;
+        }
       });
     }
   }

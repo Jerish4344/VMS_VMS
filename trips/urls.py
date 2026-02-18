@@ -20,6 +20,9 @@ from .gps_views import (
     record_gps_location,
     get_trip_gps_status,
     finalize_gps_tracking,
+    get_google_route,
+    get_trip_locations,
+    TripGoogleMapView,
 )
 
 urlpatterns = [
@@ -100,9 +103,14 @@ urlpatterns = [
     # API endpoints for AJAX requests
     # path('api/vehicle/<int:vehicle_id>/', get_vehicle_details_api, name='vehicle_details_api'),
     # path('api/driver/<int:driver_id>/', get_driver_details_api, name='driver_details_api'),
-    
+
     # GPS Tracking API endpoints
     path('api/gps/record/', record_gps_location, name='record_gps_location'),
     path('api/gps/status/<int:trip_id>/', get_trip_gps_status, name='get_trip_gps_status'),
     path('api/gps/finalize/<int:trip_id>/', finalize_gps_tracking, name='finalize_gps_tracking'),
+    path('api/gps/locations/<int:trip_id>/', get_trip_locations, name='get_trip_locations'),
+    
+    # Google Maps Route API and View
+    path('api/google-route/<int:trip_id>/', get_google_route, name='get_google_route'),
+    path('<int:pk>/google-map/', TripGoogleMapView.as_view(), name='trip_google_map'),
 ]

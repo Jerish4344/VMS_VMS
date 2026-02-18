@@ -698,20 +698,16 @@
               <li>Ensure the vehicle is in good condition for use</li>
               <li>You can add your destination when you end the trip</li>
               <li>The trip will start immediately upon submission</li>
-              {% if user.user_type == 'personal_vehicle_staff' %}
-              <li><strong>GPS tracking will be enabled</strong> to verify mileage for reimbursement</li>
-              {% endif %}
+              <li><strong>GPS tracking will be enabled</strong> to track your route during the trip</li>
             </ul>
           </div>
           
           <!-- GPS Tracking Indicator (Hidden initially, shown after trip starts) -->
-          {% if user.user_type == 'personal_vehicle_staff' %}
           <div id="gps-tracking-indicator" class="alert alert-info" style="display: none;">
             <div class="d-flex justify-content-between align-items-center">
               <span><i class="fas fa-map-marker-alt"></i> Initializing GPS tracking...</span>
             </div>
           </div>
-          {% endif %}
           
           <div class="mt-4 d-flex justify-content-between">
             <button type="button" class="btn btn-secondary" id="step3Back">
@@ -761,7 +757,7 @@
           <h6 class="text-danger">GPS Permission Denied</h6>
           <p class="text-muted" id="gpsErrorMessage"></p>
           <div class="alert alert-warning">
-            <strong>Note:</strong> GPS tracking is required for personal vehicle trips to verify mileage for reimbursement purposes.
+            <strong>Note:</strong> GPS tracking is required to track your route during the trip.
           </div>
         </div>
       </div>
@@ -1282,9 +1278,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // GPS Tracking Logic for Personal Vehicle Staff
-  {% if user.user_type == 'personal_vehicle_staff' %}
-  console.log('GPS Tracking: User is personal_vehicle_staff, initializing GPS logic');
+  // GPS Tracking Logic for All Users
+  console.log('GPS Tracking: Initializing GPS logic for all users');
   const tripForm = document.getElementById('tripForm');
   const gpsPermissionModal = new bootstrap.Modal(document.getElementById('gpsPermissionModal'));
   const gpsRequestingPermission = document.getElementById('gpsRequestingPermission');
@@ -1392,7 +1387,6 @@ document.addEventListener('DOMContentLoaded', function() {
   gpsRetryButton.addEventListener('click', function() {
     requestGPSPermission();
   });
-  {% endif %}
 });
 </script>
 {% endblock %}
