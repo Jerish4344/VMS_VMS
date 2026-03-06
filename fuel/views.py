@@ -410,10 +410,11 @@ class FuelStationListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Add transaction counts for each station
-        stations = context['stations']
-        for station in stations:
-            station.transaction_count = FuelTransaction.objects.filter(fuel_station=station).count()
+        # Annotate stations with transaction count in a single query instead of N+1
+        from django.db.models import Count
+        context['stations'] = context['stations'].annotate(
+            transaction_count=Count('fueltransaction')
+        )
             
         return context
 

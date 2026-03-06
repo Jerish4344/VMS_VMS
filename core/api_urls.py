@@ -1,8 +1,8 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 from . import api_views
 
-router = DefaultRouter()
+router = SimpleRouter()
 router.register(r'vehicles', api_views.VehicleViewSet, basename='api-vehicle')
 router.register(r'trips', api_views.TripViewSet, basename='api-trip')
 router.register(r'maintenance', api_views.MaintenanceViewSet, basename='api-maintenance')
@@ -61,6 +61,12 @@ urlpatterns = [
     path('gps/status/<int:trip_id>/', api_views.GPSTripStatusView.as_view(), name='api-gps-status'),
     path('gps/finalize/<int:trip_id>/', api_views.GPSFinalizeView.as_view(), name='api-gps-finalize'),
     path('gps/route/<int:trip_id>/', api_views.GPSTripRouteView.as_view(), name='api-gps-route'),
+    
+    # ===== P2P Integration Endpoints =====
+    # For external P2P (Procure to Pay) system to fetch SOR data for SIR creation
+    path('p2p/sor/', api_views.P2PSORListView.as_view(), name='api-p2p-sor-list'),
+    path('p2p/sor/<int:pk>/', api_views.P2PSORDetailView.as_view(), name='api-p2p-sor-detail'),
+    path('p2p/sor/<int:pk>/confirm-receipt/', api_views.P2PSORConfirmReceiptView.as_view(), name='api-p2p-sor-confirm-receipt'),
     
     # Router URLs (ViewSets) - must be last to not override specific paths
     path('', include(router.urls)),

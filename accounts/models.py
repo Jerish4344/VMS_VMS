@@ -51,7 +51,8 @@ class CustomUser(AbstractUser):
         ('company_vehicle_staff', 'Staff (Company Vehicle)'),  # Staff using company vehicles (bikes, etc.)
         ('personal_vehicle_staff', 'Staff (Personal Vehicle)'),  # Staff using own vehicles for reimbursement
         ('generator_user', 'Generator User'),  # New role for generator-only access
-	('sor_team', 'SOR Team'),  # SOR team role
+	    ('sor_team', 'SOR Team'),  # SOR team role
+	    ('p2p_service', 'P2P Service Account'),  # External P2P system integration
     )
     
     APPROVAL_STATUS = (
@@ -121,6 +122,19 @@ class CustomUser(AbstractUser):
         help_text="Stores this user has access to (for generator users)"
     )
     
+    # Platform access control
+    ACCESS_TYPE_CHOICES = (
+        ('web', 'Web Only'),
+        ('mobile', 'Mobile Only'),
+        ('both', 'Web & Mobile'),
+    )
+    access_type = models.CharField(
+        max_length=10,
+        choices=ACCESS_TYPE_CHOICES,
+        default='both',
+        help_text="Controls which platform(s) this user can log in from"
+    )
+    
     # Flag for users with both vehicle and generator access
     has_full_access = models.BooleanField(
         default=False,
@@ -154,6 +168,14 @@ class CustomUser(AbstractUser):
         else:
             # Admins, managers, vehicle managers use normal Django auth
             return self.is_active
+    
+    def can_access_web(self):
+        """Check if user is allowed to log in via the web interface"""
+        return self.access_type in ('web', 'both')
+    
+    def can_access_mobile(self):
+        """Check if user is allowed to log in via the mobile app"""
+        return self.access_type in ('mobile', 'both')
     
     def is_pending_approval(self):
         """Check if employee is pending approval"""
@@ -293,76 +315,141 @@ class CustomUser(AbstractUser):
         else:
             return "Valid License"
         
-    def has_approval_permissions(self):
-        """Check if user can approve/reject employees"""
-        return self.user_type in ['admin', 'manager', 'vehicle_manager']
+    def _get_permissions_cache_key(self):
+        """Get the Redis cache key for this user's permissions."""
+        return f'user_permissions_{self.pk}'
     
-    def has_management_access(self):
-        """Check if user has any management access"""
-        return self.user_type in ['admin', 'manager', 'vehicle_manager']
+    def _load_all_permissions(self):
+        """
+        Load ALL permissions for this user in a single query and cache them.
+        Returns a dict: {(module_name, action): bool}
+        
+        Previously has_module_permission() ran 3 DB queries per call.
+        With 103 permission checks in base.html alone, that was 309 queries
+        per page load. This replaces all of them with 1 query, cached in Redis.
+        """
+        from django.core.cache import cache
+        
+        cache_key = self._get_permissions_cache_key()
+        try:
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            # Cache backend is down (Redis not running, etc.) — skip cache
+            pass
+        
+        # Map user_type to the corresponding default field name
+        role_field_map = {
+            'admin': 'is_default_for_admin',
+            'manager': 'is_default_for_manager',
+            'vehicle_manager': 'is_default_for_vehicle_manager',
+            'driver': 'is_default_for_driver',
+            'company_vehicle_staff': 'is_default_for_company_vehicle_staff',
+            'personal_vehicle_staff': 'is_default_for_personal_vehicle_staff',
+            'generator_user': 'is_default_for_generator_user',
+            'sor_team': 'is_default_for_sor_team',
+        }
+        
+        role_field = role_field_map.get(self.user_type)
+        
+        # Single query: fetch all permissions with their module names
+        all_permissions = Permission.objects.select_related('module').values_list(
+            'module__name', 'action', 'id',
+            'is_default_for_admin', 'is_default_for_manager',
+            'is_default_for_vehicle_manager', 'is_default_for_driver',
+            'is_default_for_company_vehicle_staff', 'is_default_for_personal_vehicle_staff',
+            'is_default_for_generator_user', 'is_default_for_sor_team',
+        )
+        
+        # Single query: fetch all explicit user overrides
+        user_overrides = dict(
+            UserPermission.objects.filter(user=self).values_list(
+                'permission_id', 'granted'
+            )
+        )
+        
+        # Field index map for the values_list tuple
+        field_index = {
+            'is_default_for_admin': 3,
+            'is_default_for_manager': 4,
+            'is_default_for_vehicle_manager': 5,
+            'is_default_for_driver': 6,
+            'is_default_for_company_vehicle_staff': 7,
+            'is_default_for_personal_vehicle_staff': 8,
+            'is_default_for_generator_user': 9,
+            'is_default_for_sor_team': 10,
+        }
+        
+        permissions_map = {}
+        for perm_row in all_permissions:
+            module_name = perm_row[0]
+            action = perm_row[1]
+            perm_id = perm_row[2]
+            
+            # Check explicit user override first
+            if perm_id in user_overrides:
+                permissions_map[(module_name, action)] = user_overrides[perm_id]
+            elif role_field and role_field in field_index:
+                permissions_map[(module_name, action)] = perm_row[field_index[role_field]]
+            else:
+                permissions_map[(module_name, action)] = False
+        
+        # Cache for 5 minutes
+        try:
+            cache.set(cache_key, permissions_map, 300)
+        except Exception:
+            pass  # Cache backend down — still return the computed result
+        return permissions_map
+    
+    def invalidate_permissions_cache(self):
+        """Invalidate cached permissions. Call after granting/revoking."""
+        from django.core.cache import cache
+        try:
+            cache.delete(self._get_permissions_cache_key())
+        except Exception:
+            pass  # Cache backend down — safe to ignore
     
     def has_module_permission(self, module_name, action):
         """
-        Check if user has permission for a specific module and action
+        Check if user has permission for a specific module and action.
+        Uses cached permissions — 0 DB queries after the first call.
         """
-        try:
-            module = Module.objects.get(name=module_name)
-            permission = Permission.objects.get(module=module, action=action)
-            
-            # Check for explicit user permission first
-            try:
-                user_perm = UserPermission.objects.get(user=self, permission=permission)
-                return user_perm.granted
-            except UserPermission.DoesNotExist:
-                pass
-            
-            # Check default role permissions based on user type
-            if self.user_type == 'admin':
-                return permission.is_default_for_admin
-            elif self.user_type == 'manager':
-                return permission.is_default_for_manager
-            elif self.user_type == 'vehicle_manager':
-                return permission.is_default_for_vehicle_manager
-            elif self.user_type == 'driver':
-                return permission.is_default_for_driver
-            elif self.user_type == 'company_vehicle_staff':
-                return permission.is_default_for_company_vehicle_staff
-            elif self.user_type == 'personal_vehicle_staff':
-                return permission.is_default_for_personal_vehicle_staff
-            elif self.user_type == 'generator_user':
-                return permission.is_default_for_generator_user
-            elif self.user_type == 'sor_team':
-                return permission.is_default_for_sor_team
-            
-            return False
-        except (Module.DoesNotExist, Permission.DoesNotExist):
-            return False
+        permissions_map = self._load_all_permissions()
+        return permissions_map.get((module_name, action), False)
     
     def get_accessible_modules(self):
         """
-        Get list of modules this user can access
+        Get list of modules this user can access.
+        Uses cached permissions + 1 query for active modules.
         """
-        accessible_modules = []
-        for module in Module.objects.filter(is_active=True):
-            if self.has_module_permission(module.name, 'view'):
-                accessible_modules.append(module)
-        return accessible_modules
+        permissions_map = self._load_all_permissions()
+        
+        # Get module names the user can 'view'
+        viewable_module_names = {
+            module_name for (module_name, action), granted in permissions_map.items()
+            if action == 'view' and granted
+        }
+        
+        if not viewable_module_names:
+            return []
+        
+        return list(Module.objects.filter(
+            is_active=True,
+            name__in=viewable_module_names
+        ))
     
     def get_user_permissions_for_module(self, module_name):
         """
-        Get all permissions for a specific module for this user
+        Get all permissions for a specific module for this user.
+        Uses cached permissions — 0 DB queries.
         """
-        try:
-            module = Module.objects.get(name=module_name)
-            permissions = Permission.objects.filter(module=module)
-            user_permissions = {}
-            
-            for permission in permissions:
-                user_permissions[permission.action] = self.has_module_permission(module_name, permission.action)
-            
-            return user_permissions
-        except Module.DoesNotExist:
-            return {}
+        permissions_map = self._load_all_permissions()
+        return {
+            action: granted
+            for (mod_name, action), granted in permissions_map.items()
+            if mod_name == module_name
+        }
     
     def grant_permission(self, module_name, action, granted_by_user):
         """
@@ -386,6 +473,9 @@ class CustomUser(AbstractUser):
                 user_perm.granted_by = granted_by_user
                 user_perm.granted_at = timezone.now()
                 user_perm.save()
+            
+            # Invalidate cached permissions after granting
+            self.invalidate_permissions_cache()
             
             return user_perm
         except (Module.DoesNotExist, Permission.DoesNotExist):
@@ -413,6 +503,9 @@ class CustomUser(AbstractUser):
                 user_perm.granted_by = granted_by_user
                 user_perm.granted_at = timezone.now()
                 user_perm.save()
+            
+            # Invalidate cached permissions after revoking
+            self.invalidate_permissions_cache()
             
             return user_perm
         except (Module.DoesNotExist, Permission.DoesNotExist):

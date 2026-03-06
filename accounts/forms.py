@@ -54,6 +54,13 @@ class ApprovalAuthenticationForm(AuthenticationForm):
                 'Your account has been deactivated.',
                 code='inactive'
             )
+        # Check if user has web access
+        if not user.can_access_web():
+            raise forms.ValidationError(
+                'Your account is configured for mobile access only. '
+                'Please use the mobile app to log in.',
+                code='no_web_access'
+            )
 
 
 class EmployeeApprovalForm(forms.Form):
@@ -113,15 +120,15 @@ DriverApprovalForm = EmployeeApprovalForm
 class CustomUserCreationForm(UserCreationForm):
     class Meta:
         model = CustomUser
-        fields = ('username', 'email', 'first_name', 'last_name', 'user_type', 'phone_number', 
-                  'address', 'license_number', 'license_expiry', 'profile_picture')
+        fields = ('username', 'email', 'first_name', 'last_name', 'user_type', 'access_type',
+                  'phone_number', 'address', 'license_number', 'license_expiry', 'profile_picture')
 
 class CustomUserChangeForm(UserChangeForm):
     password = None  # Remove password field from the form
     
     class Meta:
         model = CustomUser
-        fields = ('email', 'first_name', 'last_name', 'phone_number', 'address', 
+        fields = ('email', 'first_name', 'last_name', 'access_type', 'phone_number', 'address', 
                   'license_number', 'license_expiry', 'profile_picture')
         
 class DriverUserChangeForm(UserChangeForm):

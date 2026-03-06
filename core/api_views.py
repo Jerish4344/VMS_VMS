@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status, generics
+from rest_framework import viewsets, status, generics, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -23,6 +23,7 @@ from .serializers import (
     FuelTransactionSerializer, FuelStationSerializer,
     DocumentSerializer, DocumentTypeSerializer,
     UserSerializer, LoginSerializer,
+    P2PSORSerializer,
 )
 
 
@@ -48,6 +49,13 @@ class LoginView(APIView):
             return Response(
                 {'detail': 'Account is inactive'},
                 status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Check if user has mobile access
+        if not user.can_access_mobile():
+            return Response(
+                {'detail': 'Your account is configured for web access only. Please use the web portal to log in.'},
+                status=status.HTTP_403_FORBIDDEN
             )
         
         token, _ = Token.objects.get_or_create(user=user)
@@ -519,7 +527,8 @@ class DashboardStatsView(APIView):
 class VehicleViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = VehicleSerializer
-    pagination_class = None  # Return all vehicles without pagination
+    # Paginated — safe for 300+ users with many vehicles
+    # PAGE_SIZE inherited from global settings (20)
     
     def get_queryset(self):
         user = self.request.user
@@ -1052,6 +1061,7 @@ class GPSRecordLocationView(APIView):
     Called periodically by the mobile app while trip is active.
     """
     permission_classes = [IsAuthenticated]
+    throttle_scope = 'gps_tracking'
     
     def post(self, request):
         trip_id = request.data.get('trip_id')
@@ -1121,6 +1131,7 @@ class GPSBatchRecordView(APIView):
     Useful when the app was offline and needs to sync buffered locations.
     """
     permission_classes = [IsAuthenticated]
+    throttle_scope = 'gps_tracking'
     
     def post(self, request):
         trip_id = request.data.get('trip_id')
@@ -1290,8 +1301,10 @@ class GPSTripRouteView(APIView):
         except Trip.DoesNotExist:
             return Response({'error': 'Trip not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Get all locations ordered by timestamp
-        locations = TripLocation.objects.filter(trip=trip).order_by('timestamp')
+        # Get all locations ordered by timestamp (values_list for memory efficiency)
+        locations = TripLocation.objects.filter(trip=trip).order_by('timestamp').only(
+            'latitude', 'longitude', 'accuracy', 'speed', 'timestamp'
+        )
         
         if not locations.exists():
             return Response({
@@ -1350,4 +1363,115 @@ class GPSTripRouteView(APIView):
                 'start_time': trip.start_time.isoformat() if trip.start_time else None,
                 'end_time': trip.end_time.isoformat() if trip.end_time else None,
             }
+        })
+
+
+# ==================== P2P Integration APIs ====================
+# These endpoints are for the external P2P (Procure to Pay) system
+# to fetch SOR data for creating SIR (Security Inward Register)
+
+class IsP2PServiceAccount(permissions.BasePermission):
+    """Permission class that allows only P2P service accounts.
+    The P2P team authenticates with a token linked to a user with user_type='p2p_service'.
+    Also allows admin users for testing/debugging."""
+    
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.user_type in ['p2p_service', 'admin']
+
+
+class P2PSORListView(generics.ListAPIView):
+    """List SOR entries available for SIR creation.
+    Returns SORs with status 'in_progress' or 'completed' (goods dispatched/delivered).
+    
+    Query Parameters:
+        - status: Filter by specific status ('in_progress' or 'completed')
+        - from_location: Filter by source warehouse location (partial match)
+        - to_location: Filter by destination store location (partial match)
+        - date_from: Filter SORs created on or after this date (YYYY-MM-DD)
+        - date_to: Filter SORs created on or before this date (YYYY-MM-DD)
+        - search: Search by SOR ID or description
+    """
+    permission_classes = [IsAuthenticated, IsP2PServiceAccount]
+    serializer_class = P2PSORSerializer
+    
+    def get_queryset(self):
+        # Only show SORs that are in_progress or completed (goods dispatched)
+        queryset = SOR.objects.filter(
+            status__in=['in_progress', 'completed']
+        ).select_related('vehicle', 'driver')
+        
+        # Optional filters
+        status_filter = self.request.query_params.get('status')
+        if status_filter and status_filter in ['in_progress', 'completed']:
+            queryset = queryset.filter(status=status_filter)
+        
+        from_location = self.request.query_params.get('from_location')
+        if from_location:
+            queryset = queryset.filter(from_location__icontains=from_location)
+        
+        to_location = self.request.query_params.get('to_location')
+        if to_location:
+            queryset = queryset.filter(to_location__icontains=to_location)
+        
+        date_from = self.request.query_params.get('date_from')
+        if date_from:
+            queryset = queryset.filter(created_at__date__gte=date_from)
+        
+        date_to = self.request.query_params.get('date_to')
+        if date_to:
+            queryset = queryset.filter(created_at__date__lte=date_to)
+        
+        search = self.request.query_params.get('search')
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(id__icontains=search) | Q(description__icontains=search)
+            )
+        
+        return queryset.order_by('-created_at')
+
+
+class P2PSORDetailView(generics.RetrieveAPIView):
+    """Get full details of a specific SOR by ID for SIR creation.
+    Only accessible for SORs with status 'in_progress' or 'completed'."""
+    permission_classes = [IsAuthenticated, IsP2PServiceAccount]
+    serializer_class = P2PSORSerializer
+    
+    def get_queryset(self):
+        return SOR.objects.filter(
+            status__in=['in_progress', 'completed']
+        ).select_related('vehicle', 'driver')
+
+
+class P2PSORConfirmReceiptView(APIView):
+    """Optional: P2P system calls this to confirm goods received at the store.
+    This marks the SOR with goods_received=True for tracking purposes."""
+    permission_classes = [IsAuthenticated, IsP2PServiceAccount]
+    
+    def post(self, request, pk):
+        try:
+            sor = SOR.objects.get(pk=pk, status__in=['in_progress', 'completed'])
+        except SOR.DoesNotExist:
+            return Response(
+                {'detail': 'SOR not found or not in a valid status for receipt confirmation.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        sir_reference = request.data.get('sir_reference', '')
+        
+        # Store receipt confirmation in notes/description (or a dedicated field if added later)
+        receipt_note = f"\n[P2P Receipt] SIR Ref: {sir_reference} | Confirmed at: {timezone.now().strftime('%Y-%m-%d %H:%M')}"
+        if sor.description:
+            sor.description += receipt_note
+        else:
+            sor.description = receipt_note.strip()
+        sor.save()
+        
+        return Response({
+            'detail': 'Receipt confirmed successfully.',
+            'sor_id': sor.id,
+            'sir_reference': sir_reference,
+            'status': sor.status,
         })

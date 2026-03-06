@@ -8,18 +8,22 @@ ZEPTO_ALERT_RECIPIENTS = [
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / '.env')
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '41o!--&b-+974d)us83w0$l0y_%xhw(-7+xxn4h0n*=c#hjt5-'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'CHANGE-ME-IN-PRODUCTION')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
 ALLOWED_HOSTS = [
-    '44.202.73.68',
+    '52.87.151.66',
     'vms.jeyarama.com',
     'localhost',
     '127.0.0.1'
@@ -106,11 +110,11 @@ WSGI_APPLICATION = 'vehicle_management.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'vms',
-        'USER': 'admin',
-        'PASSWORD': 'Qsys160w',
-        'HOST': 'database-1.cu94as0wos8e.us-east-1.rds.amazonaws.com',
-        'PORT': '3306',
+        'NAME': os.environ.get('DB_NAME', 'vms'),
+        'USER': os.environ.get('DB_USER', 'admin'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '3306'),
         'OPTIONS': {
             'charset': 'utf8mb4',
             'autocommit': True,
@@ -124,18 +128,6 @@ DATABASES = {
     }
 }
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': '',
-#         'USER': '',
-#         'PASSWORD': '',
-#         'HOST': 'localhost',
-#         'PORT': '3306',
-#     }
-# }
-
-
 # =============================================================================
 # REDIS CACHE CONFIGURATION
 # =============================================================================
@@ -148,13 +140,13 @@ CACHES = {
             'SOCKET_CONNECT_TIMEOUT': 5,
             'SOCKET_TIMEOUT': 5,
             'RETRY_ON_TIMEOUT': True,
+            'IGNORE_EXCEPTIONS': True,  # Silently fail if Redis is down
         }
     }
 }
 
-# Use Redis for session storage (faster than database sessions)
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'default'
+# Use database sessions so auth works even if Redis is down
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 # Cache timeout defaults (in seconds)
 CACHE_TTL = 60 * 5  # 5 minutes default
@@ -292,18 +284,6 @@ JAZZMIN_UI_TWEAKS = {
     }
 }
 
-# For production, consider using PostgreSQL:
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'vehicle_management',
-#         'USER': 'postgres',
-#         'PASSWORD': 'your_password',
-#         'HOST': 'localhost',
-#         'PORT': '5432',
-#     }
-# }
-
 # Custom user model
 AUTH_USER_MODEL = 'accounts.CustomUser'
 
@@ -382,14 +362,25 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    # Throttling — protects the server with 300 concurrent users
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '30/minute',
+        'user': '120/minute',
+        'gps_tracking': '600/minute',
+    },
 }
 
 # CORS Settings for Mobile App
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "https://vms.jeyarama.com",
-    "http://44.202.73.68",
-    "https://44.202.73.68",
+    "http://52.87.151.66",
+    "https://52.87.151.66",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -404,7 +395,7 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' # For developme
 # EMAIL_HOST_USER_PASSWORD = 'your-email-password'
 
 # ZeptoMail API settings (add your actual API key below)
-ZEPTO_API_KEY = 'PHtE6r0PFuvsijYvoxIG5KLrRJalY9soruIzLQhA4o1GWKNWSU1cr48ow2WzqBwjUvETQPXOy44+tLqZs+uGJmnkNmkeVGqyqK3sx/VYSPOZsbq6x00Vs14bdk3eUoXtd9Jr1SDQvt7ZNA=='  # ZeptoMail API key
+ZEPTO_API_KEY = os.environ.get('ZEPTO_API_KEY', '')
 ZEPTO_TEMPLATE_KEY = ''  # (Optional) Paste your ZeptoMail template key here if using templates
 
 # Document settings
@@ -503,8 +494,8 @@ LOGGING = {
     'loggers': {
         'accounts.backends': {
             'handlers': ['file', 'console'],
-            'level': 'INFO',
-            'propagate': True,
+            'level': 'WARNING',
+            'propagate': False,
         },
         'accounts.views': {
             'handlers': ['file', 'console'],
@@ -532,13 +523,13 @@ DRIVER_APPROVAL_NOTIFICATIONS = True
 DEFAULT_FROM_EMAIL = 'noreply@yourvms.com'
 
 # Bulk upload settings
-FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100MB
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000    # For many records
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 2000    # For many records
 
 # Disable atomic requests for bulk operations
 ATOMIC_REQUESTS = False
 
 
 # Google Maps API Configuration
-GOOGLE_MAPS_API_KEY = 'AIzaSyC1PNkpdm5RwNn4F7zPOE_ZyU2g97lG3NU'
+GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')

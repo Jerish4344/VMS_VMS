@@ -166,6 +166,19 @@
           </div>
           
           <div class="row mb-3">
+            <div class="col-md-4 info-label">Platform Access</div>
+            <div class="col-md-8">
+              {% if user_profile.access_type == 'web' %}
+                <span class="badge bg-primary"><i class="fas fa-desktop"></i> Web Only</span>
+              {% elif user_profile.access_type == 'mobile' %}
+                <span class="badge bg-info"><i class="fas fa-mobile-alt"></i> Mobile Only</span>
+              {% else %}
+                <span class="badge bg-success"><i class="fas fa-globe"></i> Web & Mobile</span>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="row mb-3">
             <div class="col-md-4 info-label">Status</div>
             <div class="col-md-8">
               {% if user_profile.is_active %}

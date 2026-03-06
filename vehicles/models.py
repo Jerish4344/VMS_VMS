@@ -237,6 +237,7 @@ class Vehicle(models.Model):
             models.Index(fields=['status']),
             models.Index(fields=['vehicle_type', 'status']),
             models.Index(fields=['license_plate']),
+            models.Index(fields=['ownership_type', 'status']),
         ]
     
     def __str__(self):

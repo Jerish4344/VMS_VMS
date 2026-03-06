@@ -25,6 +25,9 @@ class Notification(models.Model):
     
     class Meta:
         ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['user', 'read', '-timestamp'], name='idx_notification_user_read'),
+        ]
     
     def __str__(self):
         return f"{self.text} ({self.user.username})"

@@ -1,10 +1,10 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 from . import views
 from . import api
 
 # API Router for RESTful endpoints
-router = DefaultRouter()
+router = SimpleRouter()
 router.register(r'devices', api.AiroTrackDeviceViewSet)
 router.register(r'locations', api.VehicleLocationViewSet)
 router.register(r'history', api.LocationHistoryViewSet)

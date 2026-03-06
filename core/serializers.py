@@ -22,10 +22,10 @@ class UserSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 'full_name',
-            'user_type', 'phone_number', 'approval_status', 'hr_designation',
+            'user_type', 'access_type', 'phone_number', 'approval_status', 'hr_designation',
             'hr_department', 'profile_picture',
         ]
-        read_only_fields = ['id', 'username', 'user_type', 'approval_status']
+        read_only_fields = ['id', 'username', 'user_type', 'access_type', 'approval_status']
     
     def get_full_name(self, obj):
         return obj.get_full_name()
@@ -87,6 +87,20 @@ class TripCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Trip
         fields = ['vehicle', 'origin', 'purpose', 'start_odometer', 'notes', 'start_odometer_image']
+    
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if request and request.user:
+            ongoing_trips = Trip.objects.filter(
+                driver=request.user,
+                status='ongoing',
+                is_deleted=False
+            )
+            if ongoing_trips.exists():
+                raise serializers.ValidationError(
+                    'You already have an active trip. Please end your current trip before starting a new one.'
+                )
+        return attrs
     
     def create(self, validated_data):
         request = self.context.get('request')
@@ -257,6 +271,47 @@ class SORSerializer(serializers.ModelSerializer):
     
     def get_status_display(self, obj):
         return obj.get_status_display()
+
+
+# P2P Integration Serializer - Read-only for external P2P system
+class P2PSORSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for P2P (Procure to Pay) system integration.
+    Exposes SOR data needed for SIR (Security Inward Register) creation."""
+    vehicle_number = serializers.CharField(source='vehicle.license_plate', read_only=True)
+    vehicle_make_model = serializers.SerializerMethodField()
+    driver_name = serializers.SerializerMethodField()
+    driver_phone = serializers.CharField(source='driver.phone_number', read_only=True)
+    status_display = serializers.SerializerMethodField()
+    transport_cost = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SOR
+        fields = [
+            'id', 'goods_value', 'from_location', 'to_location',
+            'vehicle_number', 'vehicle_make_model',
+            'driver_name', 'driver_phone',
+            'distance_km', 'status', 'status_display',
+            'number_of_crates', 'number_of_sac', 'description',
+            'transport_cost',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = fields  # Entirely read-only
+
+    def get_vehicle_make_model(self, obj):
+        if obj.vehicle:
+            return f"{obj.vehicle.make} {obj.vehicle.model}".strip()
+        return None
+
+    def get_driver_name(self, obj):
+        if obj.driver:
+            return obj.driver.get_full_name()
+        return None
+
+    def get_status_display(self, obj):
+        return obj.get_status_display()
+
+    def get_transport_cost(self, obj):
+        return obj.transport_cost()
 
 
 class SORNotificationSerializer(serializers.ModelSerializer):

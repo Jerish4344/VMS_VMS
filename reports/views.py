@@ -71,30 +71,36 @@ class ReportBaseView(LoginRequiredMixin, VehicleManagerRequiredMixin, TemplateVi
         return response
     
     def export_as_excel(self, data, filename, headers):
-        """Export data as Excel file."""
+        """Export data as Excel file (optimised for large datasets)."""
         # Check if xlsxwriter is available
         if not XLSX_AVAILABLE:
             # Fallback to CSV if xlsxwriter is not available
             return self.export_as_csv(data, filename, headers)
-            
+
         buffer = io.BytesIO()
-        workbook = xlsxwriter.Workbook(buffer)
+        # constant_memory=True: rows are flushed to disk after writing,
+        # keeping RAM usage flat regardless of row count.
+        workbook = xlsxwriter.Workbook(buffer, {'constant_memory': True})
         worksheet = workbook.add_worksheet()
-        
-        # Add headers
+
+        # Bold header format
+        bold = workbook.add_format({'bold': True})
+
+        # Pre-compute field keys once (avoids repeated lower/replace per cell)
+        field_keys = [h.lower().replace(' ', '_') for h in headers]
+
+        # Write headers
         for col_num, header in enumerate(headers):
-            worksheet.write(0, col_num, header)
-            
-        # Add data
+            worksheet.write(0, col_num, header, bold)
+
+        # Write data rows
         for row_num, row in enumerate(data, 1):
-            for col_num, header in enumerate(headers):
-                field_name = header.lower().replace(' ', '_')
-                value = row.get(field_name, '')
-                worksheet.write(row_num, col_num, value)
-        
+            for col_num, key in enumerate(field_keys):
+                worksheet.write(row_num, col_num, row.get(key, ''))
+
         workbook.close()
         buffer.seek(0)
-        
+
         response = HttpResponse(
             buffer.getvalue(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -861,16 +867,49 @@ class MaintenanceReportView(ReportBaseView):
 
 class FuelReportView(ReportBaseView):
     template_name = 'reports/fuel_report.html'
-    
+
+    def _get_filtered_queryset(self):
+        """Build the filtered FuelTransaction queryset (shared by all code paths)."""
+        start_date, end_date = self.get_date_range_filters()
+
+        try:
+            start_date_obj = datetime.fromisoformat(start_date).date()
+            end_date_obj = datetime.fromisoformat(end_date).date()
+        except ValueError:
+            start_date_obj = timezone.now().date()
+            end_date_obj = timezone.now().date()
+            start_date = start_date_obj.isoformat()
+            end_date = end_date_obj.isoformat()
+
+        qs = FuelTransaction.objects.filter(
+            date__gte=start_date_obj,
+            date__lte=end_date_obj
+        )
+
+        vehicle_id = self.request.GET.get('vehicle')
+        if vehicle_id:
+            qs = qs.filter(vehicle_id=vehicle_id)
+
+        fuel_type = self.request.GET.get('fuel_type')
+        if fuel_type:
+            qs = qs.filter(fuel_type=fuel_type)
+
+        station_id = self.request.GET.get('station')
+        if station_id:
+            qs = qs.filter(fuel_station_id=station_id)
+
+        return qs, start_date, end_date, start_date_obj, end_date_obj
+
+    # ------------------------------------------------------------------
+    # GET — routes to AJAX / export / normal page without double-querying
+    # ------------------------------------------------------------------
     def get(self, request, *args, **kwargs):
-        # Check if it's an AJAX request
+        # AJAX request
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.GET.get('ajax'):
-            # For AJAX requests, return JSON data
             context = self.get_context_data(**kwargs)
-            
-            # Prepare data for JSON response
+
             transactions_data = []
-            for transaction in context['fuel_report_page']:
+            for transaction in context['fuel_report']:
                 transactions_data.append({
                     'date': transaction['date'].strftime('%b %d, %Y') if transaction['date'] else '',
                     'vehicle': transaction['vehicle'],
@@ -888,7 +927,7 @@ class FuelReportView(ReportBaseView):
                     'odometer_reading': transaction['odometer_reading'],
                     'is_electric': transaction['is_electric']
                 })
-            
+
             return JsonResponse({
                 'success': True,
                 'transactions': transactions_data,
@@ -912,99 +951,59 @@ class FuelReportView(ReportBaseView):
                     'station': request.GET.get('station', '')
                 }
             })
-        
-        # Check if export is requested
+
+        # Export — skip get_context_data entirely, query only what's needed
         if 'export' in request.GET:
-            context = self.get_context_data(**kwargs)
             export_format = request.GET.get('export')
-            
-            if hasattr(self, 'get_export_data'):
-                data, filename, headers = self.get_export_data(context)
-                
-                if export_format == 'excel':
-                    return self.export_as_excel(data, filename, headers)
-                elif export_format == 'csv':
-                    return self.export_as_csv(data, filename, headers)
-        
+            data, filename, headers = self.get_export_data()
+
+            if export_format == 'excel':
+                return self.export_as_excel(data, filename, headers)
+            elif export_format == 'csv':
+                return self.export_as_csv(data, filename, headers)
+
         # Regular page load
-        return super().get(request, *args, **kwargs)
-    
+        return super(ReportBaseView, self).get(request, *args, **kwargs)
+
+    # ------------------------------------------------------------------
+    # Context for normal page & AJAX — optimised aggregates
+    # ------------------------------------------------------------------
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        start_date, end_date = self.get_date_range_filters()
-        
-        # Convert to datetime objects
-        try:
-            start_date_obj = datetime.fromisoformat(start_date).date()
-            end_date_obj = datetime.fromisoformat(end_date).date()
-        except ValueError:
-            start_date_obj = timezone.now().date()
-            end_date_obj = timezone.now().date()
-            start_date = start_date_obj.isoformat()
-            end_date = end_date_obj.isoformat()
-        
-        # Get all fuel/energy transactions
-        fuel_transactions = FuelTransaction.objects.filter(
-            date__gte=start_date_obj,
-            date__lte=end_date_obj
-        ).select_related('vehicle', 'driver', 'fuel_station')
-        
-        # Filter by vehicle
-        vehicle_id = self.request.GET.get('vehicle')
-        if vehicle_id:
-            fuel_transactions = fuel_transactions.filter(vehicle_id=vehicle_id)
-        
-        # Filter by fuel type
-        fuel_type = self.request.GET.get('fuel_type')
-        if fuel_type:
-            fuel_transactions = fuel_transactions.filter(fuel_type=fuel_type)
-        
-        # Filter by fuel station
-        station_id = self.request.GET.get('station')
-        if station_id:
-            fuel_transactions = fuel_transactions.filter(fuel_station_id=station_id)
-        
-        # Separate fuel and electric transactions
-        fuel_only_transactions = fuel_transactions.exclude(fuel_type='Electric')
-        electric_transactions = fuel_transactions.filter(fuel_type='Electric')
-        
-        # Summary data for fuel transactions
-        fuel_summary = {
-            'total_count': fuel_only_transactions.count(),
-            'total_quantity': fuel_only_transactions.aggregate(Sum('quantity'))['quantity__sum'] or 0,
-            'total_cost': fuel_only_transactions.aggregate(Sum('total_cost'))['total_cost__sum'] or 0,
-            'avg_cost_per_liter': fuel_only_transactions.aggregate(
-                avg=Avg('cost_per_liter')
-            )['avg'] or 0,
-        }
-        
-        # Summary data for electric transactions
-        electric_summary = {
-            'total_count': electric_transactions.count(),
-            'total_energy': electric_transactions.aggregate(Sum('energy_consumed'))['energy_consumed__sum'] or 0,
-            'total_cost': electric_transactions.aggregate(Sum('total_cost'))['total_cost__sum'] or 0,
-            'avg_cost_per_kwh': electric_transactions.aggregate(
-                avg=Avg('cost_per_kwh')
-            )['avg'] or 0,
-            'avg_charging_duration': electric_transactions.aggregate(
-                avg=Avg('charging_duration_minutes')
-            )['avg'] or 0,
-        }
-        
-        # Combined summary
+        fuel_transactions, start_date, end_date, start_date_obj, end_date_obj = self._get_filtered_queryset()
+
+        # ---- Single combined aggregate instead of 15+ separate queries ----
+        combined_agg = fuel_transactions.aggregate(
+            total_count=Count('id'),
+            # Fuel-only aggregates (non-Electric)
+            fuel_count=Count('id', filter=~Q(fuel_type='Electric')),
+            fuel_total_quantity=Sum('quantity', filter=~Q(fuel_type='Electric')),
+            fuel_total_cost=Sum('total_cost', filter=~Q(fuel_type='Electric')),
+            fuel_avg_cost_per_liter=Avg('cost_per_liter', filter=~Q(fuel_type='Electric')),
+            # Electric-only aggregates
+            electric_count=Count('id', filter=Q(fuel_type='Electric')),
+            electric_total_energy=Sum('energy_consumed', filter=Q(fuel_type='Electric')),
+            electric_total_cost=Sum('total_cost', filter=Q(fuel_type='Electric')),
+            electric_avg_cost_per_kwh=Avg('cost_per_kwh', filter=Q(fuel_type='Electric')),
+            electric_avg_charging_duration=Avg('charging_duration_minutes', filter=Q(fuel_type='Electric')),
+        )
+
+        fuel_cost = combined_agg['fuel_total_cost'] or 0
+        electric_cost = combined_agg['electric_total_cost'] or 0
+
         summary = {
-            'total_count': fuel_transactions.count(),
-            'total_quantity': fuel_summary['total_quantity'],
-            'total_energy': electric_summary['total_energy'],
-            'total_cost': fuel_summary['total_cost'] + electric_summary['total_cost'],
-            'avg_cost_per_liter': fuel_summary['avg_cost_per_liter'],
-            'avg_cost_per_kwh': electric_summary['avg_cost_per_kwh'],
-            'fuel_transaction_count': fuel_summary['total_count'],
-            'electric_transaction_count': electric_summary['total_count'],
-            'fuel_cost': fuel_summary['total_cost'],
-            'electric_cost': electric_summary['total_cost'],
-            'avg_charging_duration': electric_summary['avg_charging_duration'],
-            
+            'total_count': combined_agg['total_count'],
+            'total_quantity': combined_agg['fuel_total_quantity'] or 0,
+            'total_energy': combined_agg['electric_total_energy'] or 0,
+            'total_cost': fuel_cost + electric_cost,
+            'avg_cost_per_liter': combined_agg['fuel_avg_cost_per_liter'] or 0,
+            'avg_cost_per_kwh': combined_agg['electric_avg_cost_per_kwh'] or 0,
+            'fuel_transaction_count': combined_agg['fuel_count'],
+            'electric_transaction_count': combined_agg['electric_count'],
+            'fuel_cost': fuel_cost,
+            'electric_cost': electric_cost,
+            'avg_charging_duration': combined_agg['electric_avg_charging_duration'] or 0,
+
             # Fuel type breakdown
             'fuel_type_breakdown': fuel_transactions.values('fuel_type').annotate(
                 count=Count('id'),
@@ -1015,7 +1014,7 @@ class FuelReportView(ReportBaseView):
                 avg_cost_per_kwh=Avg('cost_per_kwh'),
                 avg_charging_duration=Avg('charging_duration_minutes')
             ),
-            
+
             # Station breakdown
             'station_breakdown': fuel_transactions.values('fuel_station__name').annotate(
                 count=Count('id'),
@@ -1025,7 +1024,7 @@ class FuelReportView(ReportBaseView):
                 avg_cost_per_liter=Avg('cost_per_liter'),
                 avg_cost_per_kwh=Avg('cost_per_kwh')
             ),
-            
+
             # Vehicle breakdown
             'vehicle_breakdown': fuel_transactions.values(
                 'vehicle__id', 'vehicle__license_plate', 'vehicle__make', 'vehicle__model'
@@ -1038,7 +1037,7 @@ class FuelReportView(ReportBaseView):
                 electric_transactions=Count('id', filter=Q(fuel_type='Electric'))
             ).order_by('-total_cost')
         }
-        
+
         # Monthly breakdown
         monthly_data = fuel_transactions.annotate(
             month=TruncMonth('date')
@@ -1052,8 +1051,8 @@ class FuelReportView(ReportBaseView):
             fuel_count=Count('id', filter=~Q(fuel_type='Electric')),
             electric_count=Count('id', filter=Q(fuel_type='Electric'))
         ).order_by('month')
-        
-        # Calculate efficiency for each vehicle
+
+        # Vehicle efficiency — single Trip query
         trips_in_period = Trip.objects.filter(
             start_time__date__gte=start_date_obj,
             end_time__date__lte=end_date_obj,
@@ -1062,18 +1061,15 @@ class FuelReportView(ReportBaseView):
         ).values('vehicle').annotate(
             total_distance=Sum(F('end_odometer') - F('start_odometer'))
         )
-        
-        # Create a lookup for trip distances
         trip_distances = {item['vehicle']: item['total_distance'] for item in trips_in_period}
-        
-        # Calculate efficiency for each vehicle
+
         vehicle_efficiency = []
         for vehicle in summary['vehicle_breakdown']:
             vehicle_id = vehicle['vehicle__id']
             distance = trip_distances.get(vehicle_id, 0)
             fuel_quantity = vehicle.get('total_quantity', 0)
             energy_consumed = vehicle.get('total_energy', 0)
-            
+
             vehicle_data = {
                 'vehicle': f"{vehicle['vehicle__license_plate']} ({vehicle['vehicle__make']} {vehicle['vehicle__model']})",
                 'distance': distance,
@@ -1083,39 +1079,48 @@ class FuelReportView(ReportBaseView):
                 'electric_transactions': vehicle['electric_transactions'],
                 'total_cost': vehicle['total_cost']
             }
-            
-            # Calculate fuel efficiency if applicable
-            if (
-                fuel_quantity is not None and distance is not None and
-                fuel_quantity > 0 and distance > 0
-            ):
+
+            if fuel_quantity and distance and fuel_quantity > 0 and distance > 0:
                 vehicle_data['fuel_efficiency'] = round(distance / fuel_quantity, 2)
             else:
                 vehicle_data['fuel_efficiency'] = 0
-            
-            # Calculate energy efficiency if applicable
-            if (
-                energy_consumed is not None and distance is not None and
-                energy_consumed > 0 and distance > 0
-            ):
+
+            if energy_consumed and distance and energy_consumed > 0 and distance > 0:
                 vehicle_data['energy_efficiency'] = round(distance / energy_consumed, 2)
             else:
                 vehicle_data['energy_efficiency'] = 0
-            
-            # Determine vehicle type based on transactions
+
             if vehicle['electric_transactions'] > 0 and vehicle['fuel_transactions'] > 0:
                 vehicle_data['vehicle_type'] = 'Hybrid'
             elif vehicle['electric_transactions'] > 0:
                 vehicle_data['vehicle_type'] = 'Electric'
             else:
                 vehicle_data['vehicle_type'] = 'Fuel'
-            
+
             vehicle_efficiency.append(vehicle_data)
-        
-        # Prepare data for detailed report INCLUDING INVOICE FIELDS
-        fuel_report_all = []
-        for transaction in fuel_transactions.order_by('-date'):  # Order by date descending for better display
-            fuel_report_all.append({
+
+        # Paginated detail rows
+        fuel_transactions_ordered = fuel_transactions.select_related(
+            'vehicle', 'driver', 'fuel_station'
+        ).order_by('-date')
+
+        page = self.request.GET.get('page', 1)
+        page_size = int(self.request.GET.get('page_size', 20))
+        if page_size not in [10, 20, 50, 100]:
+            page_size = 20
+
+        paginator = Paginator(fuel_transactions_ordered, page_size)
+
+        try:
+            fuel_report_page = paginator.page(page)
+        except PageNotAnInteger:
+            fuel_report_page = paginator.page(1)
+        except EmptyPage:
+            fuel_report_page = paginator.page(paginator.num_pages)
+
+        fuel_report_display = []
+        for transaction in fuel_report_page:
+            fuel_report_display.append({
                 'id': transaction.id,
                 'date': transaction.date,
                 'vehicle': f"{transaction.vehicle.license_plate} ({transaction.vehicle.make} {transaction.vehicle.model})",
@@ -1129,39 +1134,23 @@ class FuelReportView(ReportBaseView):
                 'charging_duration_minutes': transaction.charging_duration_minutes,
                 'total_cost': transaction.total_cost,
                 'odometer_reading': transaction.odometer_reading,
-                # Include invoice fields
                 'company_invoice_number': transaction.company_invoice_number or '',
                 'station_invoice_number': transaction.station_invoice_number or '',
                 'is_electric': transaction.fuel_type == 'Electric'
             })
-        
-        # **PAGINATION IMPLEMENTATION FOR FUEL TRANSACTIONS**
-        page = self.request.GET.get('page', 1)
-        page_size = int(self.request.GET.get('page_size', 20))  # Default 20 per page
-        
-        # Validate page_size
-        if page_size not in [10, 20, 50, 100]:
-            page_size = 20
-        
-        paginator = Paginator(fuel_report_all, page_size)
-        
-        try:
-            fuel_report_page = paginator.page(page)
-        except PageNotAnInteger:
-            fuel_report_page = paginator.page(1)
-        except EmptyPage:
-            fuel_report_page = paginator.page(paginator.num_pages)
-        
+
         # Station type analysis
         station_type_analysis = {}
-        if fuel_transactions.exists():
-            stations_with_data = fuel_transactions.values('fuel_station__station_type', 'fuel_station__name').annotate(
+        if combined_agg['total_count'] > 0:
+            stations_with_data = fuel_transactions.values(
+                'fuel_station__station_type', 'fuel_station__name'
+            ).annotate(
                 transaction_count=Count('id'),
                 fuel_transactions=Count('id', filter=~Q(fuel_type='Electric')),
                 electric_transactions=Count('id', filter=Q(fuel_type='Electric')),
                 total_revenue=Sum('total_cost')
             )
-            
+
             for station in stations_with_data:
                 station_type = station['fuel_station__station_type'] or 'fuel'
                 if station_type not in station_type_analysis:
@@ -1172,15 +1161,14 @@ class FuelReportView(ReportBaseView):
                         'electric_transactions': 0,
                         'revenue': 0
                     }
-                
                 station_type_analysis[station_type]['count'] += 1
                 station_type_analysis[station_type]['transactions'] += station['transaction_count']
                 station_type_analysis[station_type]['fuel_transactions'] += station['fuel_transactions']
                 station_type_analysis[station_type]['electric_transactions'] += station['electric_transactions']
                 station_type_analysis[station_type]['revenue'] += station['total_revenue'] or 0
-        
-        context['fuel_report_page'] = fuel_report_page  # Paginated data for display
-        context['fuel_report'] = fuel_report_all  # All data for charts and export
+
+        context['fuel_report_page'] = fuel_report_page
+        context['fuel_report'] = fuel_report_display
         context['paginator'] = paginator
         context['page_obj'] = fuel_report_page
         context['summary'] = summary
@@ -1189,58 +1177,82 @@ class FuelReportView(ReportBaseView):
         context['station_type_analysis'] = station_type_analysis
         context['start_date'] = start_date
         context['end_date'] = end_date
-        context['vehicles'] = Vehicle.objects.filter(ownership_type='company')
-        context['fuel_types'] = FuelTransaction.objects.values_list('fuel_type', flat=True).distinct()
-        context['fuel_stations'] = FuelTransaction.objects.select_related('fuel_station').values(
+        context['vehicles'] = Vehicle.objects.filter(ownership_type='company').only('id', 'license_plate', 'make', 'model')
+        # Dropdown filters scoped to the same date range (avoids full-table scan)
+        context['fuel_types'] = fuel_transactions.values_list('fuel_type', flat=True).distinct()
+        context['fuel_stations'] = fuel_transactions.values(
             'fuel_station__id', 'fuel_station__name'
         ).distinct().order_by('fuel_station__name')
-        context['page_size'] = page_size  # For the page size selector
-        
-        # Debug info
+        context['page_size'] = page_size
+
         context['debug_info'] = {
-            'total_transactions': len(fuel_report_all),
+            'total_transactions': combined_agg['total_count'],
             'current_page': fuel_report_page.number,
             'total_pages': paginator.num_pages,
-            'transactions_on_page': len(fuel_report_page),
+            'transactions_on_page': len(fuel_report_display),
             'page_size': page_size,
             'date_range': f"{start_date} to {end_date}",
             'is_ajax': self.request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         }
-        
+
         return context
-    
-    def get_export_data(self, context):
-        """Prepare data for export with INVOICE FIELDS INCLUDED"""
+
+    # ------------------------------------------------------------------
+    # Export — standalone, never calls get_context_data
+    # ------------------------------------------------------------------
+    def get_export_data(self, context=None):
+        """Prepare data for export with INVOICE FIELDS INCLUDED.
+
+        Uses .only() to fetch just the columns we need and .iterator()
+        so the DB cursor streams rows without caching the full result set.
+        """
         headers = [
             'Date', 'Vehicle', 'Driver', 'Fuel Station', 'Fuel Type',
             'Quantity (L)', 'Energy (kWh)', 'Cost per Liter', 'Cost per kWh',
-            'Charging Duration (min)', 'Total Cost', 'Odometer Reading', 
+            'Charging Duration (min)', 'Total Cost', 'Odometer Reading',
             'Company Invoice Number', 'Station Invoice Number', 'Type'
         ]
-        
-        # Transform data for export - use ALL data, not just current page
+
+        qs, start_date, end_date, _, _ = self._get_filtered_queryset()
+
+        all_transactions = (
+            qs
+            .select_related('vehicle', 'driver', 'fuel_station')
+            .only(
+                'date', 'fuel_type', 'quantity', 'energy_consumed',
+                'cost_per_liter', 'cost_per_kwh', 'charging_duration_minutes',
+                'total_cost', 'odometer_reading',
+                'company_invoice_number', 'station_invoice_number',
+                'vehicle__license_plate', 'vehicle__make', 'vehicle__model',
+                'driver__first_name', 'driver__last_name',
+                'fuel_station__name',
+            )
+            .order_by('-date')
+            .iterator(chunk_size=500)
+        )
+
         export_data = []
-        for transaction in context['fuel_report']:  # This contains all data
+        for t in all_transactions:
             export_data.append({
-                'date': transaction['date'].strftime('%Y-%m-%d') if transaction['date'] else '',
-                'vehicle': transaction['vehicle'],
-                'driver': transaction['driver'],
-                'fuel_station': transaction['fuel_station'],
-                'fuel_type': transaction['fuel_type'] or '',
-                'quantity_(l)': transaction['quantity'] or 0,
-                'energy_(kwh)': transaction['energy_consumed'] or 0,
-                'cost_per_liter': transaction['cost_per_liter'] or 0,
-                'cost_per_kwh': transaction['cost_per_kwh'] or 0,
-                'charging_duration_(min)': transaction['charging_duration_minutes'] or 0,
-                'total_cost': transaction['total_cost'] or 0,
-                'odometer_reading': transaction['odometer_reading'] or 0,
-                'company_invoice_number': transaction['company_invoice_number'],
-                'station_invoice_number': transaction['station_invoice_number'],
-                'type': 'Electric' if transaction['is_electric'] else 'Fuel'
+                'date': t.date.strftime('%Y-%m-%d') if t.date else '',
+                'vehicle': f"{t.vehicle.license_plate} ({t.vehicle.make} {t.vehicle.model})",
+                'driver': t.driver.get_full_name() if t.driver else 'N/A',
+                'fuel_station': t.fuel_station.name if t.fuel_station else 'N/A',
+                'fuel_type': t.fuel_type or '',
+                'quantity_(l)': t.quantity or 0,
+                'energy_(kwh)': t.energy_consumed or 0,
+                'cost_per_liter': t.cost_per_liter or 0,
+                'cost_per_kwh': t.cost_per_kwh or 0,
+                'charging_duration_(min)': t.charging_duration_minutes or 0,
+                'total_cost': t.total_cost or 0,
+                'odometer_reading': t.odometer_reading or 0,
+                'company_invoice_number': t.company_invoice_number or '',
+                'station_invoice_number': t.station_invoice_number or '',
+                'type': 'Electric' if t.fuel_type == 'Electric' else 'Fuel'
             })
-        
-        filename = f"fuel_energy_report_with_invoices_{context['start_date']}_to_{context['end_date']}"
-        
+
+        filename = f"fuel_energy_report_with_invoices_{start_date}_to_{end_date}"
+
         return export_data, filename, headers
 
 
@@ -1338,7 +1350,6 @@ class DailyUsageCostView(ReportBaseView):
             'vehicles': Vehicle.objects.filter(ownership_type='company', status__in=['available', 'in_use']).order_by('license_plate'),
             'vehicle_types': VehicleType.objects.all().order_by('name'),
         })
-        return context
         return context
     
     def get_export_data(self, context):

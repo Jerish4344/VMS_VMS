@@ -6,7 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.http import HttpResponseRedirect
-from django.db.models import Q
+from django.db.models import Q, Count
 from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin
 from .models import Accident, AccidentImage
 from vehicles.models import Vehicle
@@ -64,9 +64,11 @@ class AccidentListView(LoginRequiredMixin, ListView):
         context['vehicles'] = Vehicle.objects.filter(ownership_type='company').order_by('license_plate')
         context['statuses'] = dict(Accident.STATUS_CHOICES)
         
-        # Get status counts
+        # Get all status counts in a single query
+        status_counts = Accident.objects.values('status').annotate(count=Count('status'))
+        status_count_map = {item['status']: item['count'] for item in status_counts}
         for status, _ in Accident.STATUS_CHOICES:
-            context[f'{status}_count'] = Accident.objects.filter(status=status).count()
+            context[f'{status}_count'] = status_count_map.get(status, 0)
             
         return context
 

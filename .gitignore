@@ -5,7 +5,13 @@ __pycache__/
 *.log
 *.sql
 *.save
+.env
 
+# Static files
+staticfiles/
+
+# Media files
+media/
 
 ## Python
 #__pycache__/

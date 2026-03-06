@@ -157,7 +157,7 @@ class StyleHRAuthBackend(BaseBackend):
         for field in date_fields:
             if hr_user_data.get(field):
                 # If any of these dates exist, user has left
-                logger.info(f"User has {field}: {hr_user_data.get(field)}")
+                logger.debug(f"User has {field}: {hr_user_data.get(field)}")
                 return True
         
         return False
@@ -220,7 +220,7 @@ class StyleHRAuthBackend(BaseBackend):
             if response.status_code == 200:
                 try:
                     response_data = response.json()
-                    logger.info(f"StyleHR raw response for {username}: {response_data}")
+                    logger.debug(f"StyleHR response keys for {username}: {list(response_data.keys()) if isinstance(response_data, dict) else type(response_data).__name__}")
                     
                     if isinstance(response_data, dict) and self._is_valid_response(response_data):
                         return response_data
@@ -270,11 +270,11 @@ class StyleHRAuthBackend(BaseBackend):
         ])
         
         if not has_employee_data:
-            logger.info(f"User lacks basic employee data: {hr_user_data}")
+            logger.warning(f"User lacks basic employee data fields")
             return False
         
         # Allow all employees with valid data
-        logger.info(f"Employee approved for potential driving access: {hr_user_data.get('employee_id', hr_user_data.get('id', 'Unknown'))}")
+        logger.debug(f"Employee approved for driving access: {hr_user_data.get('employee_id', hr_user_data.get('id', 'Unknown'))}")
         return True
     
     def _get_or_create_driver(self, hr_user_data, login_username):

@@ -251,6 +251,14 @@
                         <span class="user-role role-{{ user.user_type }}">
                           {{ user.get_user_type_display }}
                         </span>
+                        <br>
+                        {% if user.access_type == 'web' %}
+                          <span class="badge bg-primary mt-1" style="font-size: 0.65rem;"><i class="fas fa-desktop"></i> Web</span>
+                        {% elif user.access_type == 'mobile' %}
+                          <span class="badge bg-info mt-1" style="font-size: 0.65rem;"><i class="fas fa-mobile-alt"></i> Mobile</span>
+                        {% else %}
+                          <span class="badge bg-success mt-1" style="font-size: 0.65rem;"><i class="fas fa-globe"></i> Web & Mobile</span>
+                        {% endif %}
                       </td>
                       <td>
                         <div>{{ user.email }}</div>

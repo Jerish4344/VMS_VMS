@@ -73,8 +73,8 @@ urlpatterns = [
     # Chatbot
     path('chatbot/', include('chatbot.urls')),
     
-    # API Endpoints
-    path('api/', include('geolocation.urls')),
+    # Geolocation / Tracking
+    path('geolocation/', include('geolocation.urls')),
 
     # Mobile API Endpoints
     path('api/', include('core.api_urls')),

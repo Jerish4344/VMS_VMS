@@ -94,6 +94,9 @@ class FuelTransaction(models.Model):
             models.Index(fields=['vehicle', 'date']),
             models.Index(fields=['driver', 'date']),
             models.Index(fields=['created_at']),
+            models.Index(fields=['fuel_type', 'date']),
+            models.Index(fields=['fuel_station', 'date']),
+            models.Index(fields=['date', 'fuel_type', 'fuel_station']),
         ]
     
     def __str__(self):

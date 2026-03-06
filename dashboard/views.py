@@ -1,8 +1,10 @@
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, Sum, F, ExpressionWrapper, fields
+from django.db.models import Count, Sum, F, Q, ExpressionWrapper, fields
 from django.db.models.functions import Extract
 from django.utils import timezone
+from django.core.cache import cache
+from django.db import models
 from datetime import timedelta, date, datetime, time
 from pytz import timezone as pytz_timezone
 from calendar import month_name
@@ -16,6 +18,9 @@ from fuel.models import FuelTransaction
 from accidents.models import Accident
 from documents.models import Document
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/dashboard.html'
@@ -190,7 +195,18 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
         context['driver_performance'] = driver_perf_list
     
     def add_fuel_expenses_data(self, context):
-        """Add fuel expenses data with multiple time granularities"""
+        """Add fuel expenses data with multiple time granularities.
+        Uses Redis cache (5 min TTL) to avoid recalculating on every dashboard load.
+        """
+        cache_key = 'dashboard_fuel_expenses_data'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                context.update(cached_data)
+                return
+        except Exception:
+            pass  # Cache backend down — compute fresh data
+        
         # Get date ranges
         today = timezone.now().date()
         last_six_months = today - timedelta(days=180)
@@ -230,31 +246,31 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
                     'total': 1000 + (i * 150)
                 })
         
-        # Weekly fuel expenses
-        weekly_fuel = []
-        # Start from 12 weeks ago
+        # Weekly fuel expenses - single query with grouping instead of 12 separate queries
+        twelve_weeks_ago = today - timedelta(weeks=12)
+        weekly_fuel_qs = FuelTransaction.objects.filter(
+            vehicle__ownership_type='company',
+            date__gte=twelve_weeks_ago,
+            date__lte=today
+        ).values('date').annotate(
+            total=Sum('total_cost')
+        ).order_by('date')
+        
+        # Build a dict of date -> total for fast lookup
+        daily_totals = {item['date']: item['total'] for item in weekly_fuel_qs}
+        
+        # Group into weeks
+        context['weekly_fuel'] = []
         for i in range(12):
             week_start = today - timedelta(weeks=12-i)
             week_end = week_start + timedelta(days=6)
-            
-            # Query transactions for this week - company vehicles only
-            week_total = FuelTransaction.objects.filter(
-                vehicle__ownership_type='company',
-                date__range=[week_start, week_end]
-            ).aggregate(total=Sum('total_cost'))['total'] or 0
-            
-            weekly_fuel.append({
-                'week_start': week_start,
-                'week_label': f"Week of {week_start.strftime('%b %d')}",
-                'total': week_total
-            })
-        
-        # Convert to context format
-        context['weekly_fuel'] = []
-        for item in weekly_fuel:
+            week_total = sum(
+                daily_totals.get(week_start + timedelta(days=d), 0) or 0
+                for d in range(7)
+            )
             context['weekly_fuel'].append({
-                'week': item['week_label'],
-                'total': item['total']
+                'week': f"Week of {week_start.strftime('%b %d')}",
+                'total': week_total
             })
             
         # If no real data (all zeroes), add sample data
@@ -268,28 +284,24 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
                     'total': 250 + (i * 30) + (i % 3) * 100
                 })
         
-        # FIXED: Daily fuel expenses - properly iterate through last 30 days
-        daily_fuel = []
-        for i in range(30):
-            # Start from 30 days ago and work forward to today
-            day = today - timedelta(days=29-i)  # Changed from (30-i) to (29-i)
-            day_total = FuelTransaction.objects.filter(
-                vehicle__ownership_type='company',
-                date=day
-            ).aggregate(total=Sum('total_cost'))['total'] or 0
-            
-            daily_fuel.append({
-                'day': day,
-                'day_label': day.strftime('%b %d'),
-                'total': day_total
-            })
+        # Daily fuel expenses - single query instead of 30 separate queries
+        thirty_days_ago = today - timedelta(days=29)
+        daily_fuel_qs = FuelTransaction.objects.filter(
+            vehicle__ownership_type='company',
+            date__gte=thirty_days_ago,
+            date__lte=today
+        ).values('date').annotate(
+            total=Sum('total_cost')
+        ).order_by('date')
         
-        # Format for chart
+        daily_totals_map = {item['date']: item['total'] for item in daily_fuel_qs}
+        
         context['daily_fuel'] = []
-        for item in daily_fuel:
+        for i in range(30):
+            day = today - timedelta(days=29-i)
             context['daily_fuel'].append({
-                'date': item['day_label'],
-                'total': item['total']
+                'date': day.strftime('%b %d'),
+                'total': daily_totals_map.get(day, 0) or 0
             })
             
         # If no real data (all zeroes), add sample data with proper date progression
@@ -309,6 +321,17 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
                     'date': day_label,
                     'total': round(base * weekend_factor * random_factor)
                 })
+        
+        # Cache the computed fuel data for 5 minutes
+        try:
+            fuel_cache_data = {
+                'monthly_fuel': context.get('monthly_fuel', []),
+                'weekly_fuel': context.get('weekly_fuel', []),
+                'daily_fuel': context.get('daily_fuel', []),
+            }
+            cache.set(cache_key, fuel_cache_data, 300)  # 5 minutes
+        except Exception:
+            pass  # Cache backend down — still works, just no caching
     
     def add_vehicle_manager_data(self, context):
         # Vehicle maintenance summary
@@ -354,32 +377,46 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
             expiry_date__range=[today, next_month]
         ).order_by('expiry_date')[:10]
         
-        # Fuel efficiency by vehicle
-        context['fuel_efficiency'] = []
-        for vehicle in Vehicle.objects.all():
-            trips = Trip.objects.filter(
-            vehicle=vehicle,
-            status='completed',
-            is_deleted=False
-            ).aggregate(
-                total_distance=Sum('end_odometer') - Sum('start_odometer')
+        # Fuel efficiency by vehicle - single optimized query instead of N+1
+        from django.db.models import Subquery, OuterRef, DecimalField, Value, IntegerField
+        from django.db.models.functions import Coalesce
+        
+        # Annotate vehicles with total distance and total fuel in two subqueries
+        vehicle_efficiency = Vehicle.objects.annotate(
+            total_distance=Coalesce(
+                Subquery(
+                    Trip.objects.filter(
+                        vehicle=OuterRef('pk'),
+                        status='completed',
+                        is_deleted=False
+                    ).values('vehicle').annotate(
+                        dist=Sum(
+                            F('end_odometer') - F('start_odometer'),
+                            output_field=IntegerField()
+                        )
+                    ).values('dist')[:1],
+                    output_field=IntegerField()
+                ), Value(0), output_field=IntegerField()
+            ),
+            total_fuel=Coalesce(
+                Subquery(
+                    FuelTransaction.objects.filter(
+                        vehicle=OuterRef('pk')
+                    ).values('vehicle').annotate(
+                        fuel=Sum('quantity')
+                    ).values('fuel')[:1],
+                    output_field=DecimalField()
+                ), Value(0, output_field=DecimalField()), output_field=DecimalField()
             )
-            
-            fuel = FuelTransaction.objects.filter(
-                vehicle=vehicle
-            ).aggregate(
-                total_fuel=Sum('quantity')
-            )
-            
-            total_distance = trips.get('total_distance') or 0
-            total_fuel = fuel.get('total_fuel') or 0
-            
-            if total_fuel > 0:
-                efficiency = total_distance / total_fuel
-                context['fuel_efficiency'].append({
-                    'vehicle': vehicle,
-                    'efficiency': round(efficiency, 2)  # km per liter
-                })
+        ).filter(total_fuel__gt=0)
+        
+        context['fuel_efficiency'] = [
+            {
+                'vehicle': v,
+                'efficiency': round(float(v.total_distance) / float(v.total_fuel), 2)
+            }
+            for v in vehicle_efficiency
+        ]
         
         # For the fuel efficiency chart
         context['fuel_efficiency_detailed'] = context['fuel_efficiency'][:10]  # Limit to top 10 for chart
@@ -396,24 +433,25 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
             count=Count('id')
         ).order_by('-count')
         
-        # Maintenance schedule - upcoming maintenance by week
+        # Maintenance schedule - upcoming maintenance by week (single query instead of 4)
         today = timezone.now().date()
         end_date = today + timedelta(days=28)  # Next 4 weeks
         
-        # Group by week
-        maintenance_schedule = []
-        for week in range(4):
-            week_start = today + timedelta(days=week*7)
-            week_end = week_start + timedelta(days=6)
-            
-            count = Maintenance.objects.filter(
-                scheduled_date__range=[week_start, week_end]
-            ).count()
-            
-            maintenance_schedule.append({
-                'period': f'Week {week+1}',
-                'count': count
-            })
+        # Single query to get all dates, then bucket by week in Python
+        upcoming_dates = list(Maintenance.objects.filter(
+            scheduled_date__range=[today, end_date]
+        ).values_list('scheduled_date', flat=True))
+        
+        week_counts = [0, 0, 0, 0]
+        for sched_date in upcoming_dates:
+            week_idx = (sched_date - today).days // 7
+            if 0 <= week_idx < 4:
+                week_counts[week_idx] += 1
+        
+        maintenance_schedule = [
+            {'period': f'Week {i+1}', 'count': week_counts[i]}
+            for i in range(4)
+        ]
         
         context['maintenance_schedule'] = maintenance_schedule
     
@@ -792,15 +830,12 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
             start_date = start_time_ist.date()
             end_date = end_time_ist.date()
             
-            print(f"Trip: {start_time_ist} to {end_time_ist} - Duration: {trip.duration_hours:.2f}h")
-            
             # If trip is within the same day in IST
             if start_date == end_date:
                 if start_date in daily_activity_dict:
                     daily_activity_dict[start_date] += trip.duration_hours
                 else:
                     daily_activity_dict[start_date] = trip.duration_hours
-                print(f"  → Single day: All {trip.duration_hours:.2f}h added to {start_date}")
             else:
                 # For multi-day trips, we need to calculate hours per day
                 current_date = start_date
@@ -825,17 +860,9 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
                             daily_activity_dict[current_date] = day_hours
                             
                         total_hours_accounted += day_hours
-                        print(f"  → Day {current_date}: {day_trip_start.strftime('%H:%M')} to {day_trip_end.strftime('%H:%M')} = {day_hours:.2f}h")
                     
                     # Move to next day
                     current_date += timedelta(days=1)
-                    
-                # Verification
-                print(f"  → Total trip hours: {trip.duration_hours:.2f}h, Sum of distributed: {total_hours_accounted:.2f}h")
-                
-                # If there's a significant difference, log a warning
-                if abs(trip.duration_hours - total_hours_accounted) > 0.1:
-                    print(f"  ⚠️ WARNING: Hours mismatch by {trip.duration_hours - total_hours_accounted:.2f}h")
         
         # Convert to list format for chart
         context['driver_daily_activity'] = [
@@ -1002,48 +1029,72 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
         
         # Weekly usage trends for charts (last 12 weeks)
         twelve_weeks_ago = timezone.now().date() - timedelta(weeks=12)
-        weekly_usage = []
         
+        # Single query for all weekly usage data instead of 12 separate queries
+        usage_by_date = UsageTracking.objects.filter(
+            generator__store__in=user_stores,
+            date__gte=twelve_weeks_ago
+        ).values('date').annotate(
+            total_hours=Sum('total_hours_run')
+        ).order_by('date')
+        
+        usage_date_map = {item['date']: float(item['total_hours'] or 0) for item in usage_by_date}
+        
+        weekly_usage = []
         for i in range(12):
             week_start = twelve_weeks_ago + timedelta(weeks=i)
-            week_end = week_start + timedelta(days=6)
-            
-            week_hours = UsageTracking.objects.filter(
-                generator__store__in=user_stores,
-                date__range=[week_start, week_end]
-            ).aggregate(total_hours=Sum('total_hours_run'))['total_hours'] or 0
-            
+            week_hours = sum(
+                usage_date_map.get(week_start + timedelta(days=d), 0)
+                for d in range(7)
+            )
             weekly_usage.append({
                 'week': f"Week {i+1}",
-                'hours': float(week_hours)
+                'hours': week_hours
             })
         
         context['weekly_usage_chart'] = weekly_usage
         
-        # Generator efficiency (usage hours per fuel consumed)
-        generator_efficiency = []
-        for generator in Generator.objects.filter(store__in=user_stores):
-            # Get usage hours for this generator in the last 30 days
-            generator_hours = UsageTracking.objects.filter(
-                generator=generator,
-                date__gte=thirty_days_ago
-            ).aggregate(total_hours=Sum('total_hours_run'))['total_hours'] or 0
-            
-            # Get fuel consumption for this generator in the last 30 days
-            generator_fuel = FuelEntry.objects.filter(
-                generator=generator,
-                date_of_filling__gte=thirty_days_ago
-            ).aggregate(total_litres=Sum('litres_filled'))['total_litres'] or 0
-            
-            if generator_fuel > 0:
-                efficiency = generator_hours / generator_fuel
-                generator_efficiency.append({
-                    'generator': generator.make_and_model,
-                    'store': generator.store.name,
-                    'efficiency': round(efficiency, 2),
-                    'hours': float(generator_hours),
-                    'fuel': float(generator_fuel)
-                })
+        # Generator efficiency - single annotated query instead of 2N queries
+        from django.db.models import Subquery, OuterRef, DecimalField
+        from django.db.models.functions import Coalesce
+        
+        generators_with_stats = Generator.objects.filter(
+            store__in=user_stores
+        ).select_related('store').annotate(
+            total_hours=Coalesce(
+                Subquery(
+                    UsageTracking.objects.filter(
+                        generator=OuterRef('pk'),
+                        date__gte=thirty_days_ago
+                    ).values('generator').annotate(
+                        hrs=Sum('total_hours_run')
+                    ).values('hrs')[:1],
+                    output_field=DecimalField()
+                ), 0
+            ),
+            total_litres=Coalesce(
+                Subquery(
+                    FuelEntry.objects.filter(
+                        generator=OuterRef('pk'),
+                        date_of_filling__gte=thirty_days_ago
+                    ).values('generator').annotate(
+                        ltrs=Sum('litres_filled')
+                    ).values('ltrs')[:1],
+                    output_field=DecimalField()
+                ), 0
+            )
+        ).filter(total_litres__gt=0)
+        
+        generator_efficiency = [
+            {
+                'generator': gen.make_and_model,
+                'store': gen.store.name,
+                'efficiency': round(float(gen.total_hours) / float(gen.total_litres), 2),
+                'hours': float(gen.total_hours),
+                'fuel': float(gen.total_litres)
+            }
+            for gen in generators_with_stats
+        ]
         
         context['generator_efficiency'] = sorted(generator_efficiency, 
                                                key=lambda x: x['efficiency'], 
@@ -1107,90 +1158,106 @@ class StaffDashboardView(StaffDashboardPermissionMixin, LoginRequiredMixin, Temp
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Filter for personal vehicles only
-        personal_vehicles = Vehicle.objects.filter(ownership_type='personal')
-        context['total_personal_vehicles'] = personal_vehicles.count()
+        # Try to get from cache first (2 minute TTL)
+        cache_key = 'staff_dashboard_data'
+        try:
+            cached = cache.get(cache_key)
+        except Exception:
+            cached = None
         
-        # Active trips for personal vehicles
-        context['active_personal_trips'] = Trip.objects.filter(
-            vehicle__ownership_type='personal',
-            status='ongoing',
-            is_deleted=False
-        ).count()
+        if cached:
+            context.update(cached)
+            return context
         
-        # Personal vehicle status distribution
-        context['personal_vehicle_status'] = personal_vehicles.values('status').annotate(count=Count('id'))
-        
-        # Ongoing trips for personal vehicles
-        ongoing_trips = Trip.objects.filter(
-            vehicle__ownership_type='personal',
-            status='ongoing',
-            is_deleted=False
-        ).select_related('vehicle', 'driver', 'vehicle__vehicle_type', 'vehicle__owned_by')
-        
-        # Group by vehicle type
-        ongoing_trips_by_type = {}
-        ongoing_trips_summary = {}
-        
-        for trip in ongoing_trips:
-            vehicle_type = trip.vehicle.vehicle_type.name
-            
-            if vehicle_type not in ongoing_trips_by_type:
-                ongoing_trips_by_type[vehicle_type] = []
-            ongoing_trips_by_type[vehicle_type].append(trip)
-            
-            if vehicle_type not in ongoing_trips_summary:
-                ongoing_trips_summary[vehicle_type] = 0
-            ongoing_trips_summary[vehicle_type] += 1
-        
-        context['ongoing_trips_by_type'] = ongoing_trips_by_type
-        context['ongoing_trips_summary'] = ongoing_trips_summary
-        context['ongoing_personal_trips'] = ongoing_trips
-        
-        # Calculate reimbursement data for current month
         first_of_month = timezone.now().date().replace(day=1)
         
-        completed_personal_trips = Trip.objects.filter(
+        # ---- Query 1: Vehicle counts + status in one query ----
+        vehicle_stats = Vehicle.objects.filter(
+            ownership_type='personal'
+        ).aggregate(
+            total=Count('id'),
+            **{f'status_{s}': Count('id', filter=models.Q(status=s)) 
+               for s in ['active', 'inactive', 'maintenance', 'retired']}
+        )
+        context['total_personal_vehicles'] = vehicle_stats['total']
+        context['personal_vehicle_status'] = [
+            {'status': s, 'count': vehicle_stats.get(f'status_{s}', 0)}
+            for s in ['active', 'inactive', 'maintenance', 'retired']
+            if vehicle_stats.get(f'status_{s}', 0) > 0
+        ]
+        
+        # ---- Query 2: Ongoing trips (also gives active count) ----
+        ongoing_trips = list(Trip.objects.filter(
+            vehicle__ownership_type='personal',
+            status='ongoing',
+            is_deleted=False
+        ).select_related('vehicle', 'driver', 'vehicle__vehicle_type', 'vehicle__owned_by'))
+        
+        context['active_personal_trips'] = len(ongoing_trips)
+        context['ongoing_personal_trips'] = ongoing_trips
+        
+        # Group by vehicle type in Python (already fetched, no extra queries)
+        ongoing_trips_by_type = {}
+        ongoing_trips_summary = {}
+        for trip in ongoing_trips:
+            vtype = trip.vehicle.vehicle_type.name
+            ongoing_trips_by_type.setdefault(vtype, []).append(trip)
+            ongoing_trips_summary[vtype] = ongoing_trips_summary.get(vtype, 0) + 1
+        context['ongoing_trips_by_type'] = ongoing_trips_by_type
+        context['ongoing_trips_summary'] = ongoing_trips_summary
+        
+        # ---- Query 3: Monthly aggregates (trips count + distance + reimbursement) in ONE query ----
+        monthly_agg = Trip.objects.filter(
+            vehicle__ownership_type='personal',
+            start_time__gte=first_of_month,
+            is_deleted=False
+        ).aggregate(
+            total_trips=Count('id'),
+            total_distance=Sum(
+                F('end_odometer') - F('start_odometer'),
+                filter=models.Q(status='completed', end_odometer__gt=F('start_odometer'))
+            ),
+        )
+        context['monthly_personal_trips'] = monthly_agg['total_trips'] or 0
+        context['monthly_personal_distance'] = monthly_agg['total_distance'] or 0
+        
+        # ---- Query 4: Reimbursement by staff (DB-level aggregation) ----
+        reimbursement_qs = Trip.objects.filter(
             vehicle__ownership_type='personal',
             status='completed',
             start_time__gte=first_of_month,
-            is_deleted=False
-        ).select_related('vehicle', 'driver', 'vehicle__owned_by')
+            is_deleted=False,
+            end_odometer__gt=F('start_odometer'),
+            vehicle__reimbursement_rate_per_km__gt=0,
+            vehicle__owned_by__isnull=False,
+        ).values(
+            'vehicle__owned_by__first_name',
+            'vehicle__owned_by__last_name',
+            'vehicle__owned_by__id',
+        ).annotate(
+            trips=Count('id'),
+            distance=Sum(F('end_odometer') - F('start_odometer')),
+            reimbursement=Sum(
+                (F('end_odometer') - F('start_odometer')) * F('vehicle__reimbursement_rate_per_km')
+            ),
+        ).order_by('-reimbursement')
         
-        # Calculate reimbursement by staff member
-        reimbursement_by_staff = {}
+        reimbursement_list = []
         total_reimbursement = 0
-        
-        for trip in completed_personal_trips:
-            # Check if odometer readings exist and are valid
-            if trip.end_odometer is not None and trip.start_odometer is not None and trip.end_odometer > trip.start_odometer:
-                distance = trip.end_odometer - trip.start_odometer
-                rate = trip.vehicle.reimbursement_rate_per_km
-                
-                # Only calculate if rate exists and is valid
-                if rate is not None and rate > 0:
-                    reimbursement = float(distance) * float(rate)
-                    
-                    owner = trip.vehicle.owned_by
-                    if owner:
-                        owner_name = owner.get_full_name()
-                        if owner_name not in reimbursement_by_staff:
-                            reimbursement_by_staff[owner_name] = {
-                                'owner': owner,
-                                'trips': 0,
-                                'distance': 0,
-                                'reimbursement': 0
-                            }
-                        
-                        reimbursement_by_staff[owner_name]['trips'] += 1
-                        reimbursement_by_staff[owner_name]['distance'] += distance
-                        reimbursement_by_staff[owner_name]['reimbursement'] += reimbursement
-                        total_reimbursement += reimbursement
-        
-        context['reimbursement_by_staff'] = list(reimbursement_by_staff.values())
+        for r in reimbursement_qs:
+            name = f"{r['vehicle__owned_by__first_name'] or ''} {r['vehicle__owned_by__last_name'] or ''}".strip()
+            amt = float(r['reimbursement'] or 0)
+            reimbursement_list.append({
+                'owner_name': name,
+                'trips': r['trips'],
+                'distance': r['distance'] or 0,
+                'reimbursement': round(amt, 2),
+            })
+            total_reimbursement += amt
+        context['reimbursement_by_staff'] = reimbursement_list
         context['total_reimbursement'] = round(total_reimbursement, 2)
         
-        # Staff vehicle utilization (trips per vehicle this month)
+        # ---- Query 5: Staff vehicle utilization ----
         context['staff_vehicle_utilization'] = Trip.objects.filter(
             vehicle__ownership_type='personal',
             start_time__gte=first_of_month,
@@ -1203,53 +1270,38 @@ class StaffDashboardView(StaffDashboardPermissionMixin, LoginRequiredMixin, Temp
             trip_count=Count('id')
         ).order_by('-trip_count')[:10]
         
-        # Recent completed trips for personal vehicles
-        recent_trips = Trip.objects.filter(
+        # ---- Query 6: Recent completed trips with annotated distance ----
+        recent_trips = list(Trip.objects.filter(
             vehicle__ownership_type='personal',
             status='completed',
             is_deleted=False
-        ).select_related('vehicle', 'driver', 'vehicle__owned_by').order_by('-end_time')[:10]
+        ).select_related(
+            'vehicle', 'driver', 'vehicle__owned_by'
+        ).annotate(
+            calc_distance=F('end_odometer') - F('start_odometer'),
+            calc_reimbursement=(F('end_odometer') - F('start_odometer')) * F('vehicle__reimbursement_rate_per_km'),
+        ).order_by('-end_time')[:10])
         
-        # Calculate distance and reimbursement for each trip
         for trip in recent_trips:
-            # Check if odometer readings exist and are valid
-            if trip.end_odometer is not None and trip.start_odometer is not None and trip.end_odometer > trip.start_odometer:
-                trip.distance = trip.end_odometer - trip.start_odometer
-                # Check if reimbursement rate exists
-                if trip.vehicle.reimbursement_rate_per_km is not None and trip.vehicle.reimbursement_rate_per_km > 0:
-                    trip.reimbursement_amount = float(trip.distance) * float(trip.vehicle.reimbursement_rate_per_km)
-                else:
-                    trip.reimbursement_amount = None
-            else:
-                trip.distance = None
-                trip.reimbursement_amount = None
-        
+            trip.distance = trip.calc_distance if trip.calc_distance and trip.calc_distance > 0 else None
+            trip.reimbursement_amount = float(trip.calc_reimbursement) if trip.calc_distance and trip.calc_distance > 0 and trip.calc_reimbursement else None
         context['recent_personal_trips'] = recent_trips
         
-        # Personal vehicles by staff member
-        vehicles_by_owner = personal_vehicles.values(
+        # ---- Query 7: Vehicles by owner ----
+        context['vehicles_by_owner'] = Vehicle.objects.filter(
+            ownership_type='personal'
+        ).values(
             'owned_by__first_name',
             'owned_by__last_name'
         ).annotate(
             vehicle_count=Count('id')
         ).order_by('-vehicle_count')
         
-        context['vehicles_by_owner'] = vehicles_by_owner
-        
-        # Monthly statistics for personal vehicles
-        context['monthly_personal_trips'] = Trip.objects.filter(
-            vehicle__ownership_type='personal',
-            start_time__gte=first_of_month,
-            is_deleted=False
-        ).count()
-        
-        context['monthly_personal_distance'] = Trip.objects.filter(
-            vehicle__ownership_type='personal',
-            status='completed',
-            start_time__gte=first_of_month,
-            is_deleted=False
-        ).aggregate(
-            total_distance=Sum(F('end_odometer') - F('start_odometer'))
-        )['total_distance'] or 0
+        # Cache the results for 2 minutes
+        cache_data = {k: v for k, v in context.items() if k not in ('view',)}
+        try:
+            cache.set(cache_key, cache_data, 120)
+        except Exception:
+            pass
         
         return context
