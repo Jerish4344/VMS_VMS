@@ -1,8 +1,5 @@
 # ZeptoMail alert recipients for trip distance alerts
-ZEPTO_ALERT_RECIPIENTS = [
-    "jerish@jcrc.in",
-    "anubha@jeyarama.com",
-]
+ZEPTO_ALERT_RECIPIENTS = []
 
 # vehicle_management/settings.py
 
@@ -23,8 +20,6 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'CHANGE-ME-IN-PRODUCTION')
 DEBUG = False
 
 ALLOWED_HOSTS = [
-    '52.87.151.66',
-    'vms.jeyarama.com',
     'localhost',
     '127.0.0.1'
 ]
@@ -439,13 +434,10 @@ AUTHENTICATION_BACKENDS = [
     'accounts.backends.CombinedAuthBackend',  # Our new combined backend
 ]
 
-CSRF_TRUSTED_ORIGINS = [
-    "https://vms.jeyarama.com",
-    "http://vms.jeyarama.com:8000",
-]
+CSRF_TRUSTED_ORIGINS = []
 
 # StyleHR API Configuration
-STYLEHR_API_URL = 'https://stylehr.in/api/login/'
+STYLEHR_API_URL = ''
 STYLEHR_API_TIMEOUT = 30  # seconds
 
 import logging
