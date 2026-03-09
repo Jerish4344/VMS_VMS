@@ -83,8 +83,8 @@ def sor_list(request):
         return redirect('dashboard')
     
     # Filter SORs based on user type (not permissions)
-    if request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
-        # Management users can see all SORs
+    if request.user.user_type in ['admin', 'manager', 'vehicle_manager', 'sor_head']:
+        # Management users and SOR Head can see all SORs
         sors = SOR.objects.all()
     elif request.user.user_type == 'driver':
         # Drivers can only see SORs where they are the assigned driver
@@ -243,8 +243,8 @@ def sor_view(request, pk):
         return HttpResponseForbidden('You do not have permission to view this SOR.')
     
     # Check if user can view this specific SOR (based on user type)
-    if request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
-        # Management users can view any SOR
+    if request.user.user_type in ['admin', 'manager', 'vehicle_manager', 'sor_head']:
+        # Management users and SOR Head can view any SOR
         pass
     elif request.user.user_type == 'driver':
         # Drivers can only view SORs where they are the assigned driver
@@ -265,8 +265,8 @@ def sor_edit(request, pk):
         return HttpResponseForbidden('You do not have permission to edit this SOR.')
     
     # Check if user can edit this specific SOR (based on user type)
-    if request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
-        # Management users can edit any SOR
+    if request.user.user_type in ['admin', 'manager', 'vehicle_manager', 'sor_head']:
+        # Management users and SOR Head can edit any SOR
         pass
     elif request.user.user_type == 'driver':
         # Drivers can only edit SORs where they are the assigned driver
@@ -309,8 +309,8 @@ def sor_delete(request, pk):
         return HttpResponseForbidden('You do not have permission to delete this SOR.')
     
     # Check if user can delete this specific SOR (based on user type)
-    if request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
-        # Management users can delete any SOR
+    if request.user.user_type in ['admin', 'manager', 'vehicle_manager', 'sor_head']:
+        # Management users and SOR Head can delete any SOR
         pass
     elif request.user.user_type == 'driver':
         # Drivers can only delete SORs where they are the assigned driver
@@ -362,8 +362,8 @@ def sor_export(request):
     export_format = request.GET.get('format', 'csv').lower()
     
     # Filter SORs based on user type (same logic as sor_list)
-    if request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
-        # Management users can export all SORs
+    if request.user.user_type in ['admin', 'manager', 'vehicle_manager', 'sor_head']:
+        # Management users and SOR Head can export all SORs
         sors = SOR.objects.all()
     elif request.user.user_type == 'driver':
         # Drivers can only export SORs where they are the assigned driver

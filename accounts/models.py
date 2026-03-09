@@ -52,6 +52,7 @@ class CustomUser(AbstractUser):
         ('personal_vehicle_staff', 'Staff (Personal Vehicle)'),  # Staff using own vehicles for reimbursement
         ('generator_user', 'Generator User'),  # New role for generator-only access
 	    ('sor_team', 'SOR Team'),  # SOR team role
+	    ('sor_head', 'SOR Head'),  # SOR Head - full access to all SOR entries
 	    ('p2p_service', 'P2P Service Account'),  # External P2P system integration
     )
     

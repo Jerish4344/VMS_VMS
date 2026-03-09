@@ -81,9 +81,9 @@ class DriverApprovalMiddleware(MiddlewareMixin):
                 messages.error(request, "You don't have permission to access this section. You can only access the Generator module.")
                 return redirect('generators:generator_list')
         
-        # Additional check for SOR team users - restrict to SOR module only
-        if request.user.user_type == 'sor_team':
-            # Define allowed paths for SOR team users
+        # Additional check for SOR team and SOR Head users - restrict to SOR module only
+        if request.user.user_type in ['sor_team', 'sor_head']:
+            # Define allowed paths for SOR team/head users
             sor_allowed_paths = [
                 '/sor/',
                 '/accounts/profile/',
@@ -92,11 +92,11 @@ class DriverApprovalMiddleware(MiddlewareMixin):
                 '/accounts/logout/',
             ]
             
-            # Check if current path is allowed for SOR team users
+            # Check if current path is allowed for SOR team/head users
             sor_path_allowed = any(current_path.startswith(path) for path in sor_allowed_paths)
             
             if not sor_path_allowed:
-                logger.info(f"Blocking SOR team user {request.user.username} from accessing {current_path}")
+                logger.info(f"Blocking {request.user.user_type} user {request.user.username} from accessing {current_path}")
                 messages.error(request, "You don't have permission to access this section. You can only access the SOR module.")
                 return redirect('sor_list')
         

@@ -128,6 +128,10 @@
                                                     <span class="badge bg-secondary">
                                                         <i class="fas fa-clipboard-list me-1"></i>SOR Team
                                                     </span>
+                                                {% elif user.user_type == 'sor_head' %}
+                                                    <span class="badge bg-dark">
+                                                        <i class="fas fa-user-tie me-1"></i>SOR Head
+                                                    </span>
                                                 {% else %}
                                                     <span class="badge bg-light text-dark">
                                                         <i class="fas fa-user me-1"></i>{{ user.get_user_type_display }}

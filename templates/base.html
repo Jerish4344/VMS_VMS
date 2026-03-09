@@ -279,7 +279,7 @@
       </div>
       
       <ul class="list-unstyled components">
-        {% if request.user.user_type != 'sor_team' %}
+        {% if request.user.user_type != 'sor_team' and request.user.user_type != 'sor_head' %}
         <!-- Dashboard with dropdown for admin/manager users -->
         {% if request.user|has_permission:'dashboard,company_dashboard' or request.user|has_permission:'dashboard,staff_dashboard' %}
           {% if request.user.user_type == 'personal_vehicle_staff' %}
@@ -427,6 +427,22 @@
             </ul>
           </li>
           
+        {% elif request.user.user_type == 'sor_head' %}
+          <!-- SOR Head - Only SOR Section with full access -->
+          <li>
+            <a href="#sorSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle menu-item-enhanced">
+              <i class="fas fa-file-invoice"></i> SOR
+            </a>
+            <ul class="collapse list-unstyled {% if 'sor' in request.resolver_match.url_name %}show{% endif %}" id="sorSubmenu">
+              <li>
+                <a href="{% url 'sor_list' %}" class="menu-item-enhanced">All SOR Entries</a>
+              </li>
+              <li>
+                <a href="{% url 'sor_create' %}" class="menu-item-enhanced">Create SOR Entry</a>
+              </li>
+            </ul>
+          </li>
+          
         {% elif request.user.user_type == 'sor_team' %}
           <!-- SOR Team - SOR Section -->
           <li>
@@ -442,8 +458,6 @@
               </li>
             </ul>
           </li>
-          
-          <!-- SOR Team - Other Modules (if has permissions) -->
           
           <!-- Vehicles Section -->
           {% has_permission_tag request.user 'vehicles' 'view' as can_view_vehicles %}

@@ -42,6 +42,8 @@ urlpatterns = [
     
     # SOR endpoints
     path('sor/', api_views.SORListView.as_view(), name='api-sor-list'),
+    path('sor/create/', api_views.SORCreateView.as_view(), name='api-sor-create'),
+    path('sor/form-options/', api_views.SORFormOptionsView.as_view(), name='api-sor-form-options'),
     path('sor/<int:pk>/', api_views.SORDetailView.as_view(), name='api-sor-detail'),
     path('sor/<int:pk>/accept/', api_views.SORAcceptView.as_view(), name='api-sor-accept'),
     path('sor/<int:pk>/reject/', api_views.SORRejectView.as_view(), name='api-sor-reject'),

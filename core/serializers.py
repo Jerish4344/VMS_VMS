@@ -273,6 +273,33 @@ class SORSerializer(serializers.ModelSerializer):
         return obj.get_status_display()
 
 
+class SORCreateSerializer(serializers.ModelSerializer):
+    """Write serializer for creating SOR entries from mobile app"""
+    class Meta:
+        model = SOR
+        fields = [
+            'goods_value', 'from_location', 'to_location',
+            'vehicle', 'driver',
+            'number_of_crates', 'number_of_sac', 'description',
+        ]
+
+    def validate_vehicle(self, value):
+        # Only allow commercial vehicles not currently on an ongoing trip
+        if value.vehicle_type and value.vehicle_type.category != 'commercial':
+            raise serializers.ValidationError('Only commercial vehicles can be used for SOR.')
+        ongoing = Trip.objects.filter(vehicle=value, status='ongoing').exists()
+        if ongoing:
+            raise serializers.ValidationError('This vehicle is currently on an ongoing trip.')
+        return value
+
+    def validate_driver(self, value):
+        if value.user_type != 'driver':
+            raise serializers.ValidationError('Selected user is not a driver.')
+        if not value.is_active:
+            raise serializers.ValidationError('Selected driver is not active.')
+        return value
+
+
 # P2P Integration Serializer - Read-only for external P2P system
 class P2PSORSerializer(serializers.ModelSerializer):
     """Lightweight read-only serializer for P2P (Procure to Pay) system integration.

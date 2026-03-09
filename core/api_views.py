@@ -8,6 +8,10 @@ from django.utils import timezone
 from django.db.models import Sum, Count, F
 from datetime import timedelta
 from decimal import Decimal
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from vehicles.models import Vehicle, VehicleType
 from trips.models import Trip
@@ -530,9 +534,12 @@ class VehicleViewSet(viewsets.ModelViewSet):
     # Paginated — safe for 300+ users with many vehicles
     # PAGE_SIZE inherited from global settings (20)
     
+    def _is_admin(self):
+        return self.request.user.user_type in ['admin', 'manager', 'vehicle_manager']
+    
     def get_queryset(self):
         user = self.request.user
-        is_admin = user.user_type in ['admin', 'manager', 'vehicle_manager']
+        is_admin = self._is_admin()
         is_personal_vehicle_staff = user.user_type == 'personal_vehicle_staff'
         
         if is_admin:
@@ -551,6 +558,26 @@ class VehicleViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status_filter)
         
         return queryset.select_related('vehicle_type')
+    
+    def create(self, request, *args, **kwargs):
+        if not self._is_admin():
+            return Response({'detail': 'Only admin/manager users can create vehicles.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().create(request, *args, **kwargs)
+    
+    def update(self, request, *args, **kwargs):
+        if not self._is_admin():
+            return Response({'detail': 'Only admin/manager users can update vehicles.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+    
+    def partial_update(self, request, *args, **kwargs):
+        if not self._is_admin():
+            return Response({'detail': 'Only admin/manager users can update vehicles.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().partial_update(request, *args, **kwargs)
+    
+    def destroy(self, request, *args, **kwargs):
+        if not self._is_admin():
+            return Response({'detail': 'Only admin/manager users can delete vehicles.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
 
 
 class VehicleTypeListView(generics.ListAPIView):
@@ -626,6 +653,11 @@ class EndTripView(APIView):
             trip = Trip.objects.get(pk=pk, is_deleted=False)
         except Trip.DoesNotExist:
             return Response({'detail': 'Trip not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Ownership check: only the trip's driver or admin/manager can end a trip
+        is_admin = request.user.user_type in ['admin', 'manager', 'vehicle_manager']
+        if trip.driver != request.user and not is_admin:
+            return Response({'detail': 'You do not have permission to end this trip'}, status=status.HTTP_403_FORBIDDEN)
         
         if trip.status != 'ongoing':
             return Response({'detail': 'Trip is not ongoing'}, status=status.HTTP_400_BAD_REQUEST)
@@ -893,7 +925,7 @@ class SORListView(generics.ListAPIView):
         # Filter by status if provided
         status_filter = self.request.query_params.get('status')
         
-        if user.user_type in ['admin', 'manager', 'vehicle_manager']:
+        if user.user_type in ['admin', 'manager', 'vehicle_manager', 'sor_head']:
             queryset = SOR.objects.all()
         elif user.user_type == 'driver':
             queryset = SOR.objects.filter(driver=user)
@@ -906,6 +938,78 @@ class SORListView(generics.ListAPIView):
         return queryset.select_related('vehicle', 'driver', 'created_by').order_by('-created_at')
 
 
+class SORCreateView(APIView):
+    """Create a new SOR entry (for sor_team, sor_head, admin, manager)"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        allowed = ['admin', 'manager', 'vehicle_manager', 'sor_team', 'sor_head']
+        if request.user.user_type not in allowed:
+            return Response(
+                {'detail': 'You do not have permission to create SOR entries.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        from core.serializers import SORCreateSerializer
+        serializer = SORCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            sor = serializer.save(created_by=request.user)
+            # Create notification for driver
+            from sor.notification import SORNotification
+            SORNotification.objects.create(
+                sor=sor,
+                driver=sor.driver,
+                message=f"You have a new SOR assignment from {sor.from_location} to {sor.to_location}. Please accept or reject.",
+            )
+            # Return full SOR detail
+            return Response(SORSerializer(sor).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SORFormOptionsView(APIView):
+    """Return available vehicles and drivers for SOR creation form"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Commercial vehicles not on an ongoing trip
+        ongoing_vehicle_ids = Trip.objects.filter(status='ongoing').values_list('vehicle_id', flat=True)
+        vehicles = Vehicle.objects.filter(
+            vehicle_type__category='commercial'
+        ).exclude(
+            id__in=ongoing_vehicle_ids
+        ).select_related('vehicle_type').order_by('license_plate')
+
+        # Active drivers
+        drivers = CustomUser.objects.filter(
+            user_type='driver', is_active=True
+        ).order_by('first_name', 'last_name')
+
+        vehicle_data = [
+            {'id': v.id, 'license_plate': v.license_plate, 'make': v.make, 'model': v.model}
+            for v in vehicles
+        ]
+        driver_data = [
+            {'id': d.id, 'name': d.get_full_name() or d.username, 'username': d.username}
+            for d in drivers
+        ]
+
+        # Location choices (same as web form)
+        locations = [
+            'Attakulangara', 'Pazhavangadi', 'Enchakkal', 'Ulloor',
+            'Attingal', 'Vellayamvbalam', 'Mall Of Travancore',
+            'Neyyatinkara', 'Courtallam', 'Thirumala', 'Nedumangadu',
+            'Karakkamandapam', 'Marthandam', 'Panachamoodu', 'kattakada',
+            'Kodapanamkunnu', 'Kaval Kinaru', 'Ooty', 'Hosur',
+            'Enchakal Warehouse', 'Muthoot Warehouse', 'Hindu Warehouse',
+        ]
+
+        return Response({
+            'vehicles': vehicle_data,
+            'drivers': driver_data,
+            'locations': locations,
+        })
+
+
 class SORDetailView(generics.RetrieveAPIView):
     """Get details of a specific SOR"""
     permission_classes = [IsAuthenticated]
@@ -914,7 +1018,7 @@ class SORDetailView(generics.RetrieveAPIView):
     def get_queryset(self):
         user = self.request.user
         
-        if user.user_type in ['admin', 'manager', 'vehicle_manager']:
+        if user.user_type in ['admin', 'manager', 'vehicle_manager', 'sor_head']:
             return SOR.objects.all()
         elif user.user_type == 'driver':
             return SOR.objects.filter(driver=user)
@@ -1164,6 +1268,19 @@ class GPSBatchRecordView(APIView):
                 if not latitude or not longitude:
                     continue
                 
+                # Use client-provided timestamp if available, otherwise fallback to server time
+                client_timestamp = loc_data.get('timestamp')
+                if client_timestamp:
+                    try:
+                        if isinstance(client_timestamp, (int, float)):
+                            point_timestamp = datetime.fromtimestamp(client_timestamp / 1000, tz=timezone.utc)
+                        else:
+                            point_timestamp = timezone.datetime.fromisoformat(str(client_timestamp))
+                    except (ValueError, TypeError, OSError):
+                        point_timestamp = timezone.now()
+                else:
+                    point_timestamp = timezone.now()
+                
                 TripLocation.objects.create(
                     trip=trip,
                     latitude=Decimal(str(latitude)),
@@ -1173,11 +1290,12 @@ class GPSBatchRecordView(APIView):
                     altitude=float(loc_data.get('altitude')) if loc_data.get('altitude') else None,
                     heading=float(loc_data.get('heading')) if loc_data.get('heading') else None,
                     battery_level=int(loc_data.get('battery_level')) if loc_data.get('battery_level') else None,
-                    timestamp=timezone.now()
+                    timestamp=point_timestamp
                 )
                 saved_count += 1
                 gps_session.total_points += 1
             except Exception as e:
+                logger.warning(f"GPS batch: failed to save point for trip {trip_id}: {e}", exc_info=True)
                 continue
         
         gps_session.save()

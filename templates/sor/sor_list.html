@@ -245,12 +245,12 @@
                       <a href="{% url 'sor_view' sor.id %}" class="btn btn-outline-primary btn-sm" title="View">
                         <i class="fas fa-eye"></i>
                       </a>
-                      {% if request.user.user_type in 'admin sor_team manager vehicle_manager' %}
+                      {% if request.user.user_type in 'admin sor_team sor_head manager vehicle_manager' %}
                         <a href="{% url 'sor_edit' sor.id %}" class="btn btn-outline-warning btn-sm ms-1" title="Edit">
                           <i class="fas fa-edit"></i>
                         </a>
                       {% endif %}
-                      {% if request.user.user_type == 'admin' %}
+                      {% if request.user.user_type == 'admin' or request.user.user_type == 'sor_head' %}
                         <a href="{% url 'sor_delete' sor.id %}" class="btn btn-outline-danger btn-sm ms-1" title="Delete">
                           <i class="fas fa-trash"></i>
                         </a>

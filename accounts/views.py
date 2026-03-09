@@ -69,7 +69,7 @@ class ApprovalLoginView(LoginView):
                 return reverse_lazy('pending_approval')
         
         # For SOR team users - redirect to SOR list
-        elif user.user_type == 'sor_team':
+        elif user.user_type in ['sor_team', 'sor_head']:
             return reverse_lazy('sor_list')
         
         # Fallback
@@ -124,7 +124,7 @@ class ApprovalLoginView(LoginView):
                     f'Welcome back, {user.get_full_name()}! '
                     f'You have access to {assigned_stores_count} store(s) for generator management.'
                 )
-        elif user.user_type == 'sor_team':
+        elif user.user_type in ['sor_team', 'sor_head']:
             messages.success(
                 self.request,
                 f'Welcome back, {user.get_full_name()}! '
@@ -153,7 +153,7 @@ class ApprovalLoginView(LoginView):
             # Redirect authenticated users based on their status
             if request.user.has_approval_permissions():
                 return redirect('dashboard')
-            elif request.user.user_type == 'sor_team':
+            elif request.user.user_type in ['sor_team', 'sor_head']:
                 return redirect('sor_list')
             elif request.user.user_type in ['driver', 'generator_user']:
                 if not request.user.can_access_system():

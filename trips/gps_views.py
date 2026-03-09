@@ -2,7 +2,6 @@
 GPS Tracking API Views for receiving and storing location data
 """
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
@@ -17,7 +16,6 @@ from .models import Trip
 from .gps_models import TripLocation, GPSTrackingSession
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 @login_required
 def record_gps_location(request):
@@ -209,6 +207,11 @@ def get_google_route(request, trip_id):
     """
     try:
         trip = Trip.objects.get(id=trip_id)
+        
+        # Ownership/role check: only the trip driver or admin/manager can view the route
+        allowed_types = ['admin', 'manager', 'vehicle_manager']
+        if trip.driver != request.user and request.user.user_type not in allowed_types:
+            return JsonResponse({'success': False, 'error': 'You do not have permission to view this route'}, status=403)
         
         # Get GPS locations for this trip
         gps_locations = TripLocation.objects.filter(trip=trip).order_by('timestamp')
