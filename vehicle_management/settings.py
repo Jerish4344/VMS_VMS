@@ -1,10 +1,5 @@
 # vehicle_management/settings.py
 import os
-
-# ZeptoMail alert recipients for trip distance alerts
-import json as _json
-ZEPTO_ALERT_RECIPIENTS = _json.loads(os.environ.get('ZEPTO_ALERT_RECIPIENTS', '["jerish@jcrc.in", "anubha@jeyarama.com"]'))
-
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -13,6 +8,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables from .env file
 load_dotenv(BASE_DIR / '.env')
+
+# ZeptoMail alert recipients for trip distance alerts
+import json as _json
+ZEPTO_ALERT_RECIPIENTS = _json.loads(os.environ.get('ZEPTO_ALERT_RECIPIENTS', '[]'))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
