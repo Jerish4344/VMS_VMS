@@ -45,288 +45,93 @@ class ModulePermissionRequiredMixin(UserPassesTestMixin):
         return self.request.user.has_module_permission(self.permission_module, self.permission_action)
 
 
-class VehicleViewPermissionMixin(ModulePermissionRequiredMixin):
-    permission_module = 'vehicles'
-    permission_action = 'view'
+def _make_permission_mixin(module, action):
+    """Factory to create permission mixin classes with less boilerplate."""
+    class_name = f"{''.join(w.capitalize() for w in module.split('_'))}{''.join(w.capitalize() for w in action.split('_'))}PermissionMixin"
+    return type(class_name, (ModulePermissionRequiredMixin,), {
+        'permission_module': module,
+        'permission_action': action,
+    })
 
 
-class VehicleAddPermissionMixin(ModulePermissionRequiredMixin):
-    permission_module = 'vehicles'
-    permission_action = 'add'
+# --- Generated permission mixins ---
+# Vehicles
+VehicleViewPermissionMixin = _make_permission_mixin('vehicles', 'view')
+VehicleAddPermissionMixin = _make_permission_mixin('vehicles', 'add')
+VehicleEditPermissionMixin = _make_permission_mixin('vehicles', 'edit')
+VehicleDeletePermissionMixin = _make_permission_mixin('vehicles', 'delete')
+VehicleManagePermissionMixin = _make_permission_mixin('vehicles', 'manage')
 
+# Fuel
+FuelViewPermissionMixin = _make_permission_mixin('fuel', 'view')
+FuelAddPermissionMixin = _make_permission_mixin('fuel', 'add')
+FuelEditPermissionMixin = _make_permission_mixin('fuel', 'edit')
+FuelDeletePermissionMixin = _make_permission_mixin('fuel', 'delete')
+FuelManagePermissionMixin = _make_permission_mixin('fuel', 'manage')
 
-class VehicleEditPermissionMixin(ModulePermissionRequiredMixin):
-    permission_module = 'vehicles'
-    permission_action = 'edit'
+# Trips
+TripsViewPermissionMixin = _make_permission_mixin('trips', 'view')
+TripsAddPermissionMixin = _make_permission_mixin('trips', 'add')
+TripsEditPermissionMixin = _make_permission_mixin('trips', 'edit')
+TripsDeletePermissionMixin = _make_permission_mixin('trips', 'delete')
+TripsManagePermissionMixin = _make_permission_mixin('trips', 'manage')
 
+# Dashboard
+CompanyDashboardPermissionMixin = _make_permission_mixin('dashboard', 'company_dashboard')
+StaffDashboardPermissionMixin = _make_permission_mixin('dashboard', 'staff_dashboard')
 
-class VehicleDeletePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('vehicles', 'delete'))
+# Maintenance
+MaintenanceViewPermissionMixin = _make_permission_mixin('maintenance', 'view')
+MaintenanceAddPermissionMixin = _make_permission_mixin('maintenance', 'add')
+MaintenanceEditPermissionMixin = _make_permission_mixin('maintenance', 'edit')
+MaintenanceDeletePermissionMixin = _make_permission_mixin('maintenance', 'delete')
+MaintenanceManagePermissionMixin = _make_permission_mixin('maintenance', 'manage')
 
-# Fuel Permission Mixins
-class FuelViewPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('fuel', 'view'))
+# Generators
+GeneratorsViewPermissionMixin = _make_permission_mixin('generators', 'view')
+GeneratorsAddPermissionMixin = _make_permission_mixin('generators', 'add')
+GeneratorsEditPermissionMixin = _make_permission_mixin('generators', 'edit')
+GeneratorsDeletePermissionMixin = _make_permission_mixin('generators', 'delete')
+GeneratorsManagePermissionMixin = _make_permission_mixin('generators', 'manage')
 
-class FuelAddPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('fuel', 'add'))
+# Documents
+DocumentsViewPermissionMixin = _make_permission_mixin('documents', 'view')
+DocumentsAddPermissionMixin = _make_permission_mixin('documents', 'add')
+DocumentsEditPermissionMixin = _make_permission_mixin('documents', 'edit')
+DocumentsDeletePermissionMixin = _make_permission_mixin('documents', 'delete')
+DocumentsManagePermissionMixin = _make_permission_mixin('documents', 'manage')
 
-class FuelEditPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('fuel', 'edit'))
+# Accidents
+AccidentsViewPermissionMixin = _make_permission_mixin('accidents', 'view')
+AccidentsAddPermissionMixin = _make_permission_mixin('accidents', 'add')
+AccidentsEditPermissionMixin = _make_permission_mixin('accidents', 'edit')
+AccidentsDeletePermissionMixin = _make_permission_mixin('accidents', 'delete')
 
-class FuelDeletePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('fuel', 'delete'))
+# Tracking
+TrackingViewPermissionMixin = _make_permission_mixin('tracking', 'view')
+TrackingManagePermissionMixin = _make_permission_mixin('tracking', 'manage')
 
-class FuelManagePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('fuel', 'manage'))
+# Reports
+ReportsViewPermissionMixin = _make_permission_mixin('reports', 'view')
+ReportsExportPermissionMixin = _make_permission_mixin('reports', 'export')
+VehicleReportPermissionMixin = _make_permission_mixin('reports', 'vehicle_report')
+FirmReportPermissionMixin = _make_permission_mixin('reports', 'firm_report')
+DriverReportPermissionMixin = _make_permission_mixin('reports', 'driver_report')
+MaintenanceReportPermissionMixin = _make_permission_mixin('reports', 'maintenance_report')
+FuelReportPermissionMixin = _make_permission_mixin('reports', 'fuel_report')
 
-# Trips Permission Mixins
-class TripsViewPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('trips', 'view'))
+# Users
+UsersViewPermissionMixin = _make_permission_mixin('users', 'view')
+UsersAddPermissionMixin = _make_permission_mixin('users', 'add')
+UsersEditPermissionMixin = _make_permission_mixin('users', 'edit')
+UsersDeletePermissionMixin = _make_permission_mixin('users', 'delete')
+UsersManagePermissionMixin = _make_permission_mixin('users', 'manage')
 
-class TripsAddPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('trips', 'add'))
-
-class TripsEditPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('trips', 'edit'))
-
-class TripsDeletePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('trips', 'delete'))
-
-class TripsManagePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('trips', 'manage'))
-
-# Dashboard Permission Mixins
-class CompanyDashboardPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('dashboard', 'company_dashboard'))
-
-class StaffDashboardPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('dashboard', 'staff_dashboard'))
-
-# Maintenance Permission Mixins
-class MaintenanceViewPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('maintenance', 'view'))
-
-class MaintenanceAddPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('maintenance', 'add'))
-
-class MaintenanceEditPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('maintenance', 'edit'))
-
-class MaintenanceDeletePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('maintenance', 'delete'))
-
-class MaintenanceManagePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('maintenance', 'manage'))
-
-# Generators Permission Mixins
-class GeneratorsViewPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('generators', 'view'))
-
-class GeneratorsAddPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('generators', 'add'))
-
-class GeneratorsEditPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('generators', 'edit'))
-
-class GeneratorsDeletePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('generators', 'delete'))
-
-class GeneratorsManagePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('generators', 'manage'))
-
-# Documents Permission Mixins
-class DocumentsViewPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('documents', 'view'))
-
-class DocumentsAddPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('documents', 'add'))
-
-class DocumentsEditPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('documents', 'edit'))
-
-class DocumentsDeletePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('documents', 'delete'))
-
-class DocumentsManagePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('documents', 'manage'))
-
-# Accidents Permission Mixins
-class AccidentsViewPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('accidents', 'view'))
-
-class AccidentsAddPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('accidents', 'add'))
-
-class AccidentsEditPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('accidents', 'edit'))
-
-class AccidentsDeletePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('accidents', 'delete'))
-
-# Tracking Permission Mixins
-class TrackingViewPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('tracking', 'view'))
-
-class TrackingManagePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('tracking', 'manage'))
-
-# Reports Permission Mixins
-class ReportsViewPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('reports', 'view'))
-
-class ReportsExportPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('reports', 'export'))
-
-# User Management Permission Mixins
-class UsersViewPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('users', 'view'))
-
-class UsersAddPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('users', 'add'))
-
-class UsersEditPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('users', 'edit'))
-
-class UsersDeletePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('users', 'delete'))
-
-class UsersManagePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('users', 'manage'))
-
-# SOR Permission Mixins
-class SorViewPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('sor', 'view'))
-
-class SorAddPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('sor', 'add'))
-
-class SorEditPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('sor', 'edit'))
-
-class SorDeletePermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('sor', 'delete'))
-
-
-class VehicleManagePermissionMixin(ModulePermissionRequiredMixin):
-    permission_module = 'vehicles'
-    permission_action = 'manage'
-
-
-# Specific Report Permission Mixins for granular access control
-class VehicleReportPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('reports', 'vehicle_report'))
-
-class FirmReportPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('reports', 'firm_report'))
-
-class DriverReportPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('reports', 'driver_report'))
-
-class MaintenanceReportPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('reports', 'maintenance_report'))
-
-class FuelReportPermissionMixin(UserPassesTestMixin):
-    def test_func(self):
-        return (self.request.user.is_authenticated and 
-                self.request.user.has_module_permission('reports', 'fuel_report'))
+# SOR
+SorViewPermissionMixin = _make_permission_mixin('sor', 'view')
+SorAddPermissionMixin = _make_permission_mixin('sor', 'add')
+SorEditPermissionMixin = _make_permission_mixin('sor', 'edit')
+SorDeletePermissionMixin = _make_permission_mixin('sor', 'delete')
 
 class ConsultantReportPermissionMixin(UserPassesTestMixin):
     def test_func(self):

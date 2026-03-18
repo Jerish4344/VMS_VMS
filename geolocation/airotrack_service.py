@@ -1,3 +1,4 @@
+import os
 import requests
 import logging
 import time
@@ -20,10 +21,12 @@ class AiroTrackAPI:
     for the AiroTrack GPS tracking system.
     """
     
-    # API Configuration
-    BASE_URL = "https://login.airotrack.in:8082/api"
-    USERNAME = "9020738318"
-    PASSWORD = "123456"
+    # API Configuration — loaded from environment variables
+    BASE_URL = os.environ.get('AIROTRACK_BASE_URL', 'https://login.airotrack.in:8082/api')
+    USERNAME = os.environ.get('AIROTRACK_USERNAME', '')
+    PASSWORD = os.environ.get('AIROTRACK_PASSWORD', '')
+    # Path to a CA bundle for SSL verification. Set to 'DISABLE' only for dev.
+    SSL_CA_BUNDLE = os.environ.get('AIROTRACK_SSL_CA_BUNDLE', '')
     
     # Endpoint paths
     POSITIONS_ENDPOINT = "/positions"

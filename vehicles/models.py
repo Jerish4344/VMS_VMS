@@ -258,6 +258,39 @@ class Vehicle(models.Model):
     def is_retired(self):
         """Check if vehicle is retired."""
         return self.status == 'retired'
+
+    def recalculate_status(self):
+        """
+        Re-derive vehicle status by checking all modules (trips, accidents, maintenance).
+        Call this instead of directly setting vehicle.status = 'available'.
+        Does NOT call save() — caller is responsible for saving.
+        """
+        if self.status == 'retired':
+            return  # Never change retired vehicles
+
+        # Check for ongoing trips
+        ongoing_trips = self.trips.filter(status='ongoing', is_deleted=False).exists()
+        if ongoing_trips:
+            self.status = 'in_use'
+            return
+
+        # Check for unresolved accidents
+        unresolved_accidents = self.accidents.filter(
+            status__in=['reported', 'under_investigation', 'repair_scheduled', 'repair_in_progress']
+        ).exists()
+        if unresolved_accidents:
+            self.status = 'maintenance'
+            return
+
+        # Check for active maintenance
+        active_maintenance = self.maintenance_records.filter(
+            status='in_progress'
+        ).exists()
+        if active_maintenance:
+            self.status = 'maintenance'
+            return
+
+        self.status = 'available'
     
     def is_commercial(self):
         """Check if this is a commercial vehicle."""

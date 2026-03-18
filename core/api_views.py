@@ -549,8 +549,19 @@ class VehicleViewSet(viewsets.ModelViewSet):
             # Personal vehicle staff see only their own vehicles
             queryset = Vehicle.objects.filter(ownership_type='personal', owned_by=user)
         else:
-            # Drivers see available company vehicles only
-            queryset = Vehicle.objects.filter(ownership_type='company')
+            # Check if driver has active consultant rate assignments
+            from trips.consultant_models import ConsultantRate
+            consultant_vehicle_ids = list(ConsultantRate.objects.filter(
+                driver=user, status='active'
+            ).values_list('vehicle_id', flat=True))
+            if consultant_vehicle_ids:
+                # Consultant drivers see their assigned vehicles (exclude only retired)
+                queryset = Vehicle.objects.filter(
+                    id__in=consultant_vehicle_ids
+                ).exclude(status='retired')
+            else:
+                # Regular drivers see company vehicles
+                queryset = Vehicle.objects.filter(ownership_type='company')
         
         # Apply status filter if provided
         status_filter = self.request.query_params.get('status')

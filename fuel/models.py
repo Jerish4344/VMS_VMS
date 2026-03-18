@@ -2,6 +2,7 @@
 from django.db import models
 from vehicles.models import Vehicle
 from django.conf import settings
+from django.core.exceptions import ValidationError
 
 class FuelStation(models.Model):
     name = models.CharField(max_length=100)
@@ -97,6 +98,7 @@ class FuelTransaction(models.Model):
             models.Index(fields=['fuel_type', 'date']),
             models.Index(fields=['fuel_station', 'date']),
             models.Index(fields=['date', 'fuel_type', 'fuel_station']),
+            models.Index(fields=['vehicle', 'driver', 'date']),
         ]
     
     def __str__(self):
@@ -124,6 +126,16 @@ class FuelTransaction(models.Model):
         else:
             return f"₹{self.cost_per_liter}/L" if self.cost_per_liter else "N/A"
     
+    def clean(self):
+        super().clean()
+        has_fuel = bool(self.quantity or self.cost_per_liter)
+        has_electric = bool(self.energy_consumed or self.cost_per_kwh)
+        if has_fuel and has_electric:
+            raise ValidationError(
+                'A transaction cannot have both fuel (quantity/cost_per_liter) '
+                'and electric (energy_consumed/cost_per_kwh) fields set.'
+            )
+
     def save(self, *args, **kwargs):
         # Auto-calculate total cost if not provided
         if not self.total_cost or self.total_cost <= 0:

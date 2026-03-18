@@ -90,24 +90,17 @@ class Accident(models.Model):
     def save(self, *args, **kwargs):
         """Override save to update vehicle status if needed."""
         # If this is a new accident, set vehicle to maintenance
-        if not self.pk and self.vehicle.status == 'in_use':
+        if not self.pk and self.vehicle.status != 'retired':
             self.vehicle.status = 'maintenance'
             self.vehicle.save()
             
-        # If status is changing to resolved, update vehicle status
+        # If status is changing to resolved, recalculate vehicle status
         elif self.pk:
             try:
                 old_accident = Accident.objects.get(pk=self.pk)
                 if old_accident.status != 'resolved' and self.status == 'resolved':
-                    # If there are no other unresolved accidents, set vehicle to available
-                    other_accidents = Accident.objects.filter(
-                        vehicle=self.vehicle,
-                        status__in=['reported', 'under_investigation', 'repair_scheduled', 'repair_in_progress']
-                    ).exclude(pk=self.pk).count()
-                    
-                    if other_accidents == 0:
-                        self.vehicle.status = 'available'
-                        self.vehicle.save()
+                    self.vehicle.recalculate_status()
+                    self.vehicle.save()
             except Accident.DoesNotExist:
                 pass
                 

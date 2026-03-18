@@ -5,23 +5,32 @@ from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.db import connection
 from django.views.generic import TemplateView
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from dashboard.views import DashboardView
 
 def health_check(request):
-    """Health check endpoint for monitoring."""
+    """Health check endpoint for monitoring / load balancer.
+    Returns minimal info to avoid leaking system details."""
+    from django.core.cache import cache as _cache
+
+    # Check database
     try:
-        # Check database connection
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
-        db_status = "healthy"
-    except Exception as e:
-        db_status = f"unhealthy: {str(e)}"
+        db_ok = True
+    except Exception:
+        db_ok = False
     
-    return JsonResponse({
-        "status": "ok" if db_status == "healthy" else "degraded",
-        "database": db_status,
-        "version": "1.0.0",
-    })
+    # Check Redis cache
+    try:
+        _cache.set('_health_check', '1', 10)
+        cache_ok = _cache.get('_health_check') == '1'
+    except Exception:
+        cache_ok = False
+    
+    overall = "ok" if (db_ok and cache_ok) else "degraded"
+    status_code = 200 if overall == "ok" else 503
+    return JsonResponse({"status": overall}, status=status_code)
 
 urlpatterns = [
     # Health check endpoint (no auth required)
@@ -76,8 +85,12 @@ urlpatterns = [
     # Geolocation / Tracking
     path('geolocation/', include('geolocation.urls')),
 
-    # Mobile API Endpoints
+    # API Endpoints (Mobile + Core)
     path('api/', include('core.api_urls')),
+
+    # API Documentation (Swagger/OpenAPI)
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

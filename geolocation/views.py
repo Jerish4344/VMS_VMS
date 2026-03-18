@@ -96,16 +96,40 @@ def tracking_dashboard(request):
         messages.error(request, "You don't have permission to access the tracking system.")
         return redirect('dashboard')
     
-    # Get all vehicles with tracking devices
-    vehicles_with_devices = Vehicle.objects.filter(airotrack_device__isnull=False)
+    # Get all vehicles with tracking devices + prefetch their locations in ONE query
+    vehicles_with_devices = Vehicle.objects.filter(
+        airotrack_device__isnull=False
+    ).select_related('vehicle_type')
     
-    # Get status for each vehicle
+    # Bulk-fetch all VehicleLocations for these vehicles (1 query instead of N)
+    vehicle_ids = [v.id for v in vehicles_with_devices]
+    locations_map = {
+        loc.vehicle_id: loc
+        for loc in VehicleLocation.objects.filter(vehicle_id__in=vehicle_ids)
+    }
+    
+    # Build vehicle data using the prefetched locations
     vehicles_data = []
     for vehicle in vehicles_with_devices:
-        status = get_vehicle_status(vehicle)
+        location = locations_map.get(vehicle.id)
         
-        try:
-            location = VehicleLocation.objects.get(vehicle=vehicle)
+        # Compute status from the already-fetched location (no extra query)
+        if location:
+            is_stale = (timezone.now() - location.device_time) > timedelta(minutes=60)
+            if is_stale:
+                status = {"status": "unknown", "display": "Unknown", "class": "text-secondary"}
+            else:
+                try:
+                    speed = float(location.speed) if location.speed is not None else 0
+                except (ValueError, TypeError):
+                    speed = 0
+                if speed > 5:
+                    status = {"status": "active", "display": "Active", "class": "text-success"}
+                elif location.ignition:
+                    status = {"status": "idle", "display": "Idle", "class": "text-info"}
+                else:
+                    status = {"status": "inactive", "display": "Parked", "class": "text-warning"}
+            
             location_data = {
                 "latitude": float(location.latitude),
                 "longitude": float(location.longitude),
@@ -113,7 +137,8 @@ def tracking_dashboard(request):
                 "last_update": location.device_time,
                 "address": location.address or "Unknown location"
             }
-        except VehicleLocation.DoesNotExist:
+        else:
+            status = {"status": "no_data", "display": "No Data", "class": "text-danger"}
             location_data = None
         
         vehicles_data.append({

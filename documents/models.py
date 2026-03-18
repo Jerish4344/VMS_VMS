@@ -48,6 +48,11 @@ class DocumentManager(models.Manager):
                 
         return updated_docs
 
+    def missing_required_for_vehicle(self, vehicle):
+        """Return required DocumentTypes that this vehicle doesn't have a document for."""
+        existing_type_ids = self.filter(vehicle=vehicle).values_list('document_type_id', flat=True)
+        return DocumentType.objects.filter(required=True).exclude(id__in=existing_type_ids)
+
 
 class DocumentType(models.Model):
     """
@@ -107,6 +112,7 @@ class Document(models.Model):
             models.Index(fields=['expiry_date']),
             models.Index(fields=['vehicle', 'expiry_date']),
             models.Index(fields=['document_type', 'expiry_date']),
+            models.Index(fields=['vehicle', 'document_type']),
         ]
     
     def __str__(self):

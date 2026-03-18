@@ -460,11 +460,22 @@ class StartTripView(LoginRequiredMixin, CanDriveVehicleMixin, CreateView):
                 status='available'
             ).select_related('vehicle_type')
         else:
-            # Other users see company vehicles
-            available_vehicles = Vehicle.objects.filter(
-                ownership_type='company',
-                status='available'
-            ).select_related('vehicle_type')
+            # Check if driver has active consultant rate assignments
+            from trips.consultant_models import ConsultantRate
+            consultant_vehicle_ids = list(ConsultantRate.objects.filter(
+                driver=self.request.user, status='active'
+            ).values_list('vehicle_id', flat=True))
+            if consultant_vehicle_ids:
+                # Consultant drivers see their assigned vehicles (exclude only retired)
+                available_vehicles = Vehicle.objects.filter(
+                    id__in=consultant_vehicle_ids
+                ).exclude(status='retired').select_related('vehicle_type')
+            else:
+                # Other users see company vehicles
+                available_vehicles = Vehicle.objects.filter(
+                    ownership_type='company',
+                    status='available'
+                ).select_related('vehicle_type')
         
         context['available_vehicles'] = available_vehicles
         
@@ -657,10 +668,9 @@ class EndTripView(LoginRequiredMixin, UpdateView):
             except SOR.DoesNotExist:
                 pass
 
-            # --- ZeptoMail alert for suspicious distance ---
+            # --- ZeptoMail alert for suspicious distance (async via Celery) ---
             if trip.distance_traveled() > 300:
-                recipients = getattr(settings, 'ZEPTO_ALERT_RECIPIENTS', [])
-                send_trip_alert_email(trip, recipients)
+                send_trip_alert_email_async.delay(trip.pk)
 
             # Success message with role indication and GPS info
             user_role = self.request.user.get_user_type_display()

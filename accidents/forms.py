@@ -134,12 +134,24 @@ class AccidentUpdateForm(forms.ModelForm):
 class AccidentImageForm(forms.ModelForm):
     """Form for accident images."""
     
+    ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB per image
+    
     class Meta:
         model = AccidentImage
         fields = ['image', 'caption']
         widgets = {
             'caption': forms.TextInput(attrs={'placeholder': 'Brief description of the image'}),
         }
+
+    def clean_image(self):
+        image = self.cleaned_data.get('image')
+        if image:
+            if image.size > self.MAX_IMAGE_SIZE:
+                raise forms.ValidationError('Image size must be under 5 MB.')
+            if hasattr(image, 'content_type') and image.content_type not in self.ALLOWED_IMAGE_TYPES:
+                raise forms.ValidationError('Only JPEG, PNG, GIF, and WebP images are allowed.')
+        return image
 
 # Create formset for multiple accident images
 AccidentImageFormSet = inlineformset_factory(

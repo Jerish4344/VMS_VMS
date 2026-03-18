@@ -3,8 +3,10 @@ Chatbot Processor for Vehicle Management System
 Handles natural language queries and returns relevant data using Groq AI.
 """
 
+import os
 import re
 import json
+import logging
 from datetime import datetime, timedelta, date, time
 from django.db.models import Sum, Count, Avg, Q, F
 from django.db.models.functions import TruncDate
@@ -18,9 +20,11 @@ from maintenance.models import Maintenance, MaintenanceType
 from accounts.models import CustomUser
 from accidents.models import Accident
 from sor.models import SOR
+from django.conf import settings as django_settings
 
-# Groq AI Configuration
-GROQ_API_KEY = "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"
+# Groq AI Configuration — loaded from environment variable
+GROQ_API_KEY = getattr(django_settings, 'GROQ_API_KEY', os.environ.get('GROQ_API_KEY', ''))
+logger = logging.getLogger(__name__)
 
 try:
     from groq import Groq
@@ -98,7 +102,7 @@ ONLY return valid JSON, nothing else. Examples:
             # Parse JSON response
             return json.loads(result)
         except Exception as e:
-            print(f"Groq error: {e}")
+            logger.error(f"Groq intent detection error: {e}")
             return None
         
     def process_query(self, query):
@@ -2072,7 +2076,7 @@ Available data queries:
                 'data_type': 'text'
             }
         except Exception as e:
-            print(f"Groq error: {e}")
+            logger.error(f"Groq response generation error: {e}")
             return self._get_default_response()
     
     def _format_date_range(self, start_date, end_date):

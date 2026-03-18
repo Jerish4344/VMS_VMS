@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from django.conf import settings
 
 
 class Department(models.Model):
@@ -620,3 +621,50 @@ class UserRole(models.Model):
     
     def __str__(self):
         return self.display_name
+
+
+class AuditLog(models.Model):
+    """Tracks important actions for compliance and security auditing."""
+    ACTION_CHOICES = [
+        ('login', 'Login'),
+        ('logout', 'Logout'),
+        ('login_failed', 'Login Failed'),
+        ('user_created', 'User Created'),
+        ('user_approved', 'User Approved'),
+        ('user_rejected', 'User Rejected'),
+        ('permission_changed', 'Permission Changed'),
+        ('vehicle_created', 'Vehicle Created'),
+        ('vehicle_deleted', 'Vehicle Deleted'),
+        ('trip_started', 'Trip Started'),
+        ('trip_ended', 'Trip Ended'),
+        ('sor_created', 'SOR Created'),
+        ('sor_accepted', 'SOR Accepted'),
+        ('sor_rejected', 'SOR Rejected'),
+        ('data_exported', 'Data Exported'),
+        ('other', 'Other'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='audit_logs',
+    )
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    target_model = models.CharField(max_length=100, blank=True, default='')
+    target_id = models.PositiveIntegerField(null=True, blank=True)
+    details = models.TextField(blank=True, default='')
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['action', 'timestamp']),
+            models.Index(fields=['user', 'timestamp']),
+        ]
+
+    def __str__(self):
+        user_str = self.user.get_full_name() if self.user else 'System'
+        return f"[{self.timestamp:%Y-%m-%d %H:%M}] {user_str} — {self.get_action_display()}"

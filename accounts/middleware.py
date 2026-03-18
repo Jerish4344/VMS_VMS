@@ -3,6 +3,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.contrib import messages
 from django.http import JsonResponse
+from django.conf import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,27 +13,32 @@ class DriverApprovalMiddleware(MiddlewareMixin):
     Middleware to enforce approval-based access control for employees
     """
     
+    # Prefix-based paths that don't have named URL patterns
+    STATIC_ALLOWED_PREFIXES = ('/admin/', '/static/', '/media/')
+    
+    def _get_allowed_paths(self):
+        """Build allowed paths from named URL patterns."""
+        return [
+            reverse('login'),
+            reverse('logout'),
+            reverse('pending_approval'),
+            reverse('access_rejected'),
+            reverse('notification_data'),
+        ]
+    
     def process_request(self, request):
         # Skip middleware for unauthenticated users
         if not request.user.is_authenticated:
             return None
         
-        # Define paths that should be accessible without approval
-        allowed_paths = [
-            '/accounts/login/',
-            '/accounts/logout/',
-            '/accounts/pending-approval/',
-            '/accounts/access-rejected/',
-            '/admin/',
-            '/static/',
-            '/media/',
-            # Add API endpoints that should be accessible
-            '/accounts/notifications/data/',
-        ]
-        
-        # Check if current path is in allowed paths
         current_path = request.path
-        if any(current_path.startswith(path) for path in allowed_paths):
+        
+        # Check static prefixes first (admin, static, media)
+        if current_path.startswith(self.STATIC_ALLOWED_PREFIXES):
+            return None
+        
+        # Check named URL paths
+        if current_path in self._get_allowed_paths():
             return None
         
         # Allow managers/vehicle managers/admins full access (they don't need approval)

@@ -3,6 +3,7 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, D
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
+from django.db.models import Count, Q
 from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin
 from .models import Maintenance, MaintenanceType, MaintenanceProvider
 from .forms import MaintenanceForm, MaintenanceTypeForm, MaintenanceProviderForm
@@ -53,11 +54,14 @@ class MaintenanceListView(LoginRequiredMixin, ListView):
         # Fix: Access the choices through the model's meta
         context['statuses'] = dict(Maintenance._meta.get_field('status').choices)
         
-        # Add these lines to calculate status counts
-        context['scheduled_count'] = Maintenance.objects.filter(status='scheduled').count()
-        context['in_progress_count'] = Maintenance.objects.filter(status='in_progress').count()
-        context['completed_count'] = Maintenance.objects.filter(status='completed').count()
-        context['cancelled_count'] = Maintenance.objects.filter(status='cancelled').count()
+        # Calculate all status counts in a single query
+        status_counts = Maintenance.objects.aggregate(
+            scheduled_count=Count('id', filter=Q(status='scheduled')),
+            in_progress_count=Count('id', filter=Q(status='in_progress')),
+            completed_count=Count('id', filter=Q(status='completed')),
+            cancelled_count=Count('id', filter=Q(status='cancelled')),
+        )
+        context.update(status_counts)
         
         # You might also want to add this for the quick links section
         context['maintenance_providers_count'] = MaintenanceProvider.objects.count()
@@ -107,18 +111,21 @@ class MaintenanceUpdateView(VehicleManagerRequiredMixin, UpdateView):
         old_status = self.get_object().status
         new_status = form.instance.status
         
+        # Save the maintenance record FIRST so DB is up to date
+        response = super().form_valid(form)
+        
         if old_status != new_status:
             vehicle = form.instance.vehicle
             
             if new_status == 'in_progress':
                 vehicle.status = 'maintenance'
                 vehicle.save()
-            elif old_status == 'in_progress' and new_status == 'completed':
-                vehicle.status = 'available'
+            elif new_status in ['completed', 'cancelled']:
+                vehicle.recalculate_status()
                 vehicle.save()
         
         messages.success(self.request, 'Maintenance record updated successfully.')
-        return super().form_valid(form)
+        return response
 
 class MaintenanceDeleteView(AdminRequiredMixin, DeleteView):
     model = Maintenance
@@ -127,9 +134,9 @@ class MaintenanceDeleteView(AdminRequiredMixin, DeleteView):
     
     def delete(self, request, *args, **kwargs):
         maintenance = self.get_object()
-        # If maintenance was in progress, set vehicle back to available
+        # If maintenance was in progress, recalculate vehicle status
         if maintenance.status == 'in_progress':
-            maintenance.vehicle.status = 'available'
+            maintenance.vehicle.recalculate_status()
             maintenance.vehicle.save()
         
         messages.success(request, f'Maintenance record for {maintenance.vehicle} has been deleted successfully.')

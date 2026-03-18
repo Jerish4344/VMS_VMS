@@ -12,7 +12,7 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 # Configuration for cached authentication
-CACHED_AUTH_VALIDITY_DAYS = 30  # How long cached credentials are valid
+CACHED_AUTH_VALIDITY_DAYS = 7  # How long cached credentials are valid
 STYLEHR_API_TIMEOUT = 10  # Timeout in seconds for StyleHR API calls
 
 class StyleHRAuthBackend(BaseBackend):
@@ -424,15 +424,16 @@ class ApprovalBasedAuthBackend(BaseBackend):
         try:
             existing_user = User.objects.get(username=username)
             if existing_user.user_type != 'driver':
-                # Use Django's default authentication for non-drivers
-                if existing_user.check_password(password):
-                    if existing_user.is_active:
-                        return existing_user
-                return None
+                # Try local Django auth first for non-drivers (fast, no HTTP call)
+                if existing_user.check_password(password) and existing_user.is_active:
+                    return existing_user
+                # Local auth failed — some managers also use StyleHR credentials,
+                # so fall through to try StyleHR instead of returning None
+                logger.debug(f"Local auth failed for non-driver {username}, trying StyleHR")
         except User.DoesNotExist:
             pass
         
-        # For employees or new users, try StyleHR authentication
+        # For drivers, new users, or non-drivers whose local auth failed — try StyleHR
         stylehr_backend = StyleHRAuthBackend()
         return stylehr_backend.authenticate(request, username, password, **kwargs)
     

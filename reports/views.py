@@ -13,6 +13,7 @@ from maintenance.models import Maintenance
 from fuel.models import FuelTransaction
 from accidents.models import Accident
 from accounts.models import CustomUser
+from core.utils import parse_date
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 import csv
 from datetime import datetime, timedelta
@@ -743,7 +744,7 @@ class MaintenanceReportView(ReportBaseView):
                 monthly_costs[month_key] += float(record.cost)
         
         for month_key in sorted(monthly_counts.keys()):
-            month_obj = datetime.strptime(month_key, '%Y-%m').date()
+            month_obj = parse_date(month_key, '%Y-%m')
             monthly_data.append({
                 'month': month_obj,
                 'count': monthly_counts[month_key],
@@ -1267,14 +1268,8 @@ class DailyUsageCostView(ReportBaseView):
 
         # Get date range from request
         start_date, end_date = self.get_date_range_filters()
-        if not start_date:
-            start_date = timezone.now().date()
-        else:
-            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-        if not end_date:
-            end_date = timezone.now().date()
-        else:
-            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        start_date = parse_date(start_date) or timezone.now().date()
+        end_date = parse_date(end_date) or timezone.now().date()
         context['start_date'] = start_date
         context['end_date'] = end_date
 

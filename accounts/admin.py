@@ -5,7 +5,7 @@ from django.utils.html import format_html
 from django.utils import timezone
 from datetime import timedelta
 from django.utils.html import format_html
-from .models import CustomUser, Module, Permission, UserPermission, UserRole, Department
+from .models import CustomUser, Module, Permission, UserPermission, UserRole, Department, AuditLog
 from django.contrib.auth.forms import UserChangeForm, UserCreationForm
 
 # Should match the value in backends.py
@@ -194,3 +194,22 @@ class DepartmentAdmin(admin.ModelAdmin):
 admin.site.site_header = "VMS User Rights Administration"
 admin.site.site_title = "VMS Admin"
 admin.site.index_title = "Welcome to VMS Administration"
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ('timestamp', 'user', 'action', 'target_model', 'target_id', 'ip_address')
+    list_filter = ('action', 'timestamp')
+    search_fields = ('user__username', 'user__first_name', 'details', 'target_model')
+    date_hierarchy = 'timestamp'
+    readonly_fields = ('user', 'action', 'target_model', 'target_id', 'details', 'ip_address', 'timestamp')
+    ordering = ('-timestamp',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser

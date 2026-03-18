@@ -33,23 +33,27 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
         
         # Basic statistics - exclude personal vehicles from company dashboard
         context['total_vehicles'] = Vehicle.objects.filter(ownership_type='company').count()
-        context['active_trips'] = Trip.objects.filter(
-            vehicle__ownership_type='company',
-            status='ongoing',
-            is_deleted=False
-        ).count()
         
         # Different dashboard data based on user type
         if user_type in ['admin', 'manager']:
             self.add_admin_manager_data(context)
+            # active_trips is set inside add_admin_manager_data to avoid a duplicate query
+            if 'active_trips' not in context:
+                context['active_trips'] = 0
         elif user_type == 'vehicle_manager':
             self.add_vehicle_manager_data(context)
+            # active_trips is set inside add_vehicle_manager_data
+            if 'active_trips' not in context:
+                context['active_trips'] = 0
         elif user_type in ['driver', 'company_vehicle_staff']:
             self.add_driver_data(context)
+            context.setdefault('active_trips', 0)
         elif user_type == 'personal_vehicle_staff':
             self.add_personal_vehicle_staff_data(context)
+            context.setdefault('active_trips', 0)
         elif user_type == 'generator_user':
             self.add_generator_user_data(context)
+            context.setdefault('active_trips', 0)
             
         return context
     
@@ -83,37 +87,43 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
         return trips
     
     def add_admin_manager_data(self, context):
+        # Try to serve from cache first (2-minute TTL)
+        cache_key = 'admin_dashboard_context'
+        try:
+            cached = cache.get(cache_key)
+            if cached:
+                context.update(cached)
+                return
+        except Exception:
+            pass  # Cache backend down — compute fresh data
+
         # Vehicle status distribution - company vehicles only
-        context['vehicle_status'] = Vehicle.objects.filter(ownership_type='company').values('status').annotate(count=Count('id'))
+        context['vehicle_status'] = list(Vehicle.objects.filter(ownership_type='company').values('status').annotate(count=Count('id')))
         
         # Vehicles by type - company vehicles only
-        context['vehicle_types'] = Vehicle.objects.filter(ownership_type='company').values('vehicle_type__name').annotate(count=Count('id'))
+        context['vehicle_types'] = list(Vehicle.objects.filter(ownership_type='company').values('vehicle_type__name').annotate(count=Count('id')))
         
-        # Ongoing trips - company vehicles only
-        context['ongoing_trips'] = Trip.objects.filter(
+        # Single query for ongoing trips — reused for list, grouped view, and count
+        ongoing_trips = list(Trip.objects.filter(
             vehicle__ownership_type='company',
             status='ongoing',
             is_deleted=False
-        ).select_related('vehicle', 'driver')
+        ).select_related('vehicle', 'driver', 'vehicle__vehicle_type'))
         
-        # Group ongoing trips by vehicle type for the grouped view - company vehicles only
-        ongoing_trips = Trip.objects.filter(
-            vehicle__ownership_type='company',
-            status='ongoing',
-            is_deleted=False
-        ).select_related('vehicle', 'driver', 'vehicle__vehicle_type')
+        context['ongoing_trips'] = ongoing_trips
+        context['active_trips'] = len(ongoing_trips)
+        
+        # Group ongoing trips by vehicle type (using the already-fetched list)
         ongoing_trips_by_type = {}
         ongoing_trips_summary = {}
         
         for trip in ongoing_trips:
             vehicle_type = trip.vehicle.vehicle_type.name
             
-            # For grouped view
             if vehicle_type not in ongoing_trips_by_type:
                 ongoing_trips_by_type[vehicle_type] = []
             ongoing_trips_by_type[vehicle_type].append(trip)
             
-            # For summary cards
             if vehicle_type not in ongoing_trips_summary:
                 ongoing_trips_summary[vehicle_type] = 0
             ongoing_trips_summary[vehicle_type] += 1
@@ -122,40 +132,39 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
         context['ongoing_trips_summary'] = ongoing_trips_summary
         
         # Recent accidents - company vehicles only
-        context['recent_accidents'] = Accident.objects.filter(
+        context['recent_accidents'] = list(Accident.objects.filter(
             vehicle__ownership_type='company'
-        ).order_by('-date_time')[:5]
+        ).order_by('-date_time')[:5])
         
         # Upcoming maintenance - company vehicles only
-        context['upcoming_maintenance'] = Maintenance.objects.filter(
+        today = timezone.now().date()
+        context['upcoming_maintenance'] = list(Maintenance.objects.filter(
             vehicle__ownership_type='company',
             status='scheduled',
-            scheduled_date__gte=timezone.now().date()
-        ).order_by('scheduled_date')[:5]
+            scheduled_date__gte=today
+        ).order_by('scheduled_date')[:5])
         
         # Upcoming document renewals - company vehicles only
-        today = timezone.now().date()
         next_month = today + timedelta(days=30)
-        context['expiring_documents'] = Document.objects.filter(
+        context['expiring_documents'] = list(Document.objects.filter(
             vehicle__ownership_type='company',
             expiry_date__range=[today, next_month]
-        ).order_by('expiry_date')[:5]
+        ).order_by('expiry_date')[:5])
         
         # Add fuel expenses data
         self.add_fuel_expenses_data(context)
         
         # Vehicle utilization (trips per vehicle this month) - company vehicles only
-        first_of_month = timezone.now().date().replace(day=1)
-        context['vehicle_utilization'] = Trip.objects.filter(
+        first_of_month = today.replace(day=1)
+        context['vehicle_utilization'] = list(Trip.objects.filter(
             vehicle__ownership_type='company',
             start_time__gte=first_of_month,
             is_deleted=False
         ).values('vehicle__license_plate').annotate(
             trip_count=Count('id')
-        ).order_by('-trip_count')[:10]
+        ).order_by('-trip_count')[:10])
         
         # Driver performance (total distance driven this month) - company vehicles only
-        # Updated to include duration calculation
         driver_performance = Trip.objects.filter(
             vehicle__ownership_type='company',
             start_time__gte=first_of_month,
@@ -193,6 +202,21 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
             })
         
         context['driver_performance'] = driver_perf_list
+
+        # Cache the computed context for 2 minutes
+        # (exclude non-serializable objects — querysets were already evaluated via list())
+        try:
+            cacheable_keys = [
+                'vehicle_status', 'vehicle_types', 'active_trips',
+                'ongoing_trips_by_type', 'ongoing_trips_summary',
+                'recent_accidents', 'upcoming_maintenance', 'expiring_documents',
+                'vehicle_utilization', 'driver_performance',
+                'monthly_fuel', 'weekly_fuel', 'daily_fuel',
+            ]
+            cache_data = {k: context[k] for k in cacheable_keys if k in context}
+            cache.set(cache_key, cache_data, 120)  # 2 minutes
+        except Exception:
+            pass  # Cache backend down — still works, just no caching
     
     def add_fuel_expenses_data(self, context):
         """Add fuel expenses data with multiple time granularities.
@@ -235,16 +259,9 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
                 'total': item['total']
             })
             
-        # If no real data, add sample data
+        # Flag when no real data exists so the template can show a message
         if not context['monthly_fuel']:
-            for i in range(1, 7):
-                month_num = ((today.month - 7 + i) % 12) + 1
-                month_name_str = month_name[month_num]
-                context['monthly_fuel'].append({
-                    'month': month_num,
-                    'month_name': month_name_str,
-                    'total': 1000 + (i * 150)
-                })
+            context['no_monthly_fuel_data'] = True
         
         # Weekly fuel expenses - single query with grouping instead of 12 separate queries
         twelve_weeks_ago = today - timedelta(weeks=12)
@@ -273,16 +290,9 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
                 'total': week_total
             })
             
-        # If no real data (all zeroes), add sample data
+        # Flag when no real data exists
         if all(item['total'] == 0 for item in context['weekly_fuel']):
-            context['weekly_fuel'] = []
-            for i in range(1, 13):
-                week_start = today - timedelta(weeks=13-i)
-                week_label = f"Week of {week_start.strftime('%b %d')}"
-                context['weekly_fuel'].append({
-                    'week': week_label,
-                    'total': 250 + (i * 30) + (i % 3) * 100
-                })
+            context['no_weekly_fuel_data'] = True
         
         # Daily fuel expenses - single query instead of 30 separate queries
         thirty_days_ago = today - timedelta(days=29)
@@ -304,23 +314,9 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
                 'total': daily_totals_map.get(day, 0) or 0
             })
             
-        # If no real data (all zeroes), add sample data with proper date progression
+        # Flag when no real data exists
         if all(item['total'] == 0 for item in context['daily_fuel']):
-            context['daily_fuel'] = []
-            for i in range(30):
-                # Start from 30 days ago and work forward to today
-                day = today - timedelta(days=29-i)  # Changed from (30-i) to (29-i)
-                day_label = day.strftime('%b %d')
-                
-                # Create some variability in the sample data
-                base = 100 + (i % 7) * 30
-                weekend_factor = 1.5 if day.weekday() >= 5 else 1  # Higher on weekends
-                random_factor = 0.7 + (i * 13 % 7) / 10  # Pseudo-random factor between 0.7 and 1.4
-                
-                context['daily_fuel'].append({
-                    'date': day_label,
-                    'total': round(base * weekend_factor * random_factor)
-                })
+            context['no_daily_fuel_data'] = True
         
         # Cache the computed fuel data for 5 minutes
         try:
@@ -347,22 +343,25 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
         context['unavailable_vehicles'] = Vehicle.objects.exclude(status='available').count()
 
         # Ongoing trips
-        context['ongoing_trips'] = Trip.objects.filter(status='ongoing', is_deleted=False).select_related('vehicle', 'driver')
+        # Single query for ongoing trips — reused for list, grouped view, and count
+        ongoing_trips = list(Trip.objects.filter(
+            status='ongoing', is_deleted=False
+        ).select_related('vehicle', 'driver', 'vehicle__vehicle_type'))
         
-        # Group ongoing trips by vehicle type for the grouped view
-        ongoing_trips = Trip.objects.filter(status='ongoing', is_deleted=False).select_related('vehicle', 'driver', 'vehicle__vehicle_type')
+        context['ongoing_trips'] = ongoing_trips
+        context['active_trips'] = len(ongoing_trips)
+        
+        # Group ongoing trips by vehicle type (using already-fetched list)
         ongoing_trips_by_type = {}
         ongoing_trips_summary = {}
         
         for trip in ongoing_trips:
             vehicle_type = trip.vehicle.vehicle_type.name
             
-            # For grouped view
             if vehicle_type not in ongoing_trips_by_type:
                 ongoing_trips_by_type[vehicle_type] = []
             ongoing_trips_by_type[vehicle_type].append(trip)
             
-            # For summary cards
             if vehicle_type not in ongoing_trips_summary:
                 ongoing_trips_summary[vehicle_type] = 0
             ongoing_trips_summary[vehicle_type] += 1

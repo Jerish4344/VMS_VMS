@@ -1,6 +1,7 @@
 from django import forms
 from django.utils import timezone
 from .models import Trip
+from .consultant_models import ConsultantRate
 from vehicles.models import Vehicle
 from django.contrib.auth import get_user_model
 
@@ -34,11 +35,21 @@ class TripForm(forms.ModelForm):
                     status='available'
                 )
             else:
-                # Other users see available company vehicles
-                self.fields['vehicle'].queryset = Vehicle.objects.filter(
-                    ownership_type='company',
-                    status='available'
-                )
+                # Check if driver has active consultant rate assignments
+                consultant_vehicle_ids = list(ConsultantRate.objects.filter(
+                    driver=user, status='active'
+                ).values_list('vehicle_id', flat=True))
+                if consultant_vehicle_ids:
+                    # Consultant drivers see their assigned vehicles (exclude only retired)
+                    self.fields['vehicle'].queryset = Vehicle.objects.filter(
+                        id__in=consultant_vehicle_ids
+                    ).exclude(status='retired')
+                else:
+                    # Other users see available company vehicles
+                    self.fields['vehicle'].queryset = Vehicle.objects.filter(
+                        ownership_type='company',
+                        status='available'
+                    )
         else:
             # Fallback: only show available vehicles
             self.fields['vehicle'].queryset = Vehicle.objects.filter(status='available')

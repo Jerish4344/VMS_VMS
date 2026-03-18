@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.utils.timezone import localtime
 from .notification import SORNotification
 
 @login_required
@@ -9,7 +10,7 @@ def sor_notifications_api(request):
         {
             'id': n.id,
             'message': n.message,
-            'created_at': n.created_at.strftime('%Y-%m-%d %H:%M'),
+            'created_at': localtime(n.created_at).strftime('%Y-%m-%d %H:%M'),
             'sor_id': n.sor.id,
         }
         for n in notifications

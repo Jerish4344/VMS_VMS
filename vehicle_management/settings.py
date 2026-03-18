@@ -1,9 +1,10 @@
-# ZeptoMail alert recipients for trip distance alerts
-ZEPTO_ALERT_RECIPIENTS = []
-
 # vehicle_management/settings.py
-
 import os
+
+# ZeptoMail alert recipients for trip distance alerts
+import json as _json
+ZEPTO_ALERT_RECIPIENTS = _json.loads(os.environ.get('ZEPTO_ALERT_RECIPIENTS', '["jerish@jcrc.in", "anubha@jeyarama.com"]'))
+
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -14,12 +15,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'CHANGE-ME-IN-PRODUCTION')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise RuntimeError('DJANGO_SECRET_KEY environment variable is required in production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
 ALLOWED_HOSTS = [
+    '52.87.151.66',
+    'vms.jeyarama.com',
     'localhost',
     '127.0.0.1'
 ]
@@ -30,10 +35,19 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
+# HSTS — tell browsers to always use HTTPS
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+# Additional security headers
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
 # Application definition
 
 INSTALLED_APPS = [
-    'jazzmin', 
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -48,6 +62,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'crispy_forms',
     'crispy_bootstrap5',
+    'drf_spectacular',
+    'compressor',
     
     # Project apps
     'accounts',
@@ -67,6 +83,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # GZipMiddleware is handled by the Nginx
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -123,6 +140,18 @@ DATABASES = {
     }
 }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': '',
+#         'USER': '',
+#         'PASSWORD': '',
+#         'HOST': 'localhost',
+#         'PORT': '3306',
+#     }
+# }
+
+
 # =============================================================================
 # REDIS CACHE CONFIGURATION
 # =============================================================================
@@ -140,11 +169,49 @@ CACHES = {
     }
 }
 
-# Use database sessions so auth works even if Redis is down
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+# Use cached_db sessions: cache-first with DB fallback (works if Redis is down)
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
 
 # Cache timeout defaults (in seconds)
 CACHE_TTL = 60 * 5  # 5 minutes default
+
+# =============================================================================
+# CELERY CONFIGURATION (uses Redis DB 2, cache uses DB 1)
+# =============================================================================
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/2')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://127.0.0.1:6379/2')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Kolkata'
+CELERY_TASK_SOFT_TIME_LIMIT = 300  # 5 min soft limit
+CELERY_TASK_TIME_LIMIT = 600       # 10 min hard limit
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+# Celery Beat — periodic task schedule
+from celery.schedules import crontab
+CELERY_BEAT_SCHEDULE = {
+    'send-document-expiry-notifications': {
+        'task': 'core.tasks.run_management_command',
+        'schedule': crontab(hour=8, minute=0),  # Daily at 8 AM IST
+        'args': ('send_document_expiry_notifications', '--days', '30'),
+    },
+    'send-maintenance-reminders': {
+        'task': 'core.tasks.run_management_command',
+        'schedule': crontab(hour=8, minute=15),  # Daily at 8:15 AM IST
+        'args': ('send_maintenance_reminders', '--days', '3'),
+    },
+    'send-approval-reminders': {
+        'task': 'core.tasks.run_management_command',
+        'schedule': crontab(hour=9, minute=0),  # Daily at 9 AM IST
+        'args': ('send_approval_reminders',),
+    },
+    'archive-location-history': {
+        'task': 'core.tasks.run_management_command',
+        'schedule': crontab(hour=2, minute=0, day_of_month=1),  # 1st of every month at 2 AM
+        'args': ('archive_location_history', '--days', '90', '--execute'),
+    },
+}
 
 # Jazzmin Settings
 JAZZMIN_SETTINGS = {
@@ -368,34 +435,69 @@ REST_FRAMEWORK = {
         'user': '120/minute',
         'gps_tracking': '600/minute',
     },
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 # CORS Settings for Mobile App
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "https://vms.jeyarama.com",
-    "http://52.87.151.66",
     "https://52.87.151.66",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
-# Email settings (update these for production)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' # For development
-# For production, use SMTP:
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = 'smtp.gmail.com'
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = 'your-email@gmail.com'
-# EMAIL_HOST_USER_PASSWORD = 'your-email-password'
+# Email settings
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.zeptomail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@jeyarama.com')
 
-# ZeptoMail API settings (add your actual API key below)
-ZEPTO_API_KEY = os.environ.get('ZEPTO_API_KEY', '')
+# ZeptoMail API settings
+ZEPTO_API_KEY = os.environ.get('ZEPTO_API_KEY', '')  # Set via environment variable
 ZEPTO_TEMPLATE_KEY = ''  # (Optional) Paste your ZeptoMail template key here if using templates
+
+# Google Maps API Configuration
+GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')
+
+# Groq AI API key (for chatbot)
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 
 # Document settings
 ALLOWED_DOCUMENT_TYPES = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx']
 MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10 MB
+
+# Sentry Error Tracking
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+if SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.1,
+        send_default_pii=False,
+        environment='production',
+    )
+
+# drf-spectacular (OpenAPI/Swagger)
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'VMS Fleet Management API',
+    'DESCRIPTION': 'Vehicle Management System REST API for mobile and web clients.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
+
+# Django Compressor
+STATICFILES_FINDERS = (
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+    'compressor.finders.CompressorFinder',
+)
+COMPRESS_ENABLED = True
+COMPRESS_CSS_FILTERS = ['compressor.filters.css_default.CssAbsoluteFilter', 'compressor.filters.cssmin.CSSMinFilter']
+COMPRESS_JS_FILTERS = ['compressor.filters.jsmin.JSMinFilter']
 
 # Geolocation settings
 LOCATION_UPDATE_INTERVAL = 30  # Seconds
@@ -429,16 +531,18 @@ def status_color(status):
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 AUTHENTICATION_BACKENDS = [
-    'accounts.backends.StyleHRAuthBackend',  # Primary: StyleHR authentication
+    'accounts.backends.CombinedAuthBackend',  # Primary: routes non-drivers locally, only calls StyleHR for drivers
     'django.contrib.auth.backends.ModelBackend',  # Fallback: Django default
-    'accounts.backends.CombinedAuthBackend',  # Our new combined backend
 ]
 
-CSRF_TRUSTED_ORIGINS = []
+CSRF_TRUSTED_ORIGINS = [
+    "https://vms.jeyarama.com",
+    "http://vms.jeyarama.com:8000",
+]
 
 # StyleHR API Configuration
-STYLEHR_API_URL = ''
-STYLEHR_API_TIMEOUT = 30  # seconds
+STYLEHR_API_URL = 'https://stylehr.in/api/login/'
+STYLEHR_API_TIMEOUT = 10  # seconds (reduced from 30 to avoid blocking workers)
 
 import logging
 
@@ -515,13 +619,9 @@ DRIVER_APPROVAL_NOTIFICATIONS = True
 DEFAULT_FROM_EMAIL = 'noreply@yourvms.com'
 
 # Bulk upload settings
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB (was 100MB — prevents memory abuse)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 2000    # For many records
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 2000    # Reduced from 10000
 
 # Disable atomic requests for bulk operations
 ATOMIC_REQUESTS = False
-
-
-# Google Maps API Configuration
-GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')

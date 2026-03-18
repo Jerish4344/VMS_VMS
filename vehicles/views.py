@@ -17,6 +17,7 @@ import io
 from django.db.models import Q
 from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
+from django.contrib.auth.decorators import login_required
 
 class VehicleListView(VehicleViewPermissionMixin, ListView):
     model = Vehicle
@@ -67,14 +68,20 @@ class VehicleDetailView(VehicleViewPermissionMixin, DetailView):
     model = Vehicle
     template_name = 'vehicles/vehicle_detail.html'
     context_object_name = 'vehicle'
+
+    def get_queryset(self):
+        return super().get_queryset().select_related('vehicle_type').prefetch_related(
+            'documents', 'maintenance_records', 'fuel_transactions',
+            'trips', 'accidents', 'firms',
+        )
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        vehicle = self.get_object()
+        vehicle = self.object
         context['documents'] = vehicle.documents.all()
         context['maintenance_records'] = vehicle.maintenance_records.all()
         context['fuel_transactions'] = vehicle.fuel_transactions.all()
-        context['trips'] = vehicle.trips.all().order_by('-start_time')[:10]  # Last 10 trips
+        context['trips'] = vehicle.trips.all().order_by('-start_time')[:10]
         context['accidents'] = vehicle.accidents.all()
         return context
 
@@ -162,6 +169,11 @@ class ImportVehiclesView(AdminRequiredMixin, FormView):
         preview_only = form.cleaned_data['preview_only']
         
         try:
+            # Validate file size (max 10 MB)
+            if excel_file.size > 10 * 1024 * 1024:
+                messages.error(self.request, 'File size exceeds the maximum allowed size (10 MB).')
+                return self.form_invalid(form)
+
             # Validate file type
             if not excel_file.name.lower().endswith(('.xlsx', '.xls')):
                 messages.error(self.request, 'Please upload a valid Excel file (.xlsx or .xls)')
@@ -262,6 +274,7 @@ class ImportVehiclesView(AdminRequiredMixin, FormView):
         return super().form_invalid(form)
     
 
+@login_required
 @require_http_methods(["GET"])
 def vehicle_details_api(request, vehicle_id):
     """API endpoint to get vehicle details for forms."""
