@@ -700,6 +700,11 @@ class EndTripView(APIView):
         except SOR.DoesNotExist:
             pass
         
+        # ZeptoMail alert for suspicious distance (async via Celery)
+        if trip.distance_traveled() > 300:
+            from trips.tasks import send_trip_alert_email_async
+            send_trip_alert_email_async.delay(trip.pk)
+        
         return Response(TripSerializer(trip).data)
 
 

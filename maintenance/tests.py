@@ -160,7 +160,7 @@ class MaintenanceViewTests(TestCase):
     
     def test_maintenance_add_view(self):
         """Test maintenance add page loads."""
-        response = self.client.get(reverse('maintenance_add'))
+        response = self.client.get(reverse('maintenance_create'))
         self.assertEqual(response.status_code, 200)
     
     def test_maintenance_list_requires_login(self):

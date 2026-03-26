@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'compressor',
     
     # Project apps
+    'core',
     'accounts',
     'vehicles',
     'trips',
@@ -175,6 +176,11 @@ CELERY_TASK_SOFT_TIME_LIMIT = 300  # 5 min soft limit
 CELERY_TASK_TIME_LIMIT = 600       # 10 min hard limit
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+# In DEBUG mode, run tasks synchronously (no Redis/worker needed for local dev)
+if DEBUG:
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+
 # Celery Beat — periodic task schedule
 from celery.schedules import crontab
 CELERY_BEAT_SCHEDULE = {
@@ -197,6 +203,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'core.tasks.run_management_command',
         'schedule': crontab(hour=2, minute=0, day_of_month=1),  # 1st of every month at 2 AM
         'args': ('archive_location_history', '--days', '90', '--execute'),
+    },
+    'overnight-trip-alert': {
+        'task': 'trips.tasks.send_overnight_trip_alert_async',
+        'schedule': crontab(hour=5, minute=30),  # Daily at 5:30 AM IST
     },
 }
 
@@ -543,6 +553,9 @@ class IgnoreNotificationPolling(logging.Filter):
             'accounts/notifications/data'
         ])
 
+# Ensure logs directory exists
+os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -561,7 +574,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'filename': 'logs/approval_auth.log',
+            'filename': os.path.join(BASE_DIR, 'logs', 'approval_auth.log'),
             'formatter': 'verbose',
         },
         'console': {

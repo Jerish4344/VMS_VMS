@@ -14,6 +14,7 @@ from datetime import date
 
 from .models import FuelTransaction, FuelStation
 from vehicles.models import Vehicle, VehicleType
+from accounts.models import Module, Permission
 
 
 User = get_user_model()
@@ -115,7 +116,8 @@ class FuelTransactionModelTests(TestCase):
             fuel_type='Petrol',
             quantity=Decimal('40.00'),
             cost_per_liter=Decimal('100.00'),
-            total_cost=Decimal('4000.00')
+            total_cost=Decimal('4000.00'),
+            odometer_reading=16000
         )
         self.assertIsNone(transaction.fuel_station)
 
@@ -158,7 +160,8 @@ class ElectricVehicleFuelTests(TestCase):
             date=date.today(),
             energy_consumed=Decimal('30.50'),
             cost_per_kwh=Decimal('12.00'),
-            total_cost=Decimal('366.00')
+            total_cost=Decimal('366.00'),
+            odometer_reading=5000
         )
         self.assertEqual(transaction.energy_consumed, Decimal('30.50'))
         self.assertIsNone(transaction.quantity)
@@ -175,6 +178,10 @@ class FuelViewTests(TestCase):
             user_type='admin',
             approval_status='approved'
         )
+        # Create module and permissions so admin role has access
+        fuel_module = Module.objects.create(name='fuel', display_name='Fuel')
+        Permission.objects.create(module=fuel_module, action='view', name='fuel_view', is_default_for_admin=True)
+        Permission.objects.create(module=fuel_module, action='add', name='fuel_add', is_default_for_admin=True)
         self.vehicle_type = VehicleType.objects.create(name='Car')
         self.vehicle = Vehicle.objects.create(
             vehicle_type=self.vehicle_type,
@@ -189,18 +196,18 @@ class FuelViewTests(TestCase):
     
     def test_fuel_list_view(self):
         """Test fuel list page loads."""
-        response = self.client.get(reverse('fuel_list'))
+        response = self.client.get(reverse('fuel_transaction_list'))
         self.assertEqual(response.status_code, 200)
     
     def test_fuel_add_view(self):
         """Test fuel add page loads."""
-        response = self.client.get(reverse('fuel_add'))
+        response = self.client.get(reverse('fuel_transaction_create'))
         self.assertEqual(response.status_code, 200)
     
     def test_fuel_list_requires_login(self):
         """Test fuel list requires login."""
         self.client.logout()
-        response = self.client.get(reverse('fuel_list'))
+        response = self.client.get(reverse('fuel_transaction_list'))
         self.assertEqual(response.status_code, 302)
 
 
@@ -285,7 +292,8 @@ class FuelReportTests(TestCase):
                 fuel_type='Diesel',
                 quantity=Decimal('50.00'),
                 cost_per_liter=Decimal('90.00'),
-                total_cost=Decimal('4500.00')
+                total_cost=Decimal('4500.00'),
+                odometer_reading=10000 + (i * 500)
             )
         self.client.login(username='admin', password='testpass123')
     

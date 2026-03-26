@@ -12,6 +12,7 @@ from rest_framework.authtoken.models import Token
 from datetime import date, timedelta
 
 from .models import Vehicle, VehicleType, Firm
+from accounts.models import Module, Permission
 
 
 User = get_user_model()
@@ -175,6 +176,9 @@ class VehicleViewTests(TestCase):
             user_type='admin',
             approval_status='approved'
         )
+        # Create module and permissions so admin role has access
+        vehicles_module = Module.objects.create(name='vehicles', display_name='Vehicles')
+        Permission.objects.create(module=vehicles_module, action='view', name='vehicle_view', is_default_for_admin=True)
         self.vehicle_type = VehicleType.objects.create(name='Car')
         self.vehicle = Vehicle.objects.create(
             vehicle_type=self.vehicle_type,

@@ -292,7 +292,7 @@ class ManualTripEntryTests(TestCase):
     
     def test_manual_trip_entry_page(self):
         """Test manual trip entry page loads."""
-        response = self.client.get(reverse('manual_trip_entry'))
+        response = self.client.get(reverse('manual_trip_create'))
         self.assertIn(response.status_code, [200, 302])
     
     def test_create_manual_trip(self):

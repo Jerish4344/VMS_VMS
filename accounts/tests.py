@@ -11,7 +11,7 @@ from rest_framework.test import APITestCase, APIClient
 from rest_framework.authtoken.models import Token
 from rest_framework import status
 
-from .models import Department, CustomUser
+from .models import Department, CustomUser, Module, Permission
 
 
 User = get_user_model()
@@ -124,6 +124,9 @@ class AuthenticationViewTests(TestCase):
     
     def setUp(self):
         self.client = Client()
+        # Create dashboard module and permission so login redirect works
+        dashboard_module = Module.objects.create(name='dashboard', display_name='Dashboard')
+        Permission.objects.create(module=dashboard_module, action='company_dashboard', name='company_dashboard', is_default_for_admin=True, is_default_for_driver=True)
         self.approved_user = User.objects.create_user(
             username='approved_user',
             email='approved@test.com',

@@ -31,7 +31,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.units import inch
 from django.conf import settings
-from trips.zeptomail_utils import send_trip_alert_email
+from trips.tasks import send_trip_alert_email_async
 
 # Conditional import of xlsxwriter
 try:
@@ -669,7 +669,7 @@ class EndTripView(LoginRequiredMixin, UpdateView):
                 pass
 
             # --- ZeptoMail alert for suspicious distance (async via Celery) ---
-            if trip.distance_traveled() > 300:
+            if trip.distance_traveled() > 120:
                 send_trip_alert_email_async.delay(trip.pk)
 
             # Success message with role indication and GPS info

@@ -1,13 +1,35 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.core.mail import send_mail
 from django.conf import settings
 from maintenance.models import Maintenance
 from accounts.models import CustomUser
 import datetime
 import logging
+import requests
 
 logger = logging.getLogger(__name__)
+
+
+def _send_zepto_email(subject, html_body, recipients):
+    """Send email via ZeptoMail API to ZEPTO_ALERT_RECIPIENTS."""
+    api_key = getattr(settings, 'ZEPTO_API_KEY', '')
+    if not api_key or not recipients:
+        return False
+    data = {
+        "from": {"address": "noreply@jeyarama.com", "name": "VMS System"},
+        "to": [{"email_address": {"address": r}} for r in recipients],
+        "subject": subject,
+        "htmlbody": html_body,
+    }
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "authorization": f"Zoho-enczapikey {api_key}",
+    }
+    resp = requests.post('https://api.zeptomail.in/v1.1/email', json=data, headers=headers, timeout=10)
+    resp.raise_for_status()
+    return True
+
 
 class Command(BaseCommand):
     help = 'Send reminders for scheduled maintenance'
@@ -44,46 +66,65 @@ class Command(BaseCommand):
         if upcoming_maintenance.count() == 0:
             return
         
-        # Get vehicle managers and admins to notify
-        managers = CustomUser.objects.filter(
-            user_type__in=['admin', 'manager', 'vehicle_manager']
-        )
+        recipients = getattr(settings, 'ZEPTO_ALERT_RECIPIENTS', [])
+        self.stdout.write(f"Sending to {len(recipients)} ZEPTO_ALERT_RECIPIENTS")
         
-        self.stdout.write(f"Found {managers.count()} managers to notify")
-        
-        # Generate notification summary for all upcoming maintenance
-        notification_summary = "The following maintenance is scheduled in the next few days:\n\n"
-        
+        # Build HTML email body
+        maint_rows = ""
         for maintenance in upcoming_maintenance:
-            notification_summary += f"- {maintenance.maintenance_type.name} for {maintenance.vehicle.license_plate}: "
-            notification_summary += f"Scheduled on {maintenance.scheduled_date}"
-            if maintenance.provider:
-                notification_summary += f" at {maintenance.provider.name}"
-            notification_summary += "\n"
+            provider = maintenance.provider.name if maintenance.provider else 'N/A'
+            maint_rows += f"""
+            <tr>
+              <td style='padding: 8px; border: 1px solid #ddd;'>{maintenance.vehicle.license_plate}</td>
+              <td style='padding: 8px; border: 1px solid #ddd;'>{maintenance.maintenance_type.name}</td>
+              <td style='padding: 8px; border: 1px solid #ddd;'>{maintenance.scheduled_date}</td>
+              <td style='padding: 8px; border: 1px solid #ddd;'>{provider}</td>
+            </tr>"""
         
-        # Send notification emails
-        for user in managers:
-            if not dry_run:
-                try:
-                    send_mail(
-                        subject=f'Maintenance Reminder - {len(upcoming_maintenance)} maintenance records scheduled',
-                        message=f"Dear {user.get_full_name()},\n\n" + notification_summary + 
-                               f"\nPlease login to the Vehicle Management System to review these scheduled maintenance tasks.\n\n" +
-                               f"This is an automated notification.",
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[user.email],
-                        fail_silently=False,
-                    )
-                    self.stdout.write(self.style.SUCCESS(f"Sent reminder email to {user.email}"))
-                except Exception as e:
-                    logger.error(f"Failed to send email to {user.email}: {str(e)}")
-                    self.stdout.write(self.style.ERROR(f"Failed to send email to {user.email}: {str(e)}"))
-            else:
-                self.stdout.write(f"[DRY RUN] Would send reminder email to {user.email}")
+        subject = f"🔧 Maintenance Reminder: {upcoming_maintenance.count()} task(s) scheduled for {reminder_date}"
+        html_body = f"""
+        <div style='font-family: Arial, sans-serif; background: #f9f9f9; padding: 24px;'>
+          <div style='max-width: 600px; margin: auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #eee; padding: 32px;'>
+            <h2 style='color: #1565c0; margin-top: 0;'>🔧 Maintenance Reminder</h2>
+            <p style='font-size: 15px; color: #333;'>
+              <b>{upcoming_maintenance.count()}</b> maintenance task(s) scheduled for <b>{reminder_date}</b>.
+            </p>
+            <table style='width: 100%; border-collapse: collapse; margin: 16px 0;'>
+              <thead>
+                <tr style='background: #f5f5f5;'>
+                  <th style='padding: 8px; border: 1px solid #ddd; text-align: left;'>Vehicle</th>
+                  <th style='padding: 8px; border: 1px solid #ddd; text-align: left;'>Type</th>
+                  <th style='padding: 8px; border: 1px solid #ddd; text-align: left;'>Date</th>
+                  <th style='padding: 8px; border: 1px solid #ddd; text-align: left;'>Provider</th>
+                </tr>
+              </thead>
+              <tbody>{maint_rows}</tbody>
+            </table>
+            <p style='color: #555;'>Please review these scheduled maintenance tasks.</p>
+            <hr style='border: none; border-top: 1px solid #eee; margin: 24px 0;'>
+            <div style='text-align: center; color: #aaa; font-size: 13px;'>
+              VMS Automated Alert &mdash; <span style='color: #1976d2;'>jeyarama.com</span>
+            </div>
+          </div>
+        </div>
+        """
         
-        # Also create in-app notifications
+        if not dry_run:
+            try:
+                _send_zepto_email(subject, html_body, recipients)
+                self.stdout.write(self.style.SUCCESS(f"Sent reminder email to {len(recipients)} recipients"))
+            except Exception as e:
+                logger.error(f"Failed to send maintenance reminder email: {str(e)}")
+                self.stdout.write(self.style.ERROR(f"Failed to send email: {str(e)}"))
+        else:
+            self.stdout.write(f"[DRY RUN] Would send to {recipients}")
+        
+        # Also create in-app notifications for admin/manager users
         if not dry_run:
             from dashboard.models import Notification
+            managers = CustomUser.objects.filter(
+                user_type__in=['admin', 'manager', 'vehicle_manager']
+            )
             
             for maintenance in upcoming_maintenance:
                 notification_text = f"Maintenance scheduled: {maintenance.maintenance_type.name} for {maintenance.vehicle.license_plate} on {maintenance.scheduled_date}"
