@@ -6,6 +6,7 @@ __pycache__/
 *.sql
 *.save
 .env
+logs/
 
 # Static files
 staticfiles/

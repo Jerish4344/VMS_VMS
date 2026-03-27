@@ -80,8 +80,8 @@ def send_overnight_trip_alert_email(trips, recipients):
     # Build trip rows
     trip_rows = ""
     for trip in trips:
-        duration = trip.duration()
-        hours = int(duration.total_seconds() // 3600) if duration else 'N/A'
+        delta = trip.get_duration_timedelta()
+        hours = int(delta.total_seconds() // 3600) if delta else 'N/A'
         trip_rows += f"""
         <tr>
           <td style='padding: 8px; border: 1px solid #ddd;'>{trip.driver.get_full_name()}</td>
