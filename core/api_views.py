@@ -1080,6 +1080,13 @@ class SORAcceptView(APIView):
             notes=f"Started from SOR entry #{sor.id}",
             status='ongoing',
             entry_type='real_time',
+            gps_tracking_enabled=True,
+        )
+        
+        # Create GPS tracking session for live tracking
+        GPSTrackingSession.objects.create(
+            trip=trip,
+            status='active',
         )
         
         sor.trip = trip
