@@ -1,0 +1,613 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Driver Tracking | {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS for maps -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+<style>
+  .stats-card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+  }
+  .stats-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  }
+  .stats-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+  }
+  #driverTrackingMap {
+    height: 500px;
+    width: 100%;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  .driver-marker-moving { color: #28a745; }
+  .driver-marker-stationary { color: #17a2b8; }
+  .driver-marker-stale { color: #ffc107; }
+  .driver-marker-offline { color: #6c757d; }
+  .driver-marker-no_data { color: #dc3545; }
+
+  .driver-row {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  .driver-row:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+  }
+  .driver-row.active {
+    background-color: rgba(0, 123, 255, 0.1);
+  }
+
+  .status-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .status-moving {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+  }
+  .status-stationary {
+    background-color: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+    border: 1px solid rgba(23, 162, 184, 0.2);
+  }
+  .status-stale {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #856404;
+    border: 1px solid rgba(255, 193, 7, 0.2);
+  }
+  .status-offline {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    border: 1px solid rgba(108, 117, 125, 0.2);
+  }
+  .status-no_data, .status-no-data {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.2);
+  }
+
+  .last-update-indicator {
+    font-size: 0.8rem;
+    color: #6c757d;
+  }
+  .filter-section {
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+  .loading-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    border-radius: 10px;
+  }
+  .spinner-border { width: 3rem; height: 3rem; }
+
+  .driver-popup { min-width: 260px; }
+  .driver-popup-header {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 5px;
+  }
+  .driver-popup-info {
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .driver-popup-label { font-weight: 500; color: #495057; }
+  .driver-popup-value { font-weight: 400; color: #212529; }
+
+  .battery-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .battery-indicator .fa-battery-full { color: #28a745; }
+  .battery-indicator .fa-battery-three-quarters { color: #28a745; }
+  .battery-indicator .fa-battery-half { color: #ffc107; }
+  .battery-indicator .fa-battery-quarter { color: #dc3545; }
+  .battery-indicator .fa-battery-empty { color: #dc3545; }
+
+  @media (max-width: 768px) {
+    #driverTrackingMap { height: 350px; }
+    .stats-card { margin-bottom: 15px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0 text-gray-800">
+        <i class="fas fa-user-friends me-2"></i>Driver Tracking
+      </h1>
+      <p class="text-muted">Real-time location of drivers on active trips (via mobile app GPS)</p>
+    </div>
+    <div class="d-flex">
+      <button id="refreshData" class="btn btn-primary me-2">
+        <i class="fas fa-sync-alt me-1"></i> Refresh
+      </button>
+      <a href="{% url 'tracking_dashboard' %}" class="btn btn-outline-primary">
+        <i class="fas fa-satellite-dish me-1"></i> Vehicle Tracking
+      </a>
+    </div>
+  </div>
+
+  <!-- Last Update -->
+  <div class="mb-4 text-end">
+    <span class="last-update-indicator">
+      <i class="fas fa-clock me-1"></i> Last updated:
+      <span id="lastUpdateTime">Just now</span>
+    </span>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="row mb-4">
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Active Drivers</h6>
+              <h2 class="mb-0 fw-bold text-primary" id="totalDriversCount">{{ total_drivers }}</h2>
+            </div>
+            <div class="stats-icon bg-primary bg-opacity-10 text-primary">
+              <i class="fas fa-users"></i>
+            </div>
+          </div>
+          <div class="mt-3"><span class="text-muted small">Drivers on active trips</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Moving</h6>
+              <h2 class="mb-0 fw-bold text-success" id="movingCount">{{ moving_drivers }}</h2>
+            </div>
+            <div class="stats-icon bg-success bg-opacity-10 text-success">
+              <i class="fas fa-shipping-fast"></i>
+            </div>
+          </div>
+          <div class="mt-3"><span class="text-muted small">Currently in motion</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Stationary</h6>
+              <h2 class="mb-0 fw-bold text-info" id="stationaryCount">{{ stationary_drivers }}</h2>
+            </div>
+            <div class="stats-icon bg-info bg-opacity-10 text-info">
+              <i class="fas fa-map-pin"></i>
+            </div>
+          </div>
+          <div class="mt-3"><span class="text-muted small">Stopped with GPS active</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
+      <div class="stats-card bg-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Stale / Offline</h6>
+              <h2 class="mb-0 fw-bold text-warning" id="offlineCount">{{ stale_drivers|add:offline_drivers }}</h2>
+            </div>
+            <div class="stats-icon bg-warning bg-opacity-10 text-warning">
+              <i class="fas fa-exclamation-triangle"></i>
+            </div>
+          </div>
+          <div class="mt-3"><span class="text-muted small">Weak or no GPS signal</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter -->
+  <div class="filter-section mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-4 mb-3 mb-md-0">
+        <label for="statusFilter" class="form-label">Filter by Status</label>
+        <select id="statusFilter" class="form-select">
+          <option value="all">All Statuses</option>
+          <option value="moving">Moving</option>
+          <option value="stationary">Stationary</option>
+          <option value="stale">Stale Signal</option>
+          <option value="offline">Offline</option>
+        </select>
+      </div>
+      <div class="col-md-4 mb-3 mb-md-0">
+        <label for="searchDriver" class="form-label">Search Driver</label>
+        <input type="text" id="searchDriver" class="form-control" placeholder="Driver name or vehicle plate...">
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button id="applyFilters" class="btn btn-primary w-100">
+          <i class="fas fa-filter me-1"></i> Apply Filters
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="row">
+    <!-- Map -->
+    <div class="col-lg-8 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-map-marked-alt me-2"></i> Live Driver Locations
+          </h6>
+        </div>
+        <div class="card-body position-relative">
+          <div id="mapLoadingOverlay" class="loading-overlay" style="display:none;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+          <div id="driverTrackingMap"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Driver Table -->
+    <div class="col-lg-4 mb-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-id-badge me-2"></i> Active Drivers
+          </h6>
+          <span class="badge bg-primary" id="driverCount">{{ drivers_data|length }}</span>
+        </div>
+        <div class="card-body position-relative p-0">
+          <div id="tableLoadingOverlay" class="loading-overlay" style="display:none;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+          <div class="table-responsive" style="max-height: 435px; overflow-y: auto;">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Driver / Vehicle</th>
+                  <th>Status</th>
+                  <th>Speed</th>
+                  <th>Last GPS</th>
+                </tr>
+              </thead>
+              <tbody id="driverTableBody">
+                {% for d in drivers_data %}
+                <tr class="driver-row"
+                    data-trip-id="{{ d.trip.id }}"
+                    data-driver-name="{{ d.driver.get_full_name|default:d.driver.username }}"
+                    data-status="{{ d.status.status }}">
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <div class="me-2">
+                        <i class="fas fa-user-circle fa-lg text-primary"></i>
+                      </div>
+                      <div>
+                        <div class="fw-bold">{{ d.driver.get_full_name|default:d.driver.username }}</div>
+                        <div class="small text-muted">
+                          <i class="fas fa-car me-1"></i>{{ d.vehicle.license_plate }}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="status-badge status-{{ d.status.status }}">
+                      {{ d.status.display }}
+                    </span>
+                  </td>
+                  <td>
+                    {% if d.location %}
+                      {{ d.location.speed|floatformat:1 }} km/h
+                    {% else %}
+                      --
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if d.location %}
+                      <span title="{{ d.location.last_update|date:'Y-m-d H:i:s' }}">
+                        {{ d.location.last_update|naturaltime }}
+                      </span>
+                      {% if d.location.battery_level is not None %}
+                        <div class="battery-indicator small">
+                          {% if d.location.battery_level >= 75 %}
+                            <i class="fas fa-battery-full"></i>
+                          {% elif d.location.battery_level >= 50 %}
+                            <i class="fas fa-battery-three-quarters"></i>
+                          {% elif d.location.battery_level >= 25 %}
+                            <i class="fas fa-battery-half"></i>
+                          {% elif d.location.battery_level >= 10 %}
+                            <i class="fas fa-battery-quarter"></i>
+                          {% else %}
+                            <i class="fas fa-battery-empty"></i>
+                          {% endif %}
+                          {{ d.location.battery_level }}%
+                        </div>
+                      {% endif %}
+                    {% else %}
+                      <span class="text-muted">No data</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="4" class="text-center py-4">
+                    <div class="text-muted">
+                      <i class="fas fa-info-circle me-2"></i>
+                      No drivers with active trips right now
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-footer bg-white">
+          <a href="{% url 'trip_list' %}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-route me-1"></i> View All Trips
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<script>
+  let map;
+  let markers = {};
+  let routePolylines = {};
+  let selectedTripId = null;
+  let refreshInterval;
+
+  const driverIcons = {
+    moving: L.divIcon({
+      html: '<i class="fas fa-user-circle fa-2x driver-marker-moving"></i>',
+      iconSize: [32, 32], iconAnchor: [16, 16], className: 'driver-icon'
+    }),
+    stationary: L.divIcon({
+      html: '<i class="fas fa-user-circle fa-2x driver-marker-stationary"></i>',
+      iconSize: [32, 32], iconAnchor: [16, 16], className: 'driver-icon'
+    }),
+    stale: L.divIcon({
+      html: '<i class="fas fa-user-circle fa-2x driver-marker-stale"></i>',
+      iconSize: [32, 32], iconAnchor: [16, 16], className: 'driver-icon'
+    }),
+    offline: L.divIcon({
+      html: '<i class="fas fa-user-circle fa-2x driver-marker-offline"></i>',
+      iconSize: [32, 32], iconAnchor: [16, 16], className: 'driver-icon'
+    }),
+    no_data: L.divIcon({
+      html: '<i class="fas fa-user-circle fa-2x driver-marker-no_data"></i>',
+      iconSize: [32, 32], iconAnchor: [16, 16], className: 'driver-icon'
+    })
+  };
+
+  function initMap() {
+    map = L.map('driverTrackingMap').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    loadDriverLocations();
+    refreshInterval = setInterval(loadDriverLocations, 15000);
+  }
+
+  function getBatteryIcon(level) {
+    if (level === null || level === undefined) return '';
+    let icon, color;
+    if (level >= 75) { icon = 'fa-battery-full'; color = '#28a745'; }
+    else if (level >= 50) { icon = 'fa-battery-three-quarters'; color = '#28a745'; }
+    else if (level >= 25) { icon = 'fa-battery-half'; color = '#ffc107'; }
+    else if (level >= 10) { icon = 'fa-battery-quarter'; color = '#dc3545'; }
+    else { icon = 'fa-battery-empty'; color = '#dc3545'; }
+    return `<i class="fas ${icon}" style="color:${color}"></i> ${level}%`;
+  }
+
+  function loadDriverLocations() {
+    document.getElementById('mapLoadingOverlay').style.display = 'flex';
+
+    fetch('{% url "ajax_driver_locations" %}')
+      .then(r => r.json())
+      .then(data => {
+        // Clear existing markers
+        for (const id in markers) { map.removeLayer(markers[id]); }
+        markers = {};
+
+        if (data.features && data.features.length > 0) {
+          const bounds = L.latLngBounds();
+
+          data.features.forEach(f => {
+            const p = f.properties;
+            const coords = f.geometry.coordinates;
+            const status = p.status;
+
+            const marker = L.marker([coords[1], coords[0]], {
+              icon: driverIcons[status] || driverIcons.no_data,
+              title: p.driver_name
+            });
+
+            const popup = `
+              <div class="driver-popup">
+                <div class="driver-popup-header">
+                  <i class="fas fa-user me-1"></i> ${p.driver_name}
+                </div>
+                <div class="driver-popup-info">
+                  <span class="driver-popup-label">Vehicle:</span>
+                  <span class="driver-popup-value">${p.vehicle_plate}</span>
+                </div>
+                <div class="driver-popup-info">
+                  <span class="driver-popup-label">Status:</span>
+                  <span class="driver-popup-value">
+                    <span class="status-badge status-${status}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
+                  </span>
+                </div>
+                <div class="driver-popup-info">
+                  <span class="driver-popup-label">Speed:</span>
+                  <span class="driver-popup-value">${p.speed.toFixed(1)} km/h</span>
+                </div>
+                <div class="driver-popup-info">
+                  <span class="driver-popup-label">Route:</span>
+                  <span class="driver-popup-value">${p.origin} → ${p.destination}</span>
+                </div>
+                ${p.battery !== null ? `
+                <div class="driver-popup-info">
+                  <span class="driver-popup-label">Battery:</span>
+                  <span class="driver-popup-value">${getBatteryIcon(p.battery)}</span>
+                </div>` : ''}
+                <div class="driver-popup-info">
+                  <span class="driver-popup-label">Last Update:</span>
+                  <span class="driver-popup-value">${new Date(p.last_update).toLocaleString()}</span>
+                </div>
+                <div class="mt-2">
+                  <button class="btn btn-sm btn-outline-primary w-100" onclick="showRoute(${p.trip_id})">
+                    <i class="fas fa-route me-1"></i> Show Route
+                  </button>
+                </div>
+              </div>
+            `;
+
+            marker.bindPopup(popup);
+            marker.on('click', () => {
+              selectedTripId = p.trip_id;
+              highlightDriverRow(p.trip_id);
+            });
+
+            marker.addTo(map);
+            markers[p.trip_id] = marker;
+            bounds.extend([coords[1], coords[0]]);
+          });
+
+          if (Object.keys(markers).length > 0) {
+            map.fitBounds(bounds, { padding: [50, 50] });
+          }
+        }
+
+        document.getElementById('mapLoadingOverlay').style.display = 'none';
+        document.getElementById('lastUpdateTime').textContent = new Date().toLocaleTimeString();
+      })
+      .catch(err => {
+        console.error('Error loading driver locations:', err);
+        document.getElementById('mapLoadingOverlay').style.display = 'none';
+      });
+  }
+
+  function showRoute(tripId) {
+    // Remove previous route if any
+    for (const id in routePolylines) {
+      map.removeLayer(routePolylines[id]);
+    }
+    routePolylines = {};
+
+    fetch(`{% url 'ajax_driver_trip_route' 0 %}`.replace('0', tripId))
+      .then(r => r.json())
+      .then(data => {
+        if (data.coordinates && data.coordinates.length > 1) {
+          const latlngs = data.coordinates.map(c => [c.lat, c.lng]);
+          const polyline = L.polyline(latlngs, {
+            color: '#1976D2',
+            weight: 4,
+            opacity: 0.8,
+            dashArray: '10, 8'
+          }).addTo(map);
+
+          routePolylines[tripId] = polyline;
+          map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+        }
+      })
+      .catch(err => console.error('Error loading route:', err));
+  }
+
+  function highlightDriverRow(tripId) {
+    document.querySelectorAll('.driver-row').forEach(r => r.classList.remove('active'));
+    const row = document.querySelector(`.driver-row[data-trip-id="${tripId}"]`);
+    if (row) {
+      row.classList.add('active');
+      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  // Table row click → fly to marker
+  document.addEventListener('DOMContentLoaded', function() {
+    initMap();
+
+    document.querySelectorAll('.driver-row').forEach(row => {
+      row.addEventListener('click', function() {
+        const tripId = this.dataset.tripId;
+        if (markers[tripId]) {
+          const ll = markers[tripId].getLatLng();
+          map.flyTo(ll, 15);
+          markers[tripId].openPopup();
+          highlightDriverRow(tripId);
+        }
+      });
+    });
+
+    // Refresh button
+    document.getElementById('refreshData').addEventListener('click', function() {
+      loadDriverLocations();
+    });
+
+    // Filters
+    document.getElementById('applyFilters').addEventListener('click', applyFilters);
+    document.getElementById('statusFilter').addEventListener('change', applyFilters);
+    document.getElementById('searchDriver').addEventListener('input', applyFilters);
+  });
+
+  function applyFilters() {
+    const statusVal = document.getElementById('statusFilter').value;
+    const searchVal = document.getElementById('searchDriver').value.toLowerCase();
+
+    document.querySelectorAll('.driver-row').forEach(row => {
+      const name = row.dataset.driverName.toLowerCase();
+      const plate = row.querySelector('.small.text-muted') ?
+                    row.querySelector('.small.text-muted').textContent.toLowerCase() : '';
+      const status = row.dataset.status;
+
+      let show = true;
+      if (statusVal !== 'all' && status !== statusVal) show = false;
+      if (searchVal && !name.includes(searchVal) && !plate.includes(searchVal)) show = false;
+
+      row.style.display = show ? '' : 'none';
+    });
+  }
+</script>
+{% endblock %}

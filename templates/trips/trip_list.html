@@ -971,8 +971,8 @@
     const modal = bootstrap.Modal.getInstance(document.getElementById('exportModal'));
     modal.hide();
     
-    // Trigger download
-    window.open(exportUrl, '_blank');
+    // Trigger download in same tab (no new tab)
+    window.location.href = exportUrl;
   }
 
   // Quick export functions
@@ -1013,7 +1013,7 @@
     if (dateTo) params.append('date_to', dateTo);
     
     const exportUrl = `{% url 'export_trips' %}?${params.toString()}`;
-    window.open(exportUrl, '_blank');
+    window.location.href = exportUrl;
   }
 
   // Export current filtered results
@@ -1042,7 +1042,7 @@
     }
     
     const exportUrl = `{% url 'export_trips' %}?${params.toString()}`;
-    window.open(exportUrl, '_blank');
+    window.location.href = exportUrl;
   }
 
   // Confirm delete trip function

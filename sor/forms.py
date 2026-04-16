@@ -11,6 +11,62 @@ class LocationChoiceField(forms.ChoiceField):
         return True
 
 class SORForm(forms.ModelForm):
+    source_type = forms.ChoiceField(
+        choices=SOR.SOURCE_TYPE_CHOICES,
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )
+
+    outsourced_vehicle_text = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Enter outsourced vehicle details'
+        })
+    )
+    outsourced_driver_text = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Enter outsourced driver details'
+        })
+    )
+    vendor_name = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Enter vendor name (optional)'
+        })
+    )
+    start_odometer = forms.DecimalField(
+        required=False,
+        min_value=0,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Enter start odometer',
+            'step': '0.01'
+        })
+    )
+    end_odometer = forms.DecimalField(
+        required=False,
+        min_value=0,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Enter end odometer',
+            'step': '0.01'
+        })
+    )
+    outsourced_rate_per_km = forms.DecimalField(
+        required=False,
+        min_value=0,
+        initial=25,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Rate per KM (default: 25)',
+            'step': '0.01'
+        })
+    )
+
     # Add custom widgets for new fields to match UI
     number_of_crates = forms.IntegerField(
         required=False,
@@ -79,6 +135,10 @@ class SORForm(forms.ModelForm):
         self.fields['from_location'].widget.attrs.update({'class': 'form-select form-select-sm'})
         self.fields['to_location'].widget.attrs.update({'class': 'form-select form-select-sm'})
 
+        # Allow outsourced mode to be pre-selected from URL query param
+        if self.initial.get('source_type') == 'outsourced_manual':
+            self.fields['source_type'].initial = 'outsourced_manual'
+
     def clean_from_location(self):
         value = self.cleaned_data.get('from_location')
         if value == 'Others':
@@ -94,10 +154,44 @@ class SORForm(forms.ModelForm):
             if other:
                 return other
         return value
+
+    def clean(self):
+        cleaned_data = super().clean()
+        source_type = cleaned_data.get('source_type')
+        start_odometer = cleaned_data.get('start_odometer')
+        end_odometer = cleaned_data.get('end_odometer')
+
+        if source_type == 'outsourced_manual':
+            if not cleaned_data.get('outsourced_vehicle_text'):
+                self.add_error('outsourced_vehicle_text', 'Vehicle is required for outsourced entry.')
+            if not cleaned_data.get('outsourced_driver_text'):
+                self.add_error('outsourced_driver_text', 'Driver is required for outsourced entry.')
+            if start_odometer is None:
+                self.add_error('start_odometer', 'Start odometer is required for outsourced entry.')
+            if end_odometer is None:
+                self.add_error('end_odometer', 'End odometer is required for outsourced entry.')
+            if start_odometer is not None and end_odometer is not None and end_odometer < start_odometer:
+                self.add_error('end_odometer', 'End odometer must be greater than or equal to start odometer.')
+
+            # Outsourced entries do not use internal vehicle/driver assignment workflow.
+            cleaned_data['vehicle'] = None
+            cleaned_data['driver'] = None
+        else:
+            if not cleaned_data.get('vehicle'):
+                self.add_error('vehicle', 'Vehicle is required for company vehicle entry.')
+            if not cleaned_data.get('driver'):
+                self.add_error('driver', 'Driver is required for company vehicle entry.')
+
+        return cleaned_data
+
     class Meta:
         model = SOR
         fields = [
-            'goods_value', 'from_location', 'to_location', 'vehicle', 'driver',
+            'source_type',
+            'goods_value', 'from_location', 'to_location',
+            'vehicle', 'driver',
+            'outsourced_vehicle_text', 'outsourced_driver_text', 'vendor_name',
+            'start_odometer', 'end_odometer', 'outsourced_rate_per_km',
             'number_of_crates', 'number_of_sac', 'description'
         ]
 
@@ -139,6 +233,12 @@ class SORFilterForm(forms.Form):
         ("completed", "Completed"),
         ("rejected", "Rejected"),
     ]
+
+    SOURCE_TYPE_CHOICES = [
+        ("", "All Types"),
+        ("company", "Company Vehicle"),
+        ("outsourced_manual", "Outsourced Manual Entry"),
+    ]
     
     # Filter fields
     search = forms.CharField(
@@ -151,6 +251,12 @@ class SORFilterForm(forms.Form):
     
     status = forms.ChoiceField(
         choices=STATUS_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )
+
+    source_type = forms.ChoiceField(
+        choices=SOURCE_TYPE_CHOICES,
         required=False,
         widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
     )

@@ -18,7 +18,7 @@ from .forms import TripForm, EndTripForm, ManualTripForm
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.db import transaction
 from datetime import datetime, timedelta
 import csv
@@ -1214,8 +1214,9 @@ def export_manual_trips(request):
                 Q(destination__icontains=search)
             )
     
-    # Log the query count for debugging
-    logger.info(f"Manual export query returned {queryset.count()} trips for date range {date_from} to {date_to}")
+    # Limit export to prevent server overload
+    MAX_EXPORT_ROWS = 50000
+    queryset = queryset[:MAX_EXPORT_ROWS]
     
     # Generate export based on format
     if export_format == 'csv':
@@ -1229,9 +1230,10 @@ def export_manual_trips(request):
 
 
 def export_trips_csv(queryset, include_notes, include_driver, include_vehicle):
-    """Export trips to CSV format"""
+    """Export trips to CSV format using .values() for speed"""
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename=\"manual_trips_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv\"'
+    response['Content-Disposition'] = f'attachment; filename="manual_trips_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+    response['X-Accel-Buffering'] = 'no'
     
     writer = csv.writer(response)
     
@@ -1242,52 +1244,72 @@ def export_trips_csv(queryset, include_notes, include_driver, include_vehicle):
     if include_driver:
         headers.extend(['Driver Name', 'Driver Email'])
     if include_vehicle:
-        headers.extend(['Vehicle License Plate', 'Vehicle Make', 'Vehicle Model', 'Rate per KM (₹)'])
+        headers.extend(['Vehicle Type', 'Vehicle License Plate', 'Vehicle Make', 'Vehicle Model', 'Rate per KM (₹)'])
     
-    headers.append('Cost (₹)')  # Always include cost column
+    headers.append('Cost (₹)')
     
     if include_notes:
         headers.append('Notes')
     
     writer.writerow(headers)
     
-    # Write data rows
-    for trip in queryset:
-        # Calculate cost
-        distance = trip.distance_traveled() if trip.end_odometer and trip.start_odometer else None
-        cost = ''
-        if distance and trip.vehicle.rate_per_km:
-            cost = f'{float(distance) * float(trip.vehicle.rate_per_km):.2f}'
-        elif distance and not trip.vehicle.rate_per_km:
+    # Use .values() to avoid model instantiation - much faster
+    fields = [
+        'id', 'origin', 'destination', 'start_time', 'end_time',
+        'start_odometer', 'end_odometer', 'status', 'purpose', 'notes',
+        'driver__first_name', 'driver__last_name', 'driver__email',
+        'vehicle__vehicle_type__name', 'vehicle__license_plate', 'vehicle__make', 'vehicle__model', 'vehicle__rate_per_km',
+    ]
+    
+    for trip in queryset.values(*fields).iterator():
+        start_odo = trip['start_odometer']
+        end_odo = trip['end_odometer']
+        distance = max(0, end_odo - start_odo) if end_odo and start_odo else None
+        
+        rate = trip['vehicle__rate_per_km']
+        if distance and rate:
+            cost = f'{float(distance) * float(rate):.2f}'
+        elif distance and not rate:
             cost = 'Rate not set'
         else:
             cost = 'N/A'
         
+        start_time = trip['start_time']
+        end_time = trip['end_time']
+        
         row = [
-            trip.id,
-            trip.origin,
-            trip.destination,
-            trip.start_time.date().strftime('%Y-%m-%d') if trip.start_time else '',
-            trip.start_time.time().strftime('%H:%M') if trip.start_time else '',
-            trip.end_time.date().strftime('%Y-%m-%d') if trip.end_time else '',
-            trip.end_time.time().strftime('%H:%M') if trip.end_time else '',
-            trip.start_odometer,
-            trip.end_odometer or '',
+            trip['id'],
+            trip['origin'] or '',
+            trip['destination'] or '',
+            start_time.strftime('%Y-%m-%d') if start_time else '',
+            start_time.strftime('%H:%M') if start_time else '',
+            end_time.strftime('%Y-%m-%d') if end_time else '',
+            end_time.strftime('%H:%M') if end_time else '',
+            start_odo or '',
+            end_odo or '',
             distance if distance else '',
-            trip.status.title(),
-            trip.purpose,
+            trip['status'].title() if trip['status'] else '',
+            trip['purpose'] or '',
         ]
         
         if include_driver:
-            row.extend([trip.driver.get_full_name(), trip.driver.email])
+            first = trip['driver__first_name'] or ''
+            last = trip['driver__last_name'] or ''
+            row.extend([f"{first} {last}".strip(), trip['driver__email'] or ''])
         if include_vehicle:
-            rate_display = f'{float(trip.vehicle.rate_per_km):.2f}' if trip.vehicle.rate_per_km else 'Not set'
-            row.extend([trip.vehicle.license_plate, trip.vehicle.make, trip.vehicle.model, rate_display])
+            rate_display = f'{float(rate):.2f}' if rate else 'Not set'
+            row.extend([
+                trip['vehicle__vehicle_type__name'] or '',
+                trip['vehicle__license_plate'] or '',
+                trip['vehicle__make'] or '',
+                trip['vehicle__model'] or '',
+                rate_display
+            ])
         
-        row.append(cost)  # Add cost column
+        row.append(cost)
         
         if include_notes:
-            row.append(trip.notes or '')
+            row.append(trip['notes'] or '')
         
         writer.writerow(row)
     
@@ -1306,7 +1328,7 @@ def export_trips_excel(queryset, include_notes, include_driver, include_vehicle)
         return export_trips_csv(queryset, include_notes, include_driver, include_vehicle)
     
     output = BytesIO()
-    workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+    workbook = xlsxwriter.Workbook(output, {'constant_memory': True})
     worksheet = workbook.add_worksheet('Manual Trips')
     
     # Define formats
@@ -1339,7 +1361,7 @@ def export_trips_excel(queryset, include_notes, include_driver, include_vehicle)
     if include_driver:
         headers.extend(['Driver Name', 'Driver Email'])
     if include_vehicle:
-        headers.extend(['Vehicle License Plate', 'Vehicle Make', 'Vehicle Model', 'Rate per KM (₹)'])
+        headers.extend(['Vehicle Type', 'Vehicle License Plate', 'Vehicle Make', 'Vehicle Model', 'Rate per KM (₹)'])
     
     headers.append('Cost (₹)')  # Always include cost column
     
@@ -1357,75 +1379,90 @@ def export_trips_excel(queryset, include_notes, include_driver, include_vehicle)
     for col, header in enumerate(headers):
         worksheet.write(0, col, header, header_format)
     
-    # Write data
-    for row_num, trip in enumerate(queryset, 1):
+    # Use .values() to avoid model instantiation - much faster
+    fields = [
+        'id', 'origin', 'destination', 'start_time', 'end_time',
+        'start_odometer', 'end_odometer', 'status', 'purpose', 'notes',
+        'driver__first_name', 'driver__last_name', 'driver__email',
+        'vehicle__vehicle_type__name', 'vehicle__license_plate', 'vehicle__make', 'vehicle__model', 'vehicle__rate_per_km',
+    ]
+    
+    for row_num, trip in enumerate(queryset.values(*fields).iterator(), 1):
         col = 0
+        start_time = trip['start_time']
+        end_time = trip['end_time']
+        start_odo = trip['start_odometer']
+        end_odo = trip['end_odometer']
+        rate = trip['vehicle__rate_per_km']
         
         # Basic trip data
-        worksheet.write(row_num, col, trip.id, cell_format)
+        worksheet.write(row_num, col, trip['id'], cell_format)
         col += 1
-        worksheet.write(row_num, col, trip.origin, cell_format)
+        worksheet.write(row_num, col, trip['origin'] or '', cell_format)
         col += 1
-        worksheet.write(row_num, col, trip.destination, cell_format)
+        worksheet.write(row_num, col, trip['destination'] or '', cell_format)
         col += 1
-        worksheet.write(row_num, col, trip.start_time.date() if trip.start_time else '', date_format)
+        worksheet.write(row_num, col, start_time.strftime('%Y-%m-%d') if start_time else '', cell_format)
         col += 1
-        worksheet.write(row_num, col, trip.start_time.time() if trip.start_time else '', time_format)
+        worksheet.write(row_num, col, start_time.strftime('%H:%M') if start_time else '', cell_format)
         col += 1
-        worksheet.write(row_num, col, trip.end_time.date() if trip.end_time else '', date_format)
+        worksheet.write(row_num, col, end_time.strftime('%Y-%m-%d') if end_time else '', cell_format)
         col += 1
-        worksheet.write(row_num, col, trip.end_time.time() if trip.end_time else '', time_format)
+        worksheet.write(row_num, col, end_time.strftime('%H:%M') if end_time else '', cell_format)
         col += 1
-        worksheet.write(row_num, col, trip.start_odometer, cell_format)
+        worksheet.write(row_num, col, start_odo or '', cell_format)
         col += 1
-        worksheet.write(row_num, col, trip.end_odometer or '', cell_format)
+        worksheet.write(row_num, col, end_odo or '', cell_format)
         col += 1
         
-        # Calculate distance
-        distance = trip.distance_traveled() if trip.end_odometer and trip.start_odometer else None
+        # Calculate distance inline
+        distance = max(0, end_odo - start_odo) if end_odo and start_odo else None
         worksheet.write(row_num, col, distance if distance else '', cell_format)
         col += 1
         
-        worksheet.write(row_num, col, trip.status.title(), cell_format)
+        worksheet.write(row_num, col, trip['status'].title() if trip['status'] else '', cell_format)
         col += 1
-        worksheet.write(row_num, col, trip.purpose, cell_format)
+        worksheet.write(row_num, col, trip['purpose'] or '', cell_format)
         col += 1
         
         # Optional fields
         if include_driver:
-            worksheet.write(row_num, col, trip.driver.get_full_name(), cell_format)
+            first = trip['driver__first_name'] or ''
+            last = trip['driver__last_name'] or ''
+            worksheet.write(row_num, col, f"{first} {last}".strip(), cell_format)
             col += 1
-            worksheet.write(row_num, col, trip.driver.email, cell_format)
+            worksheet.write(row_num, col, trip['driver__email'] or '', cell_format)
             col += 1
         if include_vehicle:
-            worksheet.write(row_num, col, trip.vehicle.license_plate, cell_format)
+            worksheet.write(row_num, col, trip['vehicle__vehicle_type__name'] or '', cell_format)
             col += 1
-            worksheet.write(row_num, col, trip.vehicle.make, cell_format)
+            worksheet.write(row_num, col, trip['vehicle__license_plate'] or '', cell_format)
             col += 1
-            worksheet.write(row_num, col, trip.vehicle.model, cell_format)
+            worksheet.write(row_num, col, trip['vehicle__make'] or '', cell_format)
             col += 1
-            # Rate per km
-            if trip.vehicle.rate_per_km:
-                worksheet.write(row_num, col, float(trip.vehicle.rate_per_km), currency_format)
+            worksheet.write(row_num, col, trip['vehicle__model'] or '', cell_format)
+            col += 1
+            if rate:
+                worksheet.write(row_num, col, float(rate), currency_format)
             else:
                 worksheet.write(row_num, col, 'Not set', cell_format)
             col += 1
         
         # Calculate and write cost
-        if distance and trip.vehicle.rate_per_km:
-            cost = float(distance) * float(trip.vehicle.rate_per_km)
-            worksheet.write(row_num, col, cost, currency_format)
-        elif distance and not trip.vehicle.rate_per_km:
+        if distance and rate:
+            worksheet.write(row_num, col, float(distance) * float(rate), currency_format)
+        elif distance and not rate:
             worksheet.write(row_num, col, 'Rate not set', cell_format)
         else:
             worksheet.write(row_num, col, 'N/A', cell_format)
         col += 1
         
         if include_notes:
-            worksheet.write(row_num, col, trip.notes or '', cell_format)
+            worksheet.write(row_num, col, trip['notes'] or '', cell_format)
     
-    # Auto-adjust column widths
-    worksheet.autofit()
+    # Set fixed column widths (autofit is incompatible with constant_memory mode)
+    for col_idx in range(len(headers)):
+        worksheet.set_column(col_idx, col_idx, 18)
     
     workbook.close()
     output.seek(0)
@@ -1435,6 +1472,7 @@ def export_trips_excel(queryset, include_notes, include_driver, include_vehicle)
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = f'attachment; filename=\"manual_trips_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx\"'
+    response['X-Accel-Buffering'] = 'no'
     
     return response
 
@@ -1455,7 +1493,6 @@ def export_trips_pdf(queryset, include_notes, include_driver, include_vehicle):
     
     # Summary
     summary_text = f"Generated on: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}<br/>"
-    summary_text += f"Total trips: {queryset.count()}<br/>"
     summary = Paragraph(summary_text, styles['Normal'])
     elements.append(summary)
     elements.append(Spacer(1, 12))
@@ -1470,33 +1507,47 @@ def export_trips_pdf(queryset, include_notes, include_driver, include_vehicle):
     
     data = [headers]
     
-    for trip in queryset:
-        # Calculate distance and cost
-        distance = trip.distance_traveled() if trip.end_odometer and trip.start_odometer else None
+    # Use .values() to avoid model instantiation
+    fields = [
+        'id', 'origin', 'destination', 'start_time', 'start_odometer', 'end_odometer',
+        'status', 'driver__first_name', 'driver__last_name',
+        'vehicle__vehicle_type__name', 'vehicle__license_plate', 'vehicle__make', 'vehicle__model', 'vehicle__rate_per_km',
+    ]
+    
+    for trip in queryset.values(*fields).iterator():
+        start_odo = trip['start_odometer']
+        end_odo = trip['end_odometer']
+        distance = max(0, end_odo - start_odo) if end_odo and start_odo else None
         distance_text = f"{distance} km" if distance else 'N/A'
         
-        if distance and trip.vehicle.rate_per_km:
-            cost = float(distance) * float(trip.vehicle.rate_per_km)
-            cost_text = f"₹{cost:,.2f}"
-        elif distance and not trip.vehicle.rate_per_km:
+        rate = trip['vehicle__rate_per_km']
+        if distance and rate:
+            cost_text = f"₹{float(distance) * float(rate):,.2f}"
+        elif distance and not rate:
             cost_text = 'Rate not set'
         else:
             cost_text = 'N/A'
         
         row = [
-            str(trip.id),
-            f"{trip.origin} → {trip.destination}",
-            trip.start_time.strftime('%Y-%m-%d') if trip.start_time else 'N/A',
-            trip.status.title(),
+            str(trip['id']),
+            f"{trip['origin'] or ''} → {trip['destination'] or ''}",
+            trip['start_time'].strftime('%Y-%m-%d') if trip['start_time'] else 'N/A',
+            trip['status'].title() if trip['status'] else '',
             distance_text
         ]
         
         if include_driver:
-            row.append(trip.driver.get_full_name())
+            first = trip['driver__first_name'] or ''
+            last = trip['driver__last_name'] or ''
+            row.append(f"{first} {last}".strip())
         if include_vehicle:
-            row.append(f"{trip.vehicle.license_plate}\n{trip.vehicle.make} {trip.vehicle.model}")
+            vtype = trip['vehicle__vehicle_type__name'] or ''
+            lp = trip['vehicle__license_plate'] or ''
+            make = trip['vehicle__make'] or ''
+            model = trip['vehicle__model'] or ''
+            row.append(f"{vtype} - {lp}\n{make} {model}" if lp else '')
         
-        row.append(cost_text)  # Add cost
+        row.append(cost_text)
         data.append(row)
     
     # Create table
@@ -1522,6 +1573,7 @@ def export_trips_pdf(queryset, include_notes, include_driver, include_vehicle):
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename=\"manual_trips_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf\"'
+    response['X-Accel-Buffering'] = 'no'
     
     return response
 
@@ -1551,9 +1603,9 @@ def export_trips(request):
     
     # Build queryset based on user permissions
     if request.user.user_type == 'driver':
-        queryset = Trip.objects.filter(driver=request.user)
+        queryset = Trip.objects.filter(driver=request.user, is_deleted=False)
     elif request.user.user_type in ['admin', 'manager', 'vehicle_manager']:
-        queryset = Trip.objects.all()
+        queryset = Trip.objects.filter(is_deleted=False)
     else:
         queryset = Trip.objects.none()
     
@@ -1636,8 +1688,9 @@ def export_trips(request):
     # Order by start time
     queryset = queryset.select_related('vehicle', 'driver').order_by('-start_time')
     
-    # Log the query count for debugging
-    logger.info(f"Export query returned {queryset.count()} trips for date range {date_from} to {date_to}")
+    # Limit export to prevent server overload
+    MAX_EXPORT_ROWS = 50000
+    queryset = queryset[:MAX_EXPORT_ROWS]
     
     # Generate export based on format
     if export_format == 'csv':

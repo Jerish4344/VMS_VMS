@@ -573,6 +573,11 @@
                 </a>
               </li>
               <li>
+                <a href="{% url 'driver_tracking_dashboard' %}" class="menu-item-enhanced">
+                  <i class="fas fa-user-friends me-2"></i>Driver Tracking
+                </a>
+              </li>
+              <li>
                 <a href="{% url 'map_view' %}" class="menu-item-enhanced">
                   <i class="fas fa-map-marked-alt me-2"></i>Live Map
                 </a>
@@ -980,6 +985,12 @@
             <li>
               <a href="{% url 'tracking_dashboard' %}" class="menu-item-enhanced">
                 <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+              </a>
+            </li>
+            <!-- Driver Tracking (Mobile GPS) -->
+            <li>
+              <a href="{% url 'driver_tracking_dashboard' %}" class="menu-item-enhanced">
+                <i class="fas fa-user-friends me-2"></i>Driver Tracking
               </a>
             </li>
             <!-- Live Map View -->

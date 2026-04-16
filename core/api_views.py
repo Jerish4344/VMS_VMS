@@ -970,13 +970,19 @@ class SORCreateView(APIView):
         serializer = SORCreateSerializer(data=request.data)
         if serializer.is_valid():
             sor = serializer.save(created_by=request.user)
-            # Create notification for driver
-            from sor.notification import SORNotification
-            SORNotification.objects.create(
-                sor=sor,
-                driver=sor.driver,
-                message=f"You have a new SOR assignment from {sor.from_location} to {sor.to_location}. Please accept or reject.",
-            )
+            if sor.source_type == 'outsourced_manual':
+                sor.status = 'completed'
+                if sor.start_odometer is not None and sor.end_odometer is not None:
+                    sor.distance_km = sor.end_odometer - sor.start_odometer
+                sor.save(update_fields=['status', 'distance_km'])
+            elif sor.driver:
+                # Create notification for driver only for company-vehicle flow.
+                from sor.notification import SORNotification
+                SORNotification.objects.create(
+                    sor=sor,
+                    driver=sor.driver,
+                    message=f"You have a new SOR assignment from {sor.from_location} to {sor.to_location}. Please accept or reject.",
+                )
             # Return full SOR detail
             return Response(SORSerializer(sor).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1048,6 +1054,13 @@ class SORAcceptView(APIView):
     
     def post(self, request, pk):
         user = request.user
+
+        sor = SOR.objects.filter(pk=pk).first()
+        if sor and sor.source_type == 'outsourced_manual':
+            return Response(
+                {'detail': 'Outsourced SOR entries do not support driver accept/start workflow.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             sor = SOR.objects.get(pk=pk, driver=user)
@@ -1528,6 +1541,7 @@ class P2PSORListView(generics.ListAPIView):
     
     Query Parameters:
         - status: Filter by specific status ('in_progress' or 'completed')
+        - source_type: Filter by source type ('company' or 'outsourced_manual')
         - from_location: Filter by source warehouse location (partial match)
         - to_location: Filter by destination store location (partial match)
         - date_from: Filter SORs created on or after this date (YYYY-MM-DD)
@@ -1547,6 +1561,10 @@ class P2PSORListView(generics.ListAPIView):
         status_filter = self.request.query_params.get('status')
         if status_filter and status_filter in ['in_progress', 'completed']:
             queryset = queryset.filter(status=status_filter)
+
+        source_type = self.request.query_params.get('source_type')
+        if source_type in ['company', 'outsourced_manual']:
+            queryset = queryset.filter(source_type=source_type)
         
         from_location = self.request.query_params.get('from_location')
         if from_location:

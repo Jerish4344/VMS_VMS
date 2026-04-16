@@ -11,7 +11,7 @@
           {% elif edit_mode %}
             <h4 class="mb-0">Edit SOR Entry</h4>
           {% else %}
-            <h4 class="mb-0">Create SOR Entry</h4>
+            <h4 class="mb-0">Create SOR Entry / Outsourced Vehicle</h4>
           {% endif %}
         </div>
         <div class="card-body">
@@ -42,15 +42,46 @@
               {% endfor %}
             {% elif sor %}
               <!-- For view mode with no form, show SOR fields -->
+              <div class="mb-3"><strong>Type:</strong> {{ sor.get_source_type_display }}</div>
               <div class="mb-3"><strong>Goods Value:</strong> {{ sor.goods_value }}</div>
               <div class="mb-3"><strong>From:</strong> {{ sor.from_location }}</div>
               <div class="mb-3"><strong>To:</strong> {{ sor.to_location }}</div>
-              <div class="mb-3"><strong>Vehicle:</strong> {{ sor.vehicle }}</div>
-              <div class="mb-3"><strong>Driver:</strong> {{ sor.driver }}</div>
+              <div class="mb-3"><strong>Vehicle:</strong> {% if sor.vehicle %}{{ sor.vehicle }}{% else %}{{ sor.outsourced_vehicle_text|default:'--' }}{% endif %}</div>
+              <div class="mb-3"><strong>Driver:</strong> {% if sor.driver %}{{ sor.driver }}{% else %}{{ sor.outsourced_driver_text|default:'--' }}{% endif %}</div>
+              <div class="mb-3"><strong>Vendor:</strong> {{ sor.vendor_name|default:'--' }}</div>
+              <div class="mb-3"><strong>Rate per KM:</strong> {{ sor.outsourced_rate_per_km|default:'--' }}</div>
+              <div class="mb-3"><strong>Start Odometer:</strong> {{ sor.start_odometer|default:'--' }}</div>
+              <div class="mb-3"><strong>End Odometer:</strong> {{ sor.end_odometer|default:'--' }}</div>
               <div class="mb-3"><strong>Status:</strong> {{ sor.get_status_display }}</div>
               <!-- Add more fields as needed -->
             {% endif %}
 <script>
+  function toggleSourceTypeFields() {
+    const sourceSelect = document.getElementById('id_source_type');
+    if (!sourceSelect) {
+      return;
+    }
+
+    const isOutsourced = sourceSelect.value === 'outsourced_manual';
+
+    const companyFields = ['vehicle', 'driver'];
+    const outsourcedFields = ['outsourced_vehicle_text', 'outsourced_driver_text', 'vendor_name', 'start_odometer', 'end_odometer', 'outsourced_rate_per_km'];
+
+    companyFields.forEach(name => {
+      const wrapper = document.getElementById('field-wrapper-' + name);
+      if (wrapper) {
+        wrapper.style.display = isOutsourced ? 'none' : 'block';
+      }
+    });
+
+    outsourcedFields.forEach(name => {
+      const wrapper = document.getElementById('field-wrapper-' + name);
+      if (wrapper) {
+        wrapper.style.display = isOutsourced ? 'block' : 'none';
+      }
+    });
+  }
+
   function toggleOtherInput(selectId, inputId) {
     const select = document.getElementById(selectId);
     const input = document.getElementById(inputId);
@@ -72,6 +103,12 @@
   document.addEventListener('DOMContentLoaded', function() {
     toggleOtherInput('id_from_location', 'from_location_other');
     toggleOtherInput('id_to_location', 'to_location_other');
+    toggleSourceTypeFields();
+
+    const sourceSelect = document.getElementById('id_source_type');
+    if (sourceSelect) {
+      sourceSelect.addEventListener('change', toggleSourceTypeFields);
+    }
   });
 </script>
             {% if not view_only %}

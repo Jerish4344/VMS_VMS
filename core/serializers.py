@@ -256,8 +256,10 @@ class SORSerializer(serializers.ModelSerializer):
     class Meta:
         model = SOR
         fields = [
-            'id', 'goods_value', 'from_location', 'to_location',
+            'id', 'source_type', 'goods_value', 'from_location', 'to_location',
             'vehicle', 'driver', 'distance_km', 'status', 'status_display',
+            'outsourced_vehicle_text', 'outsourced_driver_text', 'vendor_name',
+            'start_odometer', 'end_odometer', 'outsourced_rate_per_km',
             'trip', 'number_of_crates', 'number_of_sac', 'description',
             'created_by', 'created_at', 'updated_at',
             'transport_cost', 'transport_cost_percentage',
@@ -278,8 +280,11 @@ class SORCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = SOR
         fields = [
+            'source_type',
             'goods_value', 'from_location', 'to_location',
             'vehicle', 'driver',
+            'outsourced_vehicle_text', 'outsourced_driver_text', 'vendor_name',
+            'start_odometer', 'end_odometer', 'outsourced_rate_per_km',
             'number_of_crates', 'number_of_sac', 'description',
         ]
 
@@ -299,39 +304,82 @@ class SORCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Selected driver is not active.')
         return value
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        source_type = attrs.get('source_type', 'company')
+        start_odometer = attrs.get('start_odometer')
+        end_odometer = attrs.get('end_odometer')
+
+        if source_type == 'outsourced_manual':
+            if not attrs.get('outsourced_vehicle_text'):
+                raise serializers.ValidationError({'outsourced_vehicle_text': 'Vehicle is required for outsourced entry.'})
+            if not attrs.get('outsourced_driver_text'):
+                raise serializers.ValidationError({'outsourced_driver_text': 'Driver is required for outsourced entry.'})
+            if start_odometer is None:
+                raise serializers.ValidationError({'start_odometer': 'Start odometer is required for outsourced entry.'})
+            if end_odometer is None:
+                raise serializers.ValidationError({'end_odometer': 'End odometer is required for outsourced entry.'})
+            if end_odometer < start_odometer:
+                raise serializers.ValidationError({'end_odometer': 'End odometer must be greater than or equal to start odometer.'})
+
+            attrs['vehicle'] = None
+            attrs['driver'] = None
+        else:
+            if attrs.get('vehicle') is None:
+                raise serializers.ValidationError({'vehicle': 'Vehicle is required for company vehicle entry.'})
+            if attrs.get('driver') is None:
+                raise serializers.ValidationError({'driver': 'Driver is required for company vehicle entry.'})
+
+        return attrs
+
 
 # P2P Integration Serializer - Read-only for external P2P system
 class P2PSORSerializer(serializers.ModelSerializer):
     """Lightweight read-only serializer for P2P (Procure to Pay) system integration.
     Exposes SOR data needed for SIR (Security Inward Register) creation."""
-    vehicle_number = serializers.CharField(source='vehicle.license_plate', read_only=True)
+    source_type_display = serializers.SerializerMethodField()
+    vehicle_number = serializers.SerializerMethodField()
     vehicle_make_model = serializers.SerializerMethodField()
     driver_name = serializers.SerializerMethodField()
-    driver_phone = serializers.CharField(source='driver.phone_number', read_only=True)
+    driver_phone = serializers.SerializerMethodField()
     status_display = serializers.SerializerMethodField()
     transport_cost = serializers.SerializerMethodField()
 
     class Meta:
         model = SOR
         fields = [
-            'id', 'goods_value', 'from_location', 'to_location',
+            'id', 'source_type', 'source_type_display', 'goods_value', 'from_location', 'to_location',
             'vehicle_number', 'vehicle_make_model',
             'driver_name', 'driver_phone',
             'distance_km', 'status', 'status_display',
+            'vendor_name', 'start_odometer', 'end_odometer', 'outsourced_rate_per_km',
             'number_of_crates', 'number_of_sac', 'description',
             'transport_cost',
             'created_at', 'updated_at',
         ]
         read_only_fields = fields  # Entirely read-only
 
+    def get_source_type_display(self, obj):
+        return obj.get_source_type_display()
+
+    def get_vehicle_number(self, obj):
+        if obj.vehicle:
+            return obj.vehicle.license_plate
+        return obj.outsourced_vehicle_text
+
     def get_vehicle_make_model(self, obj):
         if obj.vehicle:
             return f"{obj.vehicle.make} {obj.vehicle.model}".strip()
-        return None
+        return 'Outsourced Manual'
 
     def get_driver_name(self, obj):
         if obj.driver:
             return obj.driver.get_full_name()
+        return obj.outsourced_driver_text
+
+    def get_driver_phone(self, obj):
+        if obj.driver:
+            return obj.driver.phone_number
         return None
 
     def get_status_display(self, obj):

@@ -62,17 +62,27 @@ def sor_create(request):
         if form.is_valid():
             sor = form.save(commit=False)
             sor.created_by = request.user
+
+            if sor.source_type == 'outsourced_manual':
+                sor.status = 'completed'
+                if sor.start_odometer is not None and sor.end_odometer is not None:
+                    sor.distance_km = sor.end_odometer - sor.start_odometer
+
             sor.save()
-            # Create notification for driver
-            SORNotification.objects.create(
-                sor=sor,
-                driver=sor.driver,
-                message=f"You have a new SOR assignment from {sor.from_location} to {sor.to_location}. Please accept or reject.",
-            )
-            messages.success(request, 'SOR entry created and driver notified.')
+            if sor.source_type == 'company' and sor.driver:
+                # Create notification for driver only for regular company flow.
+                SORNotification.objects.create(
+                    sor=sor,
+                    driver=sor.driver,
+                    message=f"You have a new SOR assignment from {sor.from_location} to {sor.to_location}. Please accept or reject.",
+                )
+                messages.success(request, 'SOR entry created and driver notified.')
+            else:
+                messages.success(request, 'Outsourced SOR entry created successfully.')
             return redirect('sor_list')
     else:
-        form = SORForm()
+        source_type = request.GET.get('source_type', 'company')
+        form = SORForm(initial={'source_type': source_type})
     return render(request, 'sor/sor_form.html', {'form': form})
 
 @login_required
@@ -106,6 +116,9 @@ def sor_list(request):
                 Q(goods_value__icontains=search) |
                 Q(from_location__icontains=search) |
                 Q(to_location__icontains=search) |
+                Q(outsourced_vehicle_text__icontains=search) |
+                Q(outsourced_driver_text__icontains=search) |
+                Q(vendor_name__icontains=search) |
                 Q(driver__first_name__icontains=search) |
                 Q(driver__last_name__icontains=search) |
                 Q(vehicle__license_plate__icontains=search)
@@ -115,6 +128,10 @@ def sor_list(request):
         status = filter_form.cleaned_data.get('status')
         if status:
             sors = sors.filter(status=status)
+
+        source_type = filter_form.cleaned_data.get('source_type')
+        if source_type:
+            sors = sors.filter(source_type=source_type)
         
         # From location filter
         from_location = filter_form.cleaned_data.get('from_location')
@@ -156,6 +173,7 @@ def sor_list(request):
     # Define allowed sort fields
     allowed_sort_fields = {
         'id': 'id',
+        'source_type': 'source_type',
         'goods_value': 'goods_value',
         'created_at': 'created_at',
         'from_location': 'from_location',
@@ -281,21 +299,29 @@ def sor_edit(request, pk):
         form = SORForm(request.POST, instance=sor)
         if form.is_valid():
             updated_sor = form.save()
-            # Update or create notification for driver
-            from .notification import SORNotification
-            notif_message = f"SOR assignment updated: {updated_sor.from_location} to {updated_sor.to_location}. Please check details."
-            notif_qs = SORNotification.objects.filter(sor=updated_sor, driver=updated_sor.driver, is_read=False).order_by('-created_at')
-            if notif_qs.exists():
-                notif = notif_qs.first()
-                notif.message = notif_message
-                notif.save()
+            if updated_sor.source_type == 'outsourced_manual':
+                updated_sor.status = 'completed'
+                if updated_sor.start_odometer is not None and updated_sor.end_odometer is not None:
+                    updated_sor.distance_km = updated_sor.end_odometer - updated_sor.start_odometer
+                updated_sor.save(update_fields=['status', 'distance_km'])
+                messages.success(request, 'Outsourced SOR entry updated successfully.')
             else:
-                SORNotification.objects.create(
-                    sor=updated_sor,
-                    driver=updated_sor.driver,
-                    message=notif_message
-                )
-            messages.success(request, 'SOR entry updated successfully and driver notified.')
+                # Update or create notification for driver
+                from .notification import SORNotification
+                if updated_sor.driver:
+                    notif_message = f"SOR assignment updated: {updated_sor.from_location} to {updated_sor.to_location}. Please check details."
+                    notif_qs = SORNotification.objects.filter(sor=updated_sor, driver=updated_sor.driver, is_read=False).order_by('-created_at')
+                    if notif_qs.exists():
+                        notif = notif_qs.first()
+                        notif.message = notif_message
+                        notif.save()
+                    else:
+                        SORNotification.objects.create(
+                            sor=updated_sor,
+                            driver=updated_sor.driver,
+                            message=notif_message
+                        )
+                messages.success(request, 'SOR entry updated successfully and driver notified.')
             return redirect('sor_list')
     else:
         form = SORForm(instance=sor)
@@ -330,6 +356,9 @@ def sor_delete(request, pk):
 @login_required
 def sor_accept(request, pk):
     sor = get_object_or_404(SOR, pk=pk, driver=request.user)
+    if sor.source_type != 'company':
+        messages.error(request, 'Outsourced SOR entries do not support driver accept/start workflow.')
+        return redirect('sor_list')
     if sor.status == 'pending':
         sor.status = 'driver_accepted'
         sor.save()
@@ -384,6 +413,9 @@ def sor_export(request):
                 Q(goods_value__icontains=search) |
                 Q(from_location__icontains=search) |
                 Q(to_location__icontains=search) |
+                Q(outsourced_vehicle_text__icontains=search) |
+                Q(outsourced_driver_text__icontains=search) |
+                Q(vendor_name__icontains=search) |
                 Q(driver__first_name__icontains=search) |
                 Q(driver__last_name__icontains=search) |
                 Q(vehicle__license_plate__icontains=search)
@@ -393,6 +425,10 @@ def sor_export(request):
         status = filter_form.cleaned_data.get('status')
         if status:
             sors = sors.filter(status=status)
+
+        source_type = filter_form.cleaned_data.get('source_type')
+        if source_type:
+            sors = sors.filter(source_type=source_type)
         
         # From location filter
         from_location = filter_form.cleaned_data.get('from_location')
@@ -431,6 +467,7 @@ def sor_export(request):
     
     allowed_sort_fields = {
         'id': 'id',
+        'source_type': 'source_type',
         'goods_value': 'goods_value',
         'created_at': 'created_at',
         'from_location': 'from_location',
@@ -501,7 +538,7 @@ def _export_csv(sors_data):
     
     # Write headers
     headers = [
-        'Sr. No.', 'SOR ID', 'Goods Value', 'Created By', 'Created At', 'From Location', 'To Location',
+        'Sr. No.', 'SOR ID', 'Type', 'Goods Value', 'Created By', 'Created At', 'From Location', 'To Location',
         'Vehicle', 'Rate per KM', 'Distance (km)', 'Transport Cost', 'Transport % of Goods Value',
         'Driver', 'Status'
     ]
@@ -512,7 +549,7 @@ def _export_csv(sors_data):
         transport_cost = ''
         transport_percentage = ''
         
-        if sor.distance_km and sor.vehicle.rate_per_km:
+        if sor.distance_km and sor.vehicle and sor.vehicle.rate_per_km:
             transport_cost = f"{sor.distance_km * sor.vehicle.rate_per_km:.2f}"
             if sor.goods_value and sor.goods_value > 0:
                 transport_percentage = f"{(sor.distance_km * sor.vehicle.rate_per_km / sor.goods_value * 100):.2f}%"
@@ -520,17 +557,18 @@ def _export_csv(sors_data):
         row = [
             index,  # Serial number
             sor.id,  # Original SOR ID
+            sor.get_source_type_display(),
             sor.goods_value,
             sor.created_by.get_full_name() if sor.created_by else '--',
             sor.created_at.strftime('%d %b %Y, %H:%M') if sor.created_at else '--',
             sor.from_location,
             sor.to_location,
-            str(sor.vehicle),
-            sor.vehicle.rate_per_km,
+            str(sor.vehicle) if sor.vehicle else (sor.outsourced_vehicle_text or '--'),
+            sor.vehicle.rate_per_km if sor.vehicle and sor.vehicle.rate_per_km is not None else (sor.outsourced_rate_per_km if sor.outsourced_rate_per_km is not None else '--'),
             f"{sor.distance_km:.2f}" if sor.distance_km else '--',
             transport_cost or '--',
             transport_percentage or '--',
-            str(sor.driver),
+            str(sor.driver) if sor.driver else (sor.outsourced_driver_text or '--'),
             sor.get_status_display()
         ]
         writer.writerow(row)
@@ -553,7 +591,7 @@ def _export_excel(sors_data):
     
     # Headers
     headers = [
-        'Sr. No.', 'SOR ID', 'Goods Value', 'Created By', 'Created At', 'From Location', 'To Location',
+        'Sr. No.', 'SOR ID', 'Type', 'Goods Value', 'Created By', 'Created At', 'From Location', 'To Location',
         'Vehicle', 'Rate per KM', 'Distance (km)', 'Transport Cost', 'Transport % of Goods Value',
         'Driver', 'Status'
     ]
@@ -570,7 +608,7 @@ def _export_excel(sors_data):
         transport_cost = ''
         transport_percentage = ''
         
-        if sor.distance_km and sor.vehicle.rate_per_km:
+        if sor.distance_km and sor.vehicle and sor.vehicle.rate_per_km:
             transport_cost = f"{sor.distance_km * sor.vehicle.rate_per_km:.2f}"
             if sor.goods_value and sor.goods_value > 0:
                 transport_percentage = f"{(sor.distance_km * sor.vehicle.rate_per_km / sor.goods_value * 100):.2f}%"
@@ -578,17 +616,18 @@ def _export_excel(sors_data):
         data = [
             row_num - 1,  # Serial number (row_num starts from 2, so subtract 1)
             sor.id,  # Original SOR ID
+            sor.get_source_type_display(),
             sor.goods_value,
             sor.created_by.get_full_name() if sor.created_by else '--',
             sor.created_at.strftime('%d %b %Y, %H:%M') if sor.created_at else '--',
             sor.from_location,
             sor.to_location,
-            str(sor.vehicle),
-            sor.vehicle.rate_per_km,
+            str(sor.vehicle) if sor.vehicle else (sor.outsourced_vehicle_text or '--'),
+            sor.vehicle.rate_per_km if sor.vehicle and sor.vehicle.rate_per_km is not None else (sor.outsourced_rate_per_km if sor.outsourced_rate_per_km is not None else '--'),
             f"{sor.distance_km:.2f}" if sor.distance_km else '--',
             transport_cost or '--',
             transport_percentage or '--',
-            str(sor.driver),
+            str(sor.driver) if sor.driver else (sor.outsourced_driver_text or '--'),
             sor.get_status_display()
         ]
         
@@ -628,7 +667,7 @@ def _export_pdf(sors_data):
     
     # Prepare table data
     headers = [
-        'Sr.', 'SOR ID', 'Goods Value', 'Created At', 'From', 'To',
+        'Sr.', 'SOR ID', 'Type', 'Goods Value', 'Created At', 'From', 'To',
         'Vehicle', 'Rate/KM', 'Distance', 'Transport Cost', 'Transport %', 'Driver', 'Status'
     ]
     
@@ -638,7 +677,7 @@ def _export_pdf(sors_data):
         transport_cost = ''
         transport_percentage = ''
         
-        if sor.distance_km and sor.vehicle.rate_per_km:
+        if sor.distance_km and sor.vehicle and sor.vehicle.rate_per_km:
             transport_cost = f"{sor.distance_km * sor.vehicle.rate_per_km:.2f}"
             if sor.goods_value and sor.goods_value > 0:
                 transport_percentage = f"{(sor.distance_km * sor.vehicle.rate_per_km / sor.goods_value * 100):.1f}%"
@@ -646,16 +685,17 @@ def _export_pdf(sors_data):
         row = [
             str(index),  # Serial number
             str(sor.id),  # Original SOR ID
+            sor.get_source_type_display(),
             str(sor.goods_value),
             sor.created_at.strftime('%d/%m/%Y') if sor.created_at else '--',
             sor.from_location[:15] + '...' if len(sor.from_location) > 15 else sor.from_location,
             sor.to_location[:15] + '...' if len(sor.to_location) > 15 else sor.to_location,
-            str(sor.vehicle)[:12] + '...' if len(str(sor.vehicle)) > 12 else str(sor.vehicle),
-            str(sor.vehicle.rate_per_km),
+            (str(sor.vehicle)[:12] + '...' if sor.vehicle and len(str(sor.vehicle)) > 12 else str(sor.vehicle)) if sor.vehicle else (sor.outsourced_vehicle_text[:12] + '...' if sor.outsourced_vehicle_text and len(sor.outsourced_vehicle_text) > 12 else (sor.outsourced_vehicle_text or '--')),
+            str(sor.vehicle.rate_per_km) if sor.vehicle and sor.vehicle.rate_per_km is not None else '--',
             f"{sor.distance_km:.1f}" if sor.distance_km else '--',
             transport_cost or '--',
             transport_percentage or '--',
-            str(sor.driver)[:12] + '...' if len(str(sor.driver)) > 12 else str(sor.driver),
+            (str(sor.driver)[:12] + '...' if sor.driver and len(str(sor.driver)) > 12 else str(sor.driver)) if sor.driver else (sor.outsourced_driver_text[:12] + '...' if sor.outsourced_driver_text and len(sor.outsourced_driver_text) > 12 else (sor.outsourced_driver_text or '--')),
             sor.get_status_display()[:8] + '...' if len(sor.get_status_display()) > 8 else sor.get_status_display()
         ]
         table_data.append(row)

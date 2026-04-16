@@ -16,6 +16,9 @@ from .models import AiroTrackDevice, VehicleLocation, LocationHistory
 from vehicles.models import Vehicle
 from .airotrack_service import AiroTrackAPI
 from .forms import AiroTrackDeviceForm, VehicleAssignmentForm, DateRangeForm, AiroTrackSettingsForm
+from trips.models import Trip
+from trips.gps_models import TripLocation, GPSTrackingSession
+from accounts.models import CustomUser
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -1220,3 +1223,177 @@ def device_export(request, device_id):
         logger.error(f"Error exporting device history: {str(e)}")
         messages.error(request, f"Error exporting device history: {str(e)}")
         return redirect('device_detail', device_id=device_id)
+
+
+# ===== Driver Tracking Views =====
+
+@login_required
+def driver_tracking_dashboard(request):
+    """
+    Dashboard showing real-time locations of all drivers with active trips.
+    Reads from TripLocation (mobile app GPS data) instead of AiroTrack.
+    """
+    if not has_tracking_permission(request.user):
+        messages.error(request, "You don't have permission to access the tracking system.")
+        return redirect('dashboard')
+
+    # Get all ongoing trips with GPS tracking enabled
+    active_trips = Trip.objects.filter(
+        status='ongoing',
+        is_deleted=False,
+    ).select_related('driver', 'vehicle')
+
+    drivers_data = []
+    for trip in active_trips:
+        # Get the latest GPS location for this trip
+        latest_location = TripLocation.objects.filter(trip=trip).order_by('-timestamp').first()
+
+        # Get GPS session stats
+        gps_session = GPSTrackingSession.objects.filter(trip=trip).first()
+
+        location_data = None
+        status_info = {"status": "no_data", "display": "No GPS Data", "class": "text-danger"}
+
+        if latest_location:
+            age = timezone.now() - latest_location.timestamp
+            if age < timedelta(minutes=5):
+                speed = latest_location.speed or 0
+                if speed > 5:
+                    status_info = {"status": "moving", "display": "Moving", "class": "text-success"}
+                else:
+                    status_info = {"status": "stationary", "display": "Stationary", "class": "text-info"}
+            elif age < timedelta(minutes=30):
+                status_info = {"status": "stale", "display": "Stale Signal", "class": "text-warning"}
+            else:
+                status_info = {"status": "offline", "display": "Offline", "class": "text-secondary"}
+
+            location_data = {
+                "latitude": float(latest_location.latitude),
+                "longitude": float(latest_location.longitude),
+                "speed": float(latest_location.speed) if latest_location.speed else 0,
+                "accuracy": latest_location.accuracy,
+                "last_update": latest_location.timestamp,
+                "battery_level": latest_location.battery_level,
+            }
+
+        drivers_data.append({
+            "trip": trip,
+            "driver": trip.driver,
+            "vehicle": trip.vehicle,
+            "status": status_info,
+            "location": location_data,
+            "gps_session": gps_session,
+        })
+
+    total_drivers = len(drivers_data)
+    moving_drivers = sum(1 for d in drivers_data if d["status"]["status"] == "moving")
+    stationary_drivers = sum(1 for d in drivers_data if d["status"]["status"] == "stationary")
+    stale_drivers = sum(1 for d in drivers_data if d["status"]["status"] == "stale")
+    offline_drivers = sum(1 for d in drivers_data if d["status"]["status"] in ["offline", "no_data"])
+
+    context = {
+        'drivers_data': drivers_data,
+        'total_drivers': total_drivers,
+        'moving_drivers': moving_drivers,
+        'stationary_drivers': stationary_drivers,
+        'stale_drivers': stale_drivers,
+        'offline_drivers': offline_drivers,
+        'page_title': 'Driver Tracking Dashboard',
+        'is_tracking_page': True,
+    }
+
+    return render(request, 'geolocation/driver_tracking_dashboard.html', context)
+
+
+@login_required
+@require_GET
+def ajax_driver_locations(request):
+    """
+    AJAX endpoint returning real-time driver locations from TripLocation (mobile app GPS).
+    Returns GeoJSON for map display.
+    """
+    if not has_tracking_permission(request.user):
+        return HttpResponseForbidden("Permission denied")
+
+    active_trips = Trip.objects.filter(
+        status='ongoing',
+        is_deleted=False,
+    ).select_related('driver', 'vehicle')
+
+    features = []
+    for trip in active_trips:
+        latest = TripLocation.objects.filter(trip=trip).order_by('-timestamp').first()
+        if not latest or not latest.latitude or not latest.longitude:
+            continue
+
+        age = timezone.now() - latest.timestamp
+        speed = float(latest.speed) if latest.speed else 0
+
+        if age < timedelta(minutes=5):
+            status = "moving" if speed > 5 else "stationary"
+        elif age < timedelta(minutes=30):
+            status = "stale"
+        else:
+            status = "offline"
+
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [float(latest.longitude), float(latest.latitude)],
+            },
+            "properties": {
+                "trip_id": trip.id,
+                "driver_id": trip.driver.id,
+                "driver_name": trip.driver.get_full_name() or trip.driver.username,
+                "vehicle_plate": trip.vehicle.license_plate,
+                "vehicle_name": f"{trip.vehicle.make} {trip.vehicle.model}",
+                "origin": trip.origin,
+                "destination": trip.destination or "—",
+                "speed": speed,
+                "accuracy": latest.accuracy,
+                "battery": latest.battery_level,
+                "last_update": latest.timestamp.isoformat(),
+                "status": status,
+            },
+        }
+        features.append(feature)
+
+    return JsonResponse({
+        "type": "FeatureCollection",
+        "features": features,
+        "timestamp": timezone.now().isoformat(),
+    })
+
+
+@login_required
+@require_GET
+def ajax_driver_trip_route(request, trip_id):
+    """
+    AJAX endpoint returning the full GPS route (polyline) for an active trip.
+    """
+    if not has_tracking_permission(request.user):
+        return HttpResponseForbidden("Permission denied")
+
+    trip = get_object_or_404(Trip, id=trip_id)
+    locations = TripLocation.objects.filter(trip=trip).order_by('timestamp').values_list(
+        'latitude', 'longitude', 'timestamp', 'speed'
+    )
+
+    coordinates = []
+    for lat, lon, ts, spd in locations:
+        coordinates.append({
+            "lat": float(lat),
+            "lng": float(lon),
+            "time": ts.isoformat(),
+            "speed": float(spd) if spd else 0,
+        })
+
+    return JsonResponse({
+        "trip_id": trip.id,
+        "driver": trip.driver.get_full_name() or trip.driver.username,
+        "origin": trip.origin,
+        "destination": trip.destination or "—",
+        "coordinates": coordinates,
+        "total_points": len(coordinates),
+    })

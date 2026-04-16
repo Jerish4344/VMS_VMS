@@ -100,7 +100,8 @@ class ConsultantReportView(ReportBaseView):
                 payment = consultant_rate.calculate_payment(distance)
                 
                 # Check if trip has associated SOR entry and get goods value and transport cost percentage
-                sor_entry = trip.sor_entry.first() if trip.sor_entry.exists() else None
+                prefetched_sor_entries = trip.sor_entry.all()
+                sor_entry = prefetched_sor_entries[0] if prefetched_sor_entries else None
                 transport_cost_percentage = None
                 goods_value = None
                 if sor_entry:

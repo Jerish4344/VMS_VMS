@@ -58,15 +58,21 @@
                 <label class="form-label small text-muted">Status</label>
                 {{ filter_form.status }}
               </div>
+
+              <!-- Type -->
+              <div class="col-md-2">
+                <label class="form-label small text-muted">Type</label>
+                {{ filter_form.source_type }}
+              </div>
               
               <!-- From Location -->
-              <div class="col-md-2">
+              <div class="col-md-1">
                 <label class="form-label small text-muted">From</label>
                 {{ filter_form.from_location }}
               </div>
               
               <!-- To Location -->
-              <div class="col-md-2">
+              <div class="col-md-1">
                 <label class="form-label small text-muted">To</label>
                 {{ filter_form.to_location }}
               </div>
@@ -157,6 +163,10 @@
                     Goods Value
                     <i class="fas fa-sort{% if current_sort == 'goods_value' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
                   </th>
+                  <th class="sortable-header" onclick="sortTable('source_type')">
+                    Type
+                    <i class="fas fa-sort{% if current_sort == 'source_type' %}{% if current_order == 'asc' %}-up{% else %}-down{% endif %} active{% endif %} sort-icon"></i>
+                  </th>
                     <th>Created By</th>
                     <th class="sortable-header" onclick="sortTable('created_at')">
                       Created At
@@ -206,15 +216,18 @@
                 <tr>
                   <td class="fw-bold">#{{ sor.id }}</td>
                   <td><span class="badge bg-info bg-opacity-10 text-info fw-semibold"><i class="fas fa-rupee-sign me-1"></i>{{ sor.goods_value }}</span></td>
+                  <td>
+                    <span class="badge {% if sor.source_type == 'outsourced_manual' %}bg-dark{% else %}bg-secondary{% endif %}">{{ sor.get_source_type_display }}</span>
+                  </td>
                     <td>{% if sor.created_by %}{{ sor.created_by.get_full_name|default:sor.created_by.username }}{% else %}<span class="text-muted">--</span>{% endif %}</td>
                     <td>{% if sor.created_at %}{{ sor.created_at|date:'d M Y, H:i' }}{% else %}<span class="text-muted">--</span>{% endif %}</td>
                     <td>{{ sor.from_location }}</td>
                     <td>{{ sor.to_location }}</td>
-                  <td><i class="fas fa-truck me-1 text-secondary"></i>{{ sor.vehicle }}</td>
-                  <td>{{ sor.vehicle.rate_per_km }}</td>
+                  <td><i class="fas fa-truck me-1 text-secondary"></i>{% if sor.vehicle %}{{ sor.vehicle }}{% else %}{{ sor.outsourced_vehicle_text|default:'--' }}{% endif %}</td>
+                  <td>{% if sor.vehicle and sor.vehicle.rate_per_km %}{{ sor.vehicle.rate_per_km }}{% elif sor.outsourced_rate_per_km %}{{ sor.outsourced_rate_per_km }}{% else %}<span class="text-muted">--</span>{% endif %}</td>
                   <td>{% if sor.distance_km %}{{ sor.distance_km|floatformat:2 }}{% else %}<span class="text-muted">--</span>{% endif %}</td>
                   <td>
-                    {% if sor.distance_km and sor.vehicle.rate_per_km %}
+                    {% if sor.transport_cost %}
                       <span class="text-success fw-semibold">{{ sor.transport_cost|floatformat:2 }}</span>
                     {% else %}
                       <span class="text-muted">--</span>
@@ -228,7 +241,7 @@
                       <span class="text-muted">--</span>
                     {% endif %}
                   </td>
-                  <td><i class="fas fa-user me-1 text-secondary"></i>{{ sor.driver }}</td>
+                  <td><i class="fas fa-user me-1 text-secondary"></i>{% if sor.driver %}{{ sor.driver }}{% else %}{{ sor.outsourced_driver_text|default:'--' }}{% endif %}</td>
                   <td>
                     <span class="badge 
                       {% if sor.status == 'pending' %}bg-warning text-dark

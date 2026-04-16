@@ -7,6 +7,11 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 class SOR(models.Model):
+    SOURCE_TYPE_CHOICES = [
+        ('company', 'Company Vehicle'),
+        ('outsourced_manual', 'Outsourced Manual Entry'),
+    ]
+
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('driver_accepted', 'Driver Accepted'),
@@ -14,11 +19,19 @@ class SOR(models.Model):
         ('completed', 'Completed'),
         ('rejected', 'Rejected'),
     ]
+
+    source_type = models.CharField(max_length=30, choices=SOURCE_TYPE_CHOICES, default='company')
     goods_value = models.DecimalField(max_digits=12, decimal_places=2)
     from_location = models.CharField(max_length=255)
     to_location = models.CharField(max_length=255)
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT)
-    driver = models.ForeignKey(User, on_delete=models.PROTECT, limit_choices_to={'user_type': 'driver'})
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, null=True, blank=True)
+    driver = models.ForeignKey(User, on_delete=models.PROTECT, limit_choices_to={'user_type': 'driver'}, null=True, blank=True)
+    outsourced_vehicle_text = models.CharField(max_length=255, null=True, blank=True)
+    outsourced_driver_text = models.CharField(max_length=255, null=True, blank=True)
+    vendor_name = models.CharField(max_length=255, null=True, blank=True)
+    start_odometer = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    end_odometer = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    outsourced_rate_per_km = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, default=25, help_text='Rate per KM for outsourced vehicle')
     distance_km = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     trip = models.ForeignKey('trips.Trip', on_delete=models.SET_NULL, null=True, blank=True, related_name='sor_entry')
@@ -30,8 +43,11 @@ class SOR(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def transport_cost(self):
-        if self.distance_km and self.vehicle and self.vehicle.rate_per_km:
-            return self.distance_km * self.vehicle.rate_per_km
+        if self.distance_km:
+            if self.source_type == 'outsourced_manual' and self.outsourced_rate_per_km:
+                return self.distance_km * self.outsourced_rate_per_km
+            elif self.vehicle and self.vehicle.rate_per_km:
+                return self.distance_km * self.vehicle.rate_per_km
         return None
 
     def transport_cost_percentage(self):
@@ -54,4 +70,5 @@ class SOR(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"SOR #{self.id} - {self.vehicle} ({self.from_location} → {self.to_location})"
+        vehicle_label = self.vehicle or self.outsourced_vehicle_text or 'Manual'
+        return f"SOR #{self.id} - {vehicle_label} ({self.from_location} → {self.to_location})"

@@ -5,7 +5,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Sum, Count, Avg, F, ExpressionWrapper, FloatField, Q
 from django.db.models.functions import TruncMonth, TruncYear, Coalesce
 from django.utils import timezone
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 from accounts.permissions import AdminRequiredMixin, ManagerRequiredMixin, VehicleManagerRequiredMixin
 from vehicles.models import Vehicle, VehicleType
 from trips.models import Trip
@@ -62,6 +62,7 @@ class ReportBaseView(LoginRequiredMixin, VehicleManagerRequiredMixin, TemplateVi
         """Export data as CSV file."""
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
+        response['X-Accel-Buffering'] = 'no'
         
         writer = csv.writer(response)
         writer.writerow(headers)
@@ -107,6 +108,7 @@ class ReportBaseView(LoginRequiredMixin, VehicleManagerRequiredMixin, TemplateVi
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
         response['Content-Disposition'] = f'attachment; filename="{filename}.xlsx"'
+        response['X-Accel-Buffering'] = 'no'
         return response
 
 

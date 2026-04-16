@@ -47,4 +47,9 @@ urlpatterns = [
     # AJAX endpoints for real-time updates
     path('ajax/locations/', views.ajax_vehicle_locations, name='ajax_vehicle_locations'),
     path('ajax/vehicle/<int:vehicle_id>/', views.ajax_vehicle_detail, name='ajax_vehicle_detail'),
+    
+    # Driver Tracking (mobile app GPS)
+    path('driver-tracking/', views.driver_tracking_dashboard, name='driver_tracking_dashboard'),
+    path('ajax/driver-locations/', views.ajax_driver_locations, name='ajax_driver_locations'),
+    path('ajax/driver-route/<int:trip_id>/', views.ajax_driver_trip_route, name='ajax_driver_trip_route'),
 ]
