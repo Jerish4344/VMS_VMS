@@ -14,7 +14,7 @@ from .gps_models import GPSTrackingSession
 from vehicles.models import Vehicle
 # For filter dropdown
 from vehicles.models import VehicleType
-from .forms import TripForm, EndTripForm, ManualTripForm
+from .forms import TripForm, EndTripForm, ManualTripForm, PassengerCountForm
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator
@@ -265,6 +265,11 @@ class TripDetailView(LoginRequiredMixin, DetailView):
         
         # Check if user can end this trip
         context['can_end_trip'] = trip.can_be_ended_by(self.request.user)
+        
+        # Passenger count support for Commercial Staff Bus
+        context['is_commercial_staff_bus'] = trip.is_commercial_staff_bus
+        if trip.is_commercial_staff_bus and trip.status == 'ongoing':
+            context['passenger_count_form'] = PassengerCountForm(instance=trip)
         
         return context
     
@@ -629,6 +634,7 @@ class EndTripView(LoginRequiredMixin, UpdateView):
         context['user_role'] = self.request.user.get_user_type_display()
         context['is_driver'] = trip.driver == self.request.user
         context['is_management'] = self.request.user.user_type in ['admin', 'manager', 'vehicle_manager']
+        context['is_commercial_staff_bus'] = trip.is_commercial_staff_bus
         
         return context
     
@@ -636,6 +642,11 @@ class EndTripView(LoginRequiredMixin, UpdateView):
         trip = form.instance
         destination = form.cleaned_data.get('destination')
         end_odometer = form.cleaned_data.get('end_odometer')
+        
+        # Handle passenger count for Commercial Staff Bus
+        passenger_count = form.cleaned_data.get('passenger_count')
+        if passenger_count is not None:
+            trip.passenger_count = passenger_count
 
         # Handle GPS end coordinates if tracking was enabled
         if trip.gps_tracking_enabled:
@@ -702,6 +713,37 @@ class EndTripView(LoginRequiredMixin, UpdateView):
                 messages.error(self.request, f"{field}: {error}")
         
         return super().form_invalid(form)
+
+
+class UpdatePassengerCountView(LoginRequiredMixin, View):
+    """Update passenger count during an active Commercial Staff Bus trip."""
+
+    def post(self, request, pk):
+        trip = get_object_or_404(Trip, pk=pk, status='ongoing')
+
+        if not trip.can_be_ended_by(request.user):
+            messages.error(request, 'You do not have permission to update this trip.')
+            raise PermissionDenied("Cannot update this trip")
+
+        if not trip.is_commercial_staff_bus:
+            messages.error(request, 'Passenger count is only applicable for Commercial Staff Bus.')
+            return redirect('trip_detail', pk=trip.pk)
+
+        form = PassengerCountForm(request.POST, instance=trip)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Passenger count updated to {trip.passenger_count}.')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, error)
+
+        # Redirect back to the referring page, fallback to trip detail
+        referer = request.META.get('HTTP_REFERER')
+        if referer:
+            return redirect(referer)
+        return redirect('trip_detail', pk=trip.pk)
+
     
 class ManualTripCreateView(LoginRequiredMixin, VehicleManagerRequiredMixin, CreateView):
     """

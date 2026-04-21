@@ -109,6 +109,20 @@ class Trip(models.Model):
         help_text="Photo of odometer at trip end for verification"
     )
 
+    # Passenger count for commercial staff buses
+    passenger_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of passengers (applicable for Commercial Staff Bus)"
+    )
+
+    @property
+    def is_commercial_staff_bus(self):
+        """Check if the trip's vehicle is a Commercial Staff Bus."""
+        if self.vehicle and self.vehicle.vehicle_type:
+            return self.vehicle.vehicle_type.name.strip().lower() == 'commercial staff bus'
+        return False
+
     def soft_delete(self, user=None):
         """
         Soft delete the trip, recording who deleted and when.

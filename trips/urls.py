@@ -5,6 +5,7 @@ from . import views
 from .views import (
     TripListView, TripDetailView, StartTripView, EndTripView, TripTrackingView,
     ManualTripCreateView, ManualTripListView, DriverTripsView,
+    UpdatePassengerCountView,
 )
 # Import consultant rate views
 from .consultant_views import (
@@ -91,6 +92,7 @@ urlpatterns = [
     # Dynamic URLs with primary keys (should come after static URLs)
     path('<int:pk>/', TripDetailView.as_view(), name='trip_detail'),
     path('<int:pk>/end/', EndTripView.as_view(), name='end_trip'),
+    path('<int:pk>/update-passenger-count/', UpdatePassengerCountView.as_view(), name='update_passenger_count'),
     path('<int:pk>/track/', TripTrackingView.as_view(), name='track_trip'),
     path('<int:pk>/edit/', views.trip_edit, name='trip_edit'),
     path('<int:pk>/update/', views.trip_update, name='trip_update'),

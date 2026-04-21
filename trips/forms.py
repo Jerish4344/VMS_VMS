@@ -83,7 +83,7 @@ class EndTripForm(forms.ModelForm):
     
     class Meta:
         model = Trip
-        fields = ['destination', 'end_odometer', 'notes']
+        fields = ['destination', 'end_odometer', 'notes', 'passenger_count']
         widgets = {
             'destination': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -98,6 +98,11 @@ class EndTripForm(forms.ModelForm):
                 'placeholder': 'Additional trip details or final remarks...',
                 'class': 'form-control'
             }),
+            'passenger_count': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0',
+                'placeholder': 'Enter number of passengers'
+            }),
         }
     
     def __init__(self, *args, **kwargs):
@@ -110,6 +115,14 @@ class EndTripForm(forms.ModelForm):
         # Set minimum value for end_odometer
         if self.instance and self.instance.start_odometer:
             self.fields['end_odometer'].widget.attrs['min'] = self.instance.start_odometer
+
+        # Show passenger_count only for Commercial Staff Bus
+        if self.instance and self.instance.is_commercial_staff_bus:
+            self.fields['passenger_count'].required = False
+            self.fields['passenger_count'].help_text = "Number of passengers on this staff bus"
+        else:
+            # Hide passenger_count for non-staff-bus vehicles
+            del self.fields['passenger_count']
     
     def clean_end_odometer(self):
         """Validate end odometer is greater than start odometer."""
@@ -129,6 +142,26 @@ class EndTripForm(forms.ModelForm):
         if not destination or len(destination.strip()) < 3:
             raise forms.ValidationError("Please provide a valid destination (minimum 3 characters).")
         return destination.strip()
+
+class PassengerCountForm(forms.ModelForm):
+    """Form for updating passenger count during an active trip (Commercial Staff Bus only)."""
+    
+    class Meta:
+        model = Trip
+        fields = ['passenger_count']
+        widgets = {
+            'passenger_count': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0',
+                'placeholder': 'Enter number of passengers'
+            }),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['passenger_count'].required = False
+        self.fields['passenger_count'].label = "Passenger Count"
+
 
 class ManualTripForm(forms.ModelForm):
     """Form for manually creating trips by managers."""
