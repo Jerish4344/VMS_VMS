@@ -672,7 +672,21 @@ class EndTripView(APIView):
         
         if trip.status != 'ongoing':
             return Response({'detail': 'Trip is not ongoing'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        # Block manual end for SOR Bundle trips - they auto-close when every
+        # SOR in the bundle is marked completed via the bundle endpoints.
+        from sor.models import SOR as _SOR
+        bundle_sor = _SOR.objects.filter(trip=trip).exclude(bundle_id__isnull=True).first()
+        if bundle_sor is not None:
+            return Response(
+                {
+                    'detail': 'This is a Bundle SOR trip. Complete each SOR from the Bundle SOR endpoint; the trip will close automatically.',
+                    'bundle_id': str(bundle_sor.bundle_id),
+                    'is_bundle_trip': True,
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = TripEndSerializer(trip, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         
@@ -1195,6 +1209,30 @@ class SORNotificationMarkAllReadView(APIView):
 # GPS Tracking API Views for Mobile App
 # ============================================
 
+# Dedup thresholds: skip a new GPS point if the last point for the same
+# trip is closer than MIN_DISTANCE_M and newer than MIN_INTERVAL_S. Cuts
+# `trips_triplocation` row growth dramatically without losing trip detail.
+GPS_MIN_DISTANCE_M = 10.0
+GPS_MIN_INTERVAL_S = 5.0
+
+
+def _is_duplicate_gps_point(trip, latitude, longitude, point_timestamp):
+    """Return True if a near-identical recent point already exists for the trip."""
+    last = TripLocation.objects.filter(trip=trip).order_by('-timestamp').first()
+    if not last:
+        return False
+    try:
+        gap = (point_timestamp - last.timestamp).total_seconds()
+    except Exception:
+        return False
+    if gap < 0 or gap >= GPS_MIN_INTERVAL_S:
+        return False
+    distance_km = TripLocation.calculate_distance(
+        last.latitude, last.longitude, latitude, longitude
+    )
+    return (distance_km * 1000.0) < GPS_MIN_DISTANCE_M
+
+
 class GPSRecordLocationView(APIView):
     """
     Record GPS location points during an ongoing trip.
@@ -1226,17 +1264,30 @@ class GPSRecordLocationView(APIView):
         
         if not latitude or not longitude:
             return Response({'error': 'latitude and longitude are required'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        now_ts = timezone.now()
+        lat_dec = Decimal(str(latitude))
+        lon_dec = Decimal(str(longitude))
+
+        # Skip near-duplicate points to keep trips_triplocation small.
+        if _is_duplicate_gps_point(trip, lat_dec, lon_dec, now_ts):
+            return Response({
+                'success': True,
+                'skipped': True,
+                'reason': 'duplicate',
+                'total_points': gps_session.total_points,
+            })
+
         location = TripLocation.objects.create(
             trip=trip,
-            latitude=Decimal(str(latitude)),
-            longitude=Decimal(str(longitude)),
+            latitude=lat_dec,
+            longitude=lon_dec,
             accuracy=float(request.data.get('accuracy', 0)),
             speed=float(request.data.get('speed')) if request.data.get('speed') else None,
             altitude=float(request.data.get('altitude')) if request.data.get('altitude') else None,
             heading=float(request.data.get('heading')) if request.data.get('heading') else None,
             battery_level=int(request.data.get('battery_level')) if request.data.get('battery_level') else None,
-            timestamp=timezone.now()
+            timestamp=now_ts
         )
         
         # Update session statistics
@@ -1296,6 +1347,14 @@ class GPSBatchRecordView(APIView):
         )
         
         saved_count = 0
+        skipped_count = 0
+        # Track last accepted point in this batch so we also dedupe within the
+        # incoming list (mobile may buffer many near-identical pings while idle).
+        last_point = TripLocation.objects.filter(trip=trip).order_by('-timestamp').first()
+        last_lat = last_point.latitude if last_point else None
+        last_lon = last_point.longitude if last_point else None
+        last_ts = last_point.timestamp if last_point else None
+
         for loc_data in locations:
             try:
                 latitude = loc_data.get('latitude')
@@ -1316,11 +1375,28 @@ class GPSBatchRecordView(APIView):
                         point_timestamp = timezone.now()
                 else:
                     point_timestamp = timezone.now()
-                
+
+                lat_dec = Decimal(str(latitude))
+                lon_dec = Decimal(str(longitude))
+
+                # Dedupe vs last accepted point (DB or earlier in this batch).
+                if last_ts is not None:
+                    try:
+                        gap = (point_timestamp - last_ts).total_seconds()
+                    except Exception:
+                        gap = GPS_MIN_INTERVAL_S  # treat as keep
+                    if 0 <= gap < GPS_MIN_INTERVAL_S:
+                        dist_m = TripLocation.calculate_distance(
+                            last_lat, last_lon, lat_dec, lon_dec
+                        ) * 1000.0
+                        if dist_m < GPS_MIN_DISTANCE_M:
+                            skipped_count += 1
+                            continue
+
                 TripLocation.objects.create(
                     trip=trip,
-                    latitude=Decimal(str(latitude)),
-                    longitude=Decimal(str(longitude)),
+                    latitude=lat_dec,
+                    longitude=lon_dec,
                     accuracy=float(loc_data.get('accuracy', 0)),
                     speed=float(loc_data.get('speed')) if loc_data.get('speed') else None,
                     altitude=float(loc_data.get('altitude')) if loc_data.get('altitude') else None,
@@ -1330,6 +1406,7 @@ class GPSBatchRecordView(APIView):
                 )
                 saved_count += 1
                 gps_session.total_points += 1
+                last_lat, last_lon, last_ts = lat_dec, lon_dec, point_timestamp
             except Exception as e:
                 logger.warning(f"GPS batch: failed to save point for trip {trip_id}: {e}", exc_info=True)
                 continue
@@ -1339,6 +1416,7 @@ class GPSBatchRecordView(APIView):
         return Response({
             'success': True,
             'saved_count': saved_count,
+            'skipped_count': skipped_count,
             'total_points': gps_session.total_points,
         })
 
@@ -1634,3 +1712,399 @@ class P2PSORConfirmReceiptView(APIView):
             'sir_reference': sir_reference,
             'status': sor.status,
         })
+
+
+# ============================================================================
+# SOR Bundle API (mobile app) - one Trip with many SORs sharing bundle_id
+# ============================================================================
+
+class SORBundleCreateView(APIView):
+    """SOR team / SOR head create a bundle: one trip carrying many SORs.
+
+    POST body:
+    {
+      "vehicle_id": <int>,
+      "driver_id": <int>,
+      "from_location": "<str>",
+      "items": [
+        {
+          "to_location": "<str>",
+          "goods_value": <number>,
+          "number_of_crates": <int|null>,
+          "number_of_sac": <int|null>,
+          "description": "<str|null>"
+        },
+        ...
+      ]
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from sor.models import SOR
+        from sor.notification import SORNotification
+        from django.db import transaction as _transaction
+        import uuid as _uuid
+
+        user = request.user
+        if user.user_type not in ('admin', 'manager', 'vehicle_manager', 'sor_team', 'sor_head'):
+            return Response({'detail': 'You do not have permission to create SOR bundles.'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data or {}
+        vehicle_id = data.get('vehicle_id')
+        driver_id = data.get('driver_id')
+        from_location = (data.get('from_location') or '').strip()
+        items = data.get('items') or []
+
+        if not vehicle_id:
+            return Response({'detail': 'vehicle_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not driver_id:
+            return Response({'detail': 'driver_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not from_location:
+            return Response({'detail': 'from_location is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(items, list) or not items:
+            return Response({'detail': 'At least one item is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            vehicle = Vehicle.objects.get(pk=vehicle_id)
+        except Vehicle.DoesNotExist:
+            return Response({'detail': 'Vehicle not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if vehicle.vehicle_type and vehicle.vehicle_type.category != 'commercial':
+            return Response({'detail': 'Only commercial vehicles can be used for SOR.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if Trip.objects.filter(vehicle=vehicle, status='ongoing').exists():
+            return Response({'detail': 'This vehicle is currently on an ongoing trip.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            driver = CustomUser.objects.get(pk=driver_id)
+        except CustomUser.DoesNotExist:
+            return Response({'detail': 'Driver not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if driver.user_type != 'driver' or not driver.is_active:
+            return Response({'detail': 'Selected user is not an active driver.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate items
+        cleaned_items = []
+        for idx, raw in enumerate(items, start=1):
+            if not isinstance(raw, dict):
+                return Response({'detail': f'Item #{idx} is invalid.'}, status=status.HTTP_400_BAD_REQUEST)
+            to_location = (raw.get('to_location') or '').strip()
+            goods_value = raw.get('goods_value')
+            if not to_location:
+                return Response({'detail': f'Item #{idx}: to_location is required.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if goods_value in (None, ''):
+                return Response({'detail': f'Item #{idx}: goods_value is required.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            try:
+                goods_value = float(goods_value)
+            except (TypeError, ValueError):
+                return Response({'detail': f'Item #{idx}: goods_value must be a number.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if goods_value <= 0:
+                return Response({'detail': f'Item #{idx}: goods_value must be greater than zero.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            cleaned_items.append({
+                'to_location': to_location,
+                'goods_value': goods_value,
+                'number_of_crates': raw.get('number_of_crates') or None,
+                'number_of_sac': raw.get('number_of_sac') or None,
+                'description': (raw.get('description') or '').strip() or None,
+            })
+
+        bundle_id = _uuid.uuid4()
+        created = []
+        with _transaction.atomic():
+            for seq, it in enumerate(cleaned_items, start=1):
+                sor = SOR.objects.create(
+                    source_type='company',
+                    goods_value=it['goods_value'],
+                    from_location=from_location,
+                    to_location=it['to_location'],
+                    vehicle=vehicle,
+                    driver=driver,
+                    number_of_crates=it['number_of_crates'],
+                    number_of_sac=it['number_of_sac'],
+                    description=it['description'],
+                    status='pending',
+                    created_by=user,
+                    bundle_id=bundle_id,
+                    bundle_sequence=seq,
+                )
+                created.append(sor)
+
+        first_sor = created[0]
+        store_names = ', '.join(s.to_location for s in created)
+        SORNotification.objects.create(
+            sor=first_sor,
+            driver=driver,
+            message=(f"New trip bundle: {len(created)} SOR(s) from "
+                     f"{from_location} to {store_names}. Please accept or reject."),
+        )
+
+        refreshed = list(SOR.objects.filter(bundle_id=bundle_id)
+                         .order_by('bundle_sequence', 'id')
+                         .select_related('vehicle', 'trip'))
+        return Response(
+            {
+                'detail': f'Bundle created with {len(created)} SOR(s).',
+                'bundle': _serialize_bundle(bundle_id, refreshed),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+def _serialize_bundle(bundle_id, sors):
+    """Build the JSON payload for a bundle: header info + ordered SOR list."""
+    if not sors:
+        return None
+    head = sors[0]
+    trip = head.trip
+    items = [
+        {
+            'id': s.id,
+            'sequence': s.bundle_sequence,
+            'location': s.to_location,
+            'goods_value': str(s.goods_value) if s.goods_value is not None else None,
+            'number_of_crates': s.number_of_crates,
+            'number_of_sac': s.number_of_sac,
+            'description': s.description,
+            'start_odometer': str(s.start_odometer) if s.start_odometer is not None else None,
+            'end_odometer': str(s.end_odometer) if s.end_odometer is not None else None,
+            'distance_km': str(s.distance_km) if s.distance_km is not None else None,
+            'status': s.status,
+            'status_display': s.get_status_display(),
+        }
+        for s in sors
+    ]
+    pending_states = ('pending', 'driver_accepted', 'in_progress')
+    next_active = next((it for it in items if it['status'] in pending_states), None)
+    return {
+        'bundle_id': str(bundle_id),
+        'from_location': head.from_location,
+        'destinations': ', '.join(s.to_location for s in sors),
+        'driver_id': head.driver_id,
+        'vehicle': {
+            'id': head.vehicle.id if head.vehicle else None,
+            'license_plate': head.vehicle.license_plate if head.vehicle else None,
+            'make': head.vehicle.make if head.vehicle else None,
+            'model': head.vehicle.model if head.vehicle else None,
+        } if head.vehicle else None,
+        'trip_id': trip.id if trip else None,
+        'trip_status': trip.status if trip else None,
+        'count': len(items),
+        'all_completed': all(s.status == 'completed' for s in sors),
+        'any_active': any(s.status in ('driver_accepted', 'in_progress') for s in sors),
+        'next_active_sor_id': next_active['id'] if next_active else None,
+        'sors': items,
+    }
+
+
+class SORBundleListView(APIView):
+    """List all bundles where the logged-in driver has at least one SOR."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = SOR.objects.filter(
+            driver=request.user,
+            bundle_id__isnull=False,
+        ).order_by('-created_at')
+        seen = []
+        bundles = []
+        for sor in qs:
+            if sor.bundle_id in seen:
+                continue
+            seen.append(sor.bundle_id)
+            sors = list(SOR.objects.filter(bundle_id=sor.bundle_id)
+                        .order_by('bundle_sequence', 'id')
+                        .select_related('vehicle', 'trip'))
+            payload = _serialize_bundle(sor.bundle_id, sors)
+            if payload:
+                bundles.append(payload)
+        return Response({'bundles': bundles, 'count': len(bundles)})
+
+
+class SORBundleDetailView(APIView):
+    """Get one bundle: header info + ordered list of SORs."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, bundle_id):
+        sors = list(SOR.objects.filter(bundle_id=bundle_id)
+                    .order_by('bundle_sequence', 'id')
+                    .select_related('vehicle', 'trip'))
+        if not sors:
+            return Response({'detail': 'Bundle not found.'}, status=status.HTTP_404_NOT_FOUND)
+        head = sors[0]
+        is_admin = request.user.user_type in ['admin', 'manager', 'vehicle_manager', 'sor_head']
+        if not is_admin and head.driver_id != request.user.id:
+            return Response({'detail': 'You do not have access to this bundle.'},
+                            status=status.HTTP_403_FORBIDDEN)
+        return Response(_serialize_bundle(bundle_id, sors))
+
+
+class SORBundleAcceptView(APIView):
+    """Driver accepts a bundle. Creates one Trip for all SORs in the bundle."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, bundle_id):
+        from django.db import transaction as _transaction
+        sors = list(SOR.objects.filter(bundle_id=bundle_id)
+                    .order_by('bundle_sequence', 'id')
+                    .select_related('vehicle'))
+        if not sors:
+            return Response({'detail': 'Bundle not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        head = sors[0]
+        if head.driver_id != request.user.id:
+            return Response({'detail': 'Only the assigned driver can accept this bundle.'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        pending = [s for s in sors if s.status == 'pending']
+        if not pending:
+            return Response(_serialize_bundle(bundle_id,
+                            list(SOR.objects.filter(bundle_id=bundle_id)
+                                 .order_by('bundle_sequence', 'id')
+                                 .select_related('vehicle', 'trip'))))
+
+        start_odometer = head.vehicle.current_odometer or 0
+        destinations = ', '.join(s.to_location for s in sors)
+
+        with _transaction.atomic():
+            trip = Trip.objects.create(
+                vehicle=head.vehicle,
+                driver=head.driver,
+                start_time=timezone.now(),
+                start_odometer=start_odometer,
+                origin=head.from_location,
+                destination=destinations[:255],
+                purpose=f"SOR bundle ({len(sors)} drops)",
+                notes=f"Started from SOR bundle {bundle_id}",
+                status='ongoing',
+                entry_type='real_time',
+                gps_tracking_enabled=True,
+            )
+            GPSTrackingSession.objects.get_or_create(trip=trip, defaults={'status': 'active'})
+            for s in sors:
+                if s.status == 'pending':
+                    s.status = 'in_progress'
+                    s.trip = trip
+                    if s.start_odometer is None:
+                        s.start_odometer = start_odometer
+                    s.save()
+
+        SORNotification.objects.filter(
+            sor__bundle_id=bundle_id, driver=request.user, is_read=False
+        ).update(is_read=True)
+
+        refreshed = list(SOR.objects.filter(bundle_id=bundle_id)
+                         .order_by('bundle_sequence', 'id')
+                         .select_related('vehicle', 'trip'))
+        return Response({
+            'detail': 'Bundle accepted and trip started.',
+            'trip_id': trip.id,
+            'bundle': _serialize_bundle(bundle_id, refreshed),
+        })
+
+
+class SORBundleCompleteSORView(APIView):
+    """Driver records arrival odometer for a single SOR inside a bundle.
+
+    POST body: { "arrival_odometer": <decimal>, "notes": "<optional>" }
+
+    Marks that SOR completed. When the last SOR in the bundle is completed,
+    closes the shared Trip automatically.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, bundle_id, sor_id):
+        from decimal import Decimal, InvalidOperation
+
+        try:
+            sor = SOR.objects.get(pk=sor_id, bundle_id=bundle_id)
+        except SOR.DoesNotExist:
+            return Response({'detail': 'SOR not found in this bundle.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        if sor.driver_id != request.user.id:
+            return Response({'detail': 'Only the assigned driver can record stops.'},
+                            status=status.HTTP_403_FORBIDDEN)
+        if sor.status not in ('driver_accepted', 'in_progress'):
+            return Response({'detail': f'This SOR is not in an active state (current: {sor.get_status_display()}).'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Sequential order check
+        earlier_active = SOR.objects.filter(
+            bundle_id=bundle_id,
+            bundle_sequence__lt=sor.bundle_sequence or 0,
+            status__in=('pending', 'driver_accepted', 'in_progress'),
+        ).exists()
+        if earlier_active:
+            return Response({'detail': 'Please complete earlier SORs first.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        odo_raw = request.data.get('arrival_odometer')
+        notes = (request.data.get('notes') or '').strip()
+        if odo_raw in (None, ''):
+            return Response({'detail': 'arrival_odometer is required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            odo = Decimal(str(odo_raw))
+        except (InvalidOperation, ValueError):
+            return Response({'detail': 'Invalid odometer reading.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if odo < 0:
+            return Response({'detail': 'Odometer reading cannot be negative.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate against previous reading
+        prev_reading = None
+        prev_sor = SOR.objects.filter(
+            bundle_id=bundle_id,
+            bundle_sequence__lt=sor.bundle_sequence or 0,
+            end_odometer__isnull=False,
+        ).order_by('-bundle_sequence').first()
+        if prev_sor:
+            prev_reading = prev_sor.end_odometer
+        elif sor.start_odometer is not None:
+            prev_reading = sor.start_odometer
+        if prev_reading is not None and odo < prev_reading:
+            return Response(
+                {'detail': f'Odometer must be greater than or equal to previous reading ({prev_reading}).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        sor.end_odometer = odo
+        if sor.start_odometer is not None:
+            sor.distance_km = odo - sor.start_odometer
+        sor.status = 'completed'
+        if notes:
+            prefix = (sor.description + '\n') if sor.description else ''
+            sor.description = prefix + f'Driver note: {notes}'
+        sor.save()
+
+        # If every SOR in the bundle is completed, close the shared Trip.
+        remaining = SOR.objects.filter(bundle_id=bundle_id).exclude(status='completed').exists()
+        trip_closed = False
+        if not remaining and sor.trip_id:
+            trip = sor.trip
+            if trip.status == 'ongoing':
+                trip.status = 'completed'
+                trip.end_time = timezone.now()
+                try:
+                    trip.end_odometer = int(odo)
+                except (TypeError, ValueError):
+                    pass
+                trip.save()
+                trip_closed = True
+
+        refreshed = list(SOR.objects.filter(bundle_id=bundle_id)
+                         .order_by('bundle_sequence', 'id')
+                         .select_related('vehicle', 'trip'))
+        return Response({
+            'detail': f'SOR #{sor.id} ({sor.to_location}) marked completed.',
+            'trip_closed': trip_closed,
+            'bundle': _serialize_bundle(bundle_id, refreshed),
+        })
+

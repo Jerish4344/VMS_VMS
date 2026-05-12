@@ -41,6 +41,7 @@ from trips.models import Trip
 from vehicles.models import Vehicle
 User = get_user_model()
 
+
 @login_required
 def sor_create(request):
     # Check permission using the new permission system
@@ -61,16 +62,14 @@ def sor_create(request):
         form = SORForm(post_data)
         if form.is_valid():
             sor = form.save(commit=False)
-            sor.created_by = request.user
-
+            if not sor.created_by_id:
+                sor.created_by = request.user
             if sor.source_type == 'outsourced_manual':
                 sor.status = 'completed'
                 if sor.start_odometer is not None and sor.end_odometer is not None:
                     sor.distance_km = sor.end_odometer - sor.start_odometer
-
             sor.save()
             if sor.source_type == 'company' and sor.driver:
-                # Create notification for driver only for regular company flow.
                 SORNotification.objects.create(
                     sor=sor,
                     driver=sor.driver,
@@ -296,20 +295,29 @@ def sor_edit(request, pk):
             return HttpResponseForbidden('You can only edit SORs you created.')
     
     if request.method == 'POST':
-        form = SORForm(request.POST, instance=sor)
+        post_data = request.POST.copy()
+        if post_data.get('from_location') == 'Others':
+            other = post_data.get('from_location_other', '').strip()
+            if other:
+                post_data['from_location'] = other
+        if post_data.get('to_location') == 'Others':
+            other = post_data.get('to_location_other', '').strip()
+            if other:
+                post_data['to_location'] = other
+        form = SORForm(post_data, instance=sor)
         if form.is_valid():
-            updated_sor = form.save()
+            updated_sor = form.save(commit=False)
             if updated_sor.source_type == 'outsourced_manual':
                 updated_sor.status = 'completed'
                 if updated_sor.start_odometer is not None and updated_sor.end_odometer is not None:
                     updated_sor.distance_km = updated_sor.end_odometer - updated_sor.start_odometer
-                updated_sor.save(update_fields=['status', 'distance_km'])
+            updated_sor.save()
+            if updated_sor.source_type == 'outsourced_manual':
                 messages.success(request, 'Outsourced SOR entry updated successfully.')
             else:
-                # Update or create notification for driver
                 from .notification import SORNotification
                 if updated_sor.driver:
-                    notif_message = f"SOR assignment updated: {updated_sor.from_location} to {updated_sor.to_location}. Please check details."
+                    notif_message = f"SOR assignment updated for route from {updated_sor.from_location} to {updated_sor.to_location}. Please check details."
                     notif_qs = SORNotification.objects.filter(sor=updated_sor, driver=updated_sor.driver, is_read=False).order_by('-created_at')
                     if notif_qs.exists():
                         notif = notif_qs.first()
@@ -356,6 +364,10 @@ def sor_delete(request, pk):
 @login_required
 def sor_accept(request, pk):
     sor = get_object_or_404(SOR, pk=pk, driver=request.user)
+    # Bundled SORs must be accepted via the bundle flow so all SORs in the
+    # bundle share a single Trip. Redirect to the bundle progress page.
+    if sor.bundle_id:
+        return redirect('sor_bundle_progress', bundle_id=sor.bundle_id)
     if sor.source_type != 'company':
         messages.error(request, 'Outsourced SOR entries do not support driver accept/start workflow.')
         return redirect('sor_list')
@@ -363,8 +375,10 @@ def sor_accept(request, pk):
         sor.status = 'driver_accepted'
         sor.save()
         # Start trip automatically
-        # Use SOR's from_location, to_location, vehicle, driver, and distance
         start_odometer = sor.vehicle.current_odometer or 0
+        # Pickup odometer doubles as the SOR start_odometer if not already set.
+        if sor.start_odometer is None:
+            sor.start_odometer = start_odometer
         trip = Trip.objects.create(
             vehicle=sor.vehicle,
             driver=sor.driver,
@@ -382,8 +396,9 @@ def sor_accept(request, pk):
         sor.save()
         # Mark notification as read
         SORNotification.objects.filter(sor=sor, driver=request.user, is_read=False).update(is_read=True)
-        messages.success(request, 'SOR accepted and trip started.')
+        messages.success(request, 'SOR accepted. Trip started automatically.')
     return redirect('sor_list')
+
 
 @login_required
 def sor_export(request):
@@ -718,3 +733,260 @@ def _export_pdf(sors_data):
     elements.append(table)
     doc.build(elements)
     return response
+
+
+# ===========================================================================
+# SOR Bundle workflow: one Trip with many SORs (one SOR per store)
+# ===========================================================================
+import uuid as _uuid
+from django.db import transaction
+from .forms import SORBundleHeaderForm, SORBundleItemFormSet
+
+
+@login_required
+def sor_bundle_create(request):
+    """Dispatcher creates a single trip carrying multiple SORs (one per store).
+
+    Each item row becomes its own SOR with its own ID. All SORs share the same
+    bundle_id so the driver accepts/works them as one trip.
+    """
+    if not request.user.has_module_permission('sor', 'add'):
+        messages.error(request, 'You do not have permission to create SOR entries.')
+        return redirect('sor_list')
+
+    if request.method == 'POST':
+        post_data = request.POST.copy()
+        # "Others" handling for header pickup.
+        if post_data.get('from_location') == 'Others':
+            other = (post_data.get('from_location_other') or '').strip()
+            if other:
+                post_data['from_location'] = other
+        # "Others" handling for each item row.
+        try:
+            total = int(post_data.get('items-TOTAL_FORMS', 0))
+        except (TypeError, ValueError):
+            total = 0
+        for i in range(total):
+            loc_key = f'items-{i}-location'
+            other_key = f'items-{i}-location_other'
+            if post_data.get(loc_key) == 'Others':
+                other = (post_data.get(other_key) or '').strip()
+                if other:
+                    post_data[loc_key] = other
+
+        header = SORBundleHeaderForm(post_data)
+        items = SORBundleItemFormSet(post_data, prefix='items')
+
+        if header.is_valid() and items.is_valid():
+            bundle_id = _uuid.uuid4()
+            vehicle = header.cleaned_data['vehicle']
+            driver = header.cleaned_data['driver']
+            from_location = header.cleaned_data['from_location']
+
+            created_sors = []
+            with transaction.atomic():
+                seq = 0
+                for f in items:
+                    if not f.cleaned_data or f.cleaned_data.get('DELETE'):
+                        continue
+                    seq += 1
+                    sor = SOR.objects.create(
+                        source_type='company',
+                        goods_value=f.cleaned_data['goods_value'],
+                        from_location=from_location,
+                        to_location=f.cleaned_data['location'],
+                        vehicle=vehicle,
+                        driver=driver,
+                        number_of_crates=f.cleaned_data.get('number_of_crates'),
+                        number_of_sac=f.cleaned_data.get('number_of_sac'),
+                        description=f.cleaned_data.get('description') or None,
+                        status='pending',
+                        created_by=request.user,
+                        bundle_id=bundle_id,
+                        bundle_sequence=seq,
+                    )
+                    created_sors.append(sor)
+
+            if not created_sors:
+                messages.error(request, 'Add at least one destination row.')
+                return render(request, 'sor/sor_bundle_form.html', {
+                    'header': header, 'items': items,
+                })
+
+            # One bundle notification linked to the first SOR (used to deep-link).
+            first_sor = created_sors[0]
+            store_names = ', '.join(s.to_location for s in created_sors)
+            SORNotification.objects.create(
+                sor=first_sor,
+                driver=driver,
+                message=(f"New trip bundle: {len(created_sors)} SOR(s) from "
+                         f"{from_location} to {store_names}. Please accept or reject."),
+            )
+            messages.success(request,
+                             f'Bundle created with {len(created_sors)} SOR(s) and driver notified.')
+            return redirect('sor_list')
+    else:
+        header = SORBundleHeaderForm()
+        items = SORBundleItemFormSet(prefix='items')
+
+    return render(request, 'sor/sor_bundle_form.html', {
+        'header': header, 'items': items,
+    })
+
+
+@login_required
+def sor_bundle_progress(request, bundle_id):
+    """Driver page: lists all SORs in the bundle in order with per-SOR
+    'Enter Odometer' actions."""
+    sors = list(SOR.objects.filter(bundle_id=bundle_id).order_by('bundle_sequence', 'id'))
+    if not sors:
+        messages.error(request, 'Bundle not found.')
+        return redirect('sor_list')
+
+    first = sors[0]
+    if request.user.user_type == 'driver':
+        if first.driver_id != request.user.id:
+            return HttpResponseForbidden('You can only view your own SOR bundles.')
+    elif not request.user.has_module_permission('sor', 'view'):
+        return HttpResponseForbidden('You do not have permission to view this bundle.')
+
+    next_pending = next((s for s in sors if s.status in ('pending', 'driver_accepted', 'in_progress')), None)
+
+    return render(request, 'sor/sor_bundle_progress.html', {
+        'bundle_id': bundle_id,
+        'sors': sors,
+        'first': first,
+        'next_pending_id': next_pending.id if next_pending else None,
+        'is_driver': first.driver_id == request.user.id,
+        'all_completed': all(s.status == 'completed' for s in sors),
+        'any_active': any(s.status in ('driver_accepted', 'in_progress') for s in sors),
+    })
+
+
+@login_required
+def sor_bundle_accept(request, bundle_id):
+    """Driver accepts a bundle. Creates one Trip for all SORs in the bundle."""
+    sors = list(SOR.objects.filter(bundle_id=bundle_id).order_by('bundle_sequence', 'id'))
+    if not sors:
+        messages.error(request, 'Bundle not found.')
+        return redirect('sor_list')
+
+    first = sors[0]
+    if first.driver_id != request.user.id:
+        return HttpResponseForbidden('Only the assigned driver can accept this bundle.')
+
+    pending = [s for s in sors if s.status == 'pending']
+    if not pending:
+        messages.info(request, 'This bundle is already in progress.')
+        return redirect('sor_bundle_progress', bundle_id=bundle_id)
+
+    start_odometer = first.vehicle.current_odometer or 0
+    destinations = ', '.join(s.to_location for s in sors)
+
+    with transaction.atomic():
+        trip = Trip.objects.create(
+            vehicle=first.vehicle,
+            driver=first.driver,
+            start_time=timezone.now(),
+            start_odometer=start_odometer,
+            origin=first.from_location,
+            destination=destinations[:255],
+            purpose=f"SOR bundle ({len(sors)} drops)",
+            notes=f"Started from SOR bundle {bundle_id}",
+            status='ongoing',
+            entry_type='real_time',
+        )
+        for s in sors:
+            if s.status == 'pending':
+                s.status = 'in_progress'
+                s.trip = trip
+                if s.start_odometer is None:
+                    s.start_odometer = start_odometer
+                s.save()
+
+    SORNotification.objects.filter(sor__bundle_id=bundle_id, driver=request.user, is_read=False).update(is_read=True)
+    messages.success(request, 'Bundle accepted. Enter the odometer at each store as you arrive.')
+    return redirect('sor_bundle_progress', bundle_id=bundle_id)
+
+
+@login_required
+def sor_bundle_complete_sor(request, bundle_id, sor_id):
+    """Driver records arrival odometer for a single SOR inside a bundle.
+
+    Marks that SOR completed. When the last SOR in the bundle is completed,
+    closes the shared Trip.
+    """
+    sor = get_object_or_404(SOR, pk=sor_id, bundle_id=bundle_id)
+    if sor.driver_id != request.user.id:
+        return HttpResponseForbidden('Only the assigned driver can record stops.')
+    if sor.status not in ('driver_accepted', 'in_progress'):
+        messages.error(request, 'This SOR is not in an active state.')
+        return redirect('sor_bundle_progress', bundle_id=bundle_id)
+    if request.method != 'POST':
+        return redirect('sor_bundle_progress', bundle_id=bundle_id)
+
+    # Enforce sequential order inside the bundle.
+    earlier_active = SOR.objects.filter(
+        bundle_id=bundle_id,
+        bundle_sequence__lt=sor.bundle_sequence or 0,
+        status__in=('pending', 'driver_accepted', 'in_progress'),
+    ).exists()
+    if earlier_active:
+        messages.error(request, 'Please complete earlier SORs first.')
+        return redirect('sor_bundle_progress', bundle_id=bundle_id)
+
+    odo_raw = (request.POST.get('arrival_odometer') or '').strip()
+    notes = (request.POST.get('notes') or '').strip()
+    if not odo_raw:
+        messages.error(request, 'Odometer reading is required.')
+        return redirect('sor_bundle_progress', bundle_id=bundle_id)
+    try:
+        from decimal import Decimal, InvalidOperation
+        odo = Decimal(odo_raw)
+    except (InvalidOperation, ValueError):
+        messages.error(request, 'Invalid odometer reading.')
+        return redirect('sor_bundle_progress', bundle_id=bundle_id)
+    if odo < 0:
+        messages.error(request, 'Odometer reading cannot be negative.')
+        return redirect('sor_bundle_progress', bundle_id=bundle_id)
+
+    # Validate against previous reading (start_odometer or last completed SOR in bundle).
+    prev_reading = None
+    prev_sor = SOR.objects.filter(
+        bundle_id=bundle_id,
+        bundle_sequence__lt=sor.bundle_sequence or 0,
+        end_odometer__isnull=False,
+    ).order_by('-bundle_sequence').first()
+    if prev_sor:
+        prev_reading = prev_sor.end_odometer
+    elif sor.start_odometer is not None:
+        prev_reading = sor.start_odometer
+    if prev_reading is not None and odo < prev_reading:
+        messages.error(request,
+                       f'Odometer must be greater than or equal to previous reading ({prev_reading}).')
+        return redirect('sor_bundle_progress', bundle_id=bundle_id)
+
+    sor.end_odometer = odo
+    if sor.start_odometer is not None:
+        sor.distance_km = odo - sor.start_odometer
+    sor.status = 'completed'
+    if notes:
+        prefix = (sor.description + '\n') if sor.description else ''
+        sor.description = prefix + f'Driver note: {notes}'
+    sor.save()
+
+    # If every SOR in the bundle is completed, close the shared Trip.
+    remaining = SOR.objects.filter(bundle_id=bundle_id).exclude(status='completed').exists()
+    if not remaining and sor.trip_id:
+        trip = sor.trip
+        if trip.status == 'ongoing':
+            trip.status = 'completed'
+            trip.end_time = timezone.now()
+            try:
+                trip.end_odometer = int(odo)
+            except (TypeError, ValueError):
+                pass
+            trip.save()
+
+    messages.success(request, f'SOR #{sor.id} ({sor.to_location}) marked completed.')
+    return redirect('sor_bundle_progress', bundle_id=bundle_id)

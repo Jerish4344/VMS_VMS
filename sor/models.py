@@ -3,6 +3,7 @@ from django.db import models
 from django.conf import settings
 from vehicles.models import Vehicle
 from django.contrib.auth import get_user_model
+import uuid
 
 User = get_user_model()
 
@@ -41,6 +42,12 @@ class SOR(models.Model):
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_sors')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # ---- Bundle support: many SORs can share one trip ----
+    bundle_id = models.UUIDField(null=True, blank=True, db_index=True,
+                                 help_text='Groups multiple SORs that ride on the same trip.')
+    bundle_sequence = models.PositiveIntegerField(null=True, blank=True,
+                                                  help_text='Order of this SOR within its bundle (1, 2, 3 ...).')
 
     def transport_cost(self):
         if self.distance_km:

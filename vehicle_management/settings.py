@@ -208,6 +208,27 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'trips.tasks.send_overnight_trip_alert_async',
         'schedule': crontab(hour=5, minute=30),  # Daily at 5:30 AM IST
     },
+    'clear-expired-sessions': {
+        'task': 'core.tasks.run_management_command',
+        'schedule': crontab(hour=3, minute=0),  # Daily at 3 AM IST
+        'args': ('clearsessions',),
+    },
+    'purge-notifications': {
+        'task': 'core.tasks.run_management_command',
+        'schedule': crontab(hour=3, minute=15),  # Daily at 3:15 AM IST
+        'args': ('purge_notifications',),
+    },
+    'purge-trip-locations': {
+        'task': 'core.tasks.run_management_command',
+        'schedule': crontab(hour=3, minute=30, day_of_week=0),  # Weekly Sunday 3:30 AM
+        'args': ('purge_trip_locations', '--days', '90'),
+    },
+    'downsample-trip-locations': {
+        'task': 'core.tasks.run_management_command',
+        'schedule': crontab(hour=4, minute=0, day_of_week=0),  # Weekly Sunday 4:00 AM
+        'args': ('downsample_trip_locations', '--older-than-days', '7',
+                 '--interval-seconds', '300', '--interval-meters', '500'),
+    },
 }
 
 # Jazzmin Settings

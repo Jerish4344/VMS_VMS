@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+
+      <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h4 class="mb-1"><i class="fas fa-layer-group me-2 text-primary"></i>SOR Bundle</h4>
+              <div class="text-muted small">
+                <i class="fas fa-truck me-1"></i>{{ first.vehicle }}
+                <span class="mx-2">|</span>
+                <i class="fas fa-user me-1"></i>{{ first.driver.get_full_name|default:first.driver.username }}
+                <span class="mx-2">|</span>
+                <i class="fas fa-map-marker-alt me-1"></i>Pickup: {{ first.from_location }}
+              </div>
+            </div>
+            <div>
+              <span class="badge fs-6 {% if all_completed %}bg-success{% elif any_active %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">
+                {% if all_completed %}Bundle Completed{% elif any_active %}In Progress{% else %}Pending{% endif %}
+              </span>
+            </div>
+          </div>
+          <div class="text-muted small mt-2">{{ sors|length }} SOR(s) in this bundle</div>
+        </div>
+      </div>
+
+      {% if messages %}
+        {% for m in messages %}
+          <div class="alert alert-{{ m.tags|default:'info' }} py-2 small">{{ m }}</div>
+        {% endfor %}
+      {% endif %}
+
+      {% if is_driver and not any_active and not all_completed %}
+        <form method="post" action="{% url 'sor_bundle_accept' bundle_id %}" class="mb-3">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-success">
+            <i class="fas fa-check me-1"></i> Accept Bundle &amp; Start Trip
+          </button>
+        </form>
+      {% endif %}
+
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-white border-0 d-flex align-items-center">
+          <i class="fas fa-route me-2 text-primary"></i>
+          <h5 class="mb-0">SORs in this Trip</h5>
+        </div>
+        <div class="card-body">
+          <div class="list-group">
+            {% for s in sors %}
+              <div class="list-group-item">
+                <div class="d-flex align-items-start justify-content-between">
+                  <div>
+                    <span class="badge
+                      {% if s.status == 'completed' %}bg-success
+                      {% elif s.status == 'in_progress' or s.status == 'driver_accepted' %}bg-info text-dark
+                      {% elif s.status == 'rejected' %}bg-danger
+                      {% else %}bg-warning text-dark{% endif %} me-2">
+                      {{ s.bundle_sequence|default:forloop.counter }}
+                    </span>
+                    <strong>SOR #{{ s.id }}</strong>
+                    &middot; <strong>{{ s.to_location }}</strong>
+                    <span class="badge
+                      {% if s.status == 'completed' %}bg-success
+                      {% elif s.status == 'in_progress' or s.status == 'driver_accepted' %}bg-info text-dark
+                      {% elif s.status == 'rejected' %}bg-danger
+                      {% else %}bg-light text-dark border{% endif %} ms-2">{{ s.get_status_display }}</span>
+                    <div class="small text-muted mt-1">
+                      Goods Value: <strong>{{ s.goods_value }}</strong>
+                      {% if s.number_of_crates %} &middot; Crates: {{ s.number_of_crates }}{% endif %}
+                      {% if s.number_of_sac %} &middot; Sacs: {{ s.number_of_sac }}{% endif %}
+                      {% if s.description %}<br>{{ s.description|linebreaksbr }}{% endif %}
+                    </div>
+                    {% if s.end_odometer %}
+                      <div class="small mt-1">
+                        <span class="text-success"><i class="fas fa-check-circle me-1"></i>Odo: {{ s.end_odometer }}</span>
+                        {% if s.distance_km %}<span class="text-muted ms-2">+{{ s.distance_km|floatformat:2 }} km</span>{% endif %}
+                        {% if s.updated_at %}<span class="text-muted ms-2">{{ s.updated_at|date:'d M Y, H:i' }}</span>{% endif %}
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  {% if is_driver and s.id == next_pending_id and s.status != 'pending' %}
+                    <div class="ms-3 text-end" style="min-width:280px;">
+                      <form method="post" action="{% url 'sor_bundle_complete_sor' bundle_id s.id %}" class="mb-0">
+                        {% csrf_token %}
+                        <div class="input-group input-group-sm mb-1">
+                          <span class="input-group-text">Odo</span>
+                          <input type="number" step="0.01" min="0" name="arrival_odometer"
+                                 class="form-control" required placeholder="Odometer at this store">
+                        </div>
+                        <input type="text" name="notes" class="form-control form-control-sm mb-1"
+                               placeholder="Notes (optional)">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                          <i class="fas fa-flag-checkered me-1"></i>Mark SOR Completed
+                        </button>
+                      </form>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="d-flex justify-content-between mt-3">
+            <a href="{% url 'sor_list' %}" class="btn btn-outline-secondary btn-sm">
+              <i class="fas fa-arrow-left me-1"></i>Back to SOR list
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

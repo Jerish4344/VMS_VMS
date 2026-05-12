@@ -622,7 +622,18 @@ class EndTripView(LoginRequiredMixin, UpdateView):
         if not trip.can_be_ended_by(self.request.user):
             messages.error(self.request, 'You do not have permission to end this trip.')
             raise PermissionDenied("Cannot end this trip")
-        
+
+        # Block manual End Trip for SOR Bundle trips. They are closed
+        # automatically when every SOR in the bundle is marked completed
+        # from the bundle progress page.
+        bundle_sor = trip.sor_entry.exclude(bundle_id__isnull=True).first()
+        if bundle_sor is not None:
+            messages.error(
+                self.request,
+                'This is a Bundle SOR trip. Please complete each SOR from the Bundle SOR page; the trip will close automatically.'
+            )
+            raise PermissionDenied("Cannot end a bundle SOR trip directly")
+
         return trip
     
     def get_context_data(self, **kwargs):

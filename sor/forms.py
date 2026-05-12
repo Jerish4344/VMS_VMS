@@ -120,7 +120,7 @@ class SORForm(forms.ModelForm):
     ]
 
     from_location = LocationChoiceField(choices=LOCATION_CHOICES, label="From Location", required=True)
-    to_location = LocationChoiceField(choices=LOCATION_CHOICES, label="To Location", required=True)
+    to_location = LocationChoiceField(choices=LOCATION_CHOICES, label="To Destination", required=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -318,3 +318,91 @@ class SORFilterForm(forms.Form):
         super().__init__(*args, **kwargs)
         User = get_user_model()
         self.fields['driver'].queryset = User.objects.filter(user_type='driver', is_active=True)
+
+
+# ---------------------------------------------------------------------------
+# SOR Bundle: one Trip with many SORs (one SOR per store)
+# ---------------------------------------------------------------------------
+
+class SORBundleHeaderForm(forms.Form):
+    """Header for a multi-SOR bundle: one vehicle, one driver, one pickup."""
+
+    vehicle = forms.ModelChoiceField(
+        queryset=Vehicle.objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )
+    driver = forms.ModelChoiceField(
+        queryset=None,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )
+    from_location = LocationChoiceField(
+        choices=SORForm.LOCATION_CHOICES, label='Pickup Location', required=True,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        ongoing_vehicle_ids = Trip.objects.filter(status='ongoing').values_list('vehicle_id', flat=True)
+        self.fields['vehicle'].queryset = Vehicle.objects.filter(
+            vehicle_type__category='commercial'
+        ).exclude(id__in=ongoing_vehicle_ids)
+        User = get_user_model()
+        self.fields['driver'].queryset = User.objects.filter(user_type='driver', is_active=True)
+
+    def clean_from_location(self):
+        value = self.cleaned_data.get('from_location')
+        if value == 'Others':
+            other = (self.data.get('from_location_other') or '').strip()
+            if other:
+                return other
+        return value
+
+
+class SORBundleItemForm(forms.Form):
+    """Single store entry inside a bundle. Each row becomes its own SOR."""
+
+    location = LocationChoiceField(
+        choices=SORForm.LOCATION_CHOICES, required=True,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm bundle-item-location'})
+    )
+    goods_value = forms.DecimalField(
+        required=True, min_value=0, max_digits=12, decimal_places=2,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm', 'step': '0.01', 'min': 0,
+            'placeholder': 'Goods value'
+        })
+    )
+    number_of_crates = forms.IntegerField(
+        required=False, min_value=0,
+        widget=forms.NumberInput(attrs={'class': 'form-control form-control-sm', 'min': 0,
+                                        'placeholder': 'Optional'})
+    )
+    number_of_sac = forms.IntegerField(
+        required=False, min_value=0,
+        widget=forms.NumberInput(attrs={'class': 'form-control form-control-sm', 'min': 0,
+                                        'placeholder': 'Optional'})
+    )
+    description = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control form-control-sm', 'rows': 1,
+                                     'placeholder': 'Optional contents'})
+    )
+
+    def clean_location(self):
+        value = self.cleaned_data.get('location')
+        if value == 'Others':
+            prefix = self.prefix or ''
+            other_key = f'{prefix}-location_other' if prefix else 'location_other'
+            other = (self.data.get(other_key) or '').strip()
+            if other:
+                return other
+        return value
+
+
+SORBundleItemFormSet = forms.formset_factory(
+    SORBundleItemForm,
+    extra=1,
+    can_delete=True,
+    min_num=1,
+    validate_min=True,
+)

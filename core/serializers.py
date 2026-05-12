@@ -63,6 +63,9 @@ class TripSerializer(serializers.ModelSerializer):
     driver = UserSerializer(read_only=True)
     distance = serializers.SerializerMethodField()
     duration = serializers.SerializerMethodField()
+    bundle_id = serializers.SerializerMethodField()
+    is_bundle_trip = serializers.SerializerMethodField()
+    bundle_size = serializers.SerializerMethodField()
     
     class Meta:
         model = Trip
@@ -72,6 +75,7 @@ class TripSerializer(serializers.ModelSerializer):
             'purpose', 'notes', 'status', 'entry_type', 'distance', 'duration',
             'gps_tracking_enabled', 'created_at', 'updated_at',
             'start_odometer_image', 'end_odometer_image',
+            'bundle_id', 'is_bundle_trip', 'bundle_size',
         ]
     
     def get_distance(self, obj):
@@ -79,6 +83,22 @@ class TripSerializer(serializers.ModelSerializer):
     
     def get_duration(self, obj):
         return obj.duration()
+
+    def _bundle_sor(self, obj):
+        return obj.sor_entry.exclude(bundle_id__isnull=True).first()
+
+    def get_bundle_id(self, obj):
+        bsor = self._bundle_sor(obj)
+        return str(bsor.bundle_id) if bsor else None
+
+    def get_is_bundle_trip(self, obj):
+        return self._bundle_sor(obj) is not None
+
+    def get_bundle_size(self, obj):
+        bsor = self._bundle_sor(obj)
+        if not bsor:
+            return None
+        return SOR.objects.filter(bundle_id=bsor.bundle_id).count()
 
 
 class TripCreateSerializer(serializers.ModelSerializer):
@@ -263,6 +283,7 @@ class SORSerializer(serializers.ModelSerializer):
             'trip', 'number_of_crates', 'number_of_sac', 'description',
             'created_by', 'created_at', 'updated_at',
             'transport_cost', 'transport_cost_percentage',
+            'bundle_id', 'bundle_sequence',
         ]
     
     def get_transport_cost(self, obj):
@@ -391,7 +412,17 @@ class P2PSORSerializer(serializers.ModelSerializer):
 
 class SORNotificationSerializer(serializers.ModelSerializer):
     sor_id = serializers.IntegerField(source='sor.id')
-    
+    bundle_id = serializers.SerializerMethodField()
+    bundle_size = serializers.SerializerMethodField()
+
     class Meta:
         model = SORNotification
-        fields = ['id', 'sor_id', 'message', 'is_read', 'created_at']
+        fields = ['id', 'sor_id', 'bundle_id', 'bundle_size', 'message', 'is_read', 'created_at']
+
+    def get_bundle_id(self, obj):
+        return str(obj.sor.bundle_id) if obj.sor.bundle_id else None
+
+    def get_bundle_size(self, obj):
+        if not obj.sor.bundle_id:
+            return None
+        return SOR.objects.filter(bundle_id=obj.sor.bundle_id).count()

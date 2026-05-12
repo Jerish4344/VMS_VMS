@@ -1097,9 +1097,17 @@
                   <p><strong>Start Odometer:</strong> {{ trip.start_odometer }} km</p>
                 </div>
                 <div class="col-md-6 text-md-end">
-                  <a href="{% url 'end_trip' trip.id %}" class="btn btn-warning mb-2">
-                    <i class="fas fa-flag-checkered"></i> End Trip
-                  </a>
+                  {% with bundle_sor=trip.sor_entry.first %}
+                    {% if bundle_sor and bundle_sor.bundle_id %}
+                      <a href="{% url 'sor_bundle_progress' bundle_sor.bundle_id %}" class="btn btn-success mb-2" title="View Bundle SOR stops">
+                        <i class="fas fa-layer-group"></i> Bundle SOR
+                      </a>
+                    {% else %}
+                      <a href="{% url 'end_trip' trip.id %}" class="btn btn-warning mb-2">
+                        <i class="fas fa-flag-checkered"></i> End Trip
+                      </a>
+                    {% endif %}
+                  {% endwith %}
                   <a href="{% url 'trip_detail' trip.id %}" class="btn btn-info mb-2">
                     <i class="fas fa-info-circle"></i> Details
                   </a>
@@ -1335,10 +1343,19 @@
                 {% endif %}
               </div>
               <div class="col-md-6 text-md-end">
-                <a href="{% url 'end_trip' trip.id %}" class="btn btn-danger btn-lg mb-2">
-                  <i class="fas fa-flag-checkered"></i> End Trip
-                </a>
-                <br>
+                {% with bundle_sor=trip.sor_entry.first %}
+                  {% if bundle_sor and bundle_sor.bundle_id %}
+                    <a href="{% url 'sor_bundle_progress' bundle_sor.bundle_id %}" class="btn btn-success btn-lg mb-2" title="View Bundle SOR stops">
+                      <i class="fas fa-layer-group"></i> Bundle SOR
+                    </a>
+                    <br>
+                  {% else %}
+                    <a href="{% url 'end_trip' trip.id %}" class="btn btn-danger btn-lg mb-2">
+                      <i class="fas fa-flag-checkered"></i> End Trip
+                    </a>
+                    <br>
+                  {% endif %}
+                {% endwith %}
                 <a href="{% url 'trip_detail' trip.id %}" class="btn btn-info mb-2">
                   <i class="fas fa-info-circle"></i> Details
                 </a>

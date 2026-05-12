@@ -1,0 +1,233 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-9">
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-white border-0 pb-0 d-flex align-items-center">
+          <i class="fas fa-layer-group fa-lg me-2 text-primary"></i>
+          <h4 class="mb-0">Create SOR Bundle (One Trip, Many SORs)</h4>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small mb-3">
+            Pick the vehicle, driver and pickup once. Then add a row for every store —
+            each row becomes a <strong>separate SOR</strong> with its own ID, all sharing the same trip.
+          </p>
+
+          <form method="post" autocomplete="off">
+            {% csrf_token %}
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Vehicle <span class="text-danger">*</span></label>
+                {{ header.vehicle }}
+                {% for e in header.vehicle.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Driver <span class="text-danger">*</span></label>
+                {{ header.driver }}
+                {% for e in header.driver.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Pickup Location <span class="text-danger">*</span></label>
+                {{ header.from_location }}
+                <input type="text" name="from_location_other" id="from_location_other"
+                       class="form-control form-control-sm mt-1" style="display:none;"
+                       placeholder="Enter other location">
+                {% for e in header.from_location.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+            </div>
+
+            <hr>
+
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="mb-0">
+                Destinations (one SOR per row) <span class="text-danger">*</span>
+              </h6>
+              <button type="button" class="btn btn-primary btn-sm" id="add-item-btn">
+                <i class="fas fa-plus"></i> Add Destination
+              </button>
+            </div>
+            <div class="form-text mb-2">Each row creates a separate SOR with its own ID.</div>
+
+            {{ items.management_form }}
+            {% if items.non_form_errors %}
+              <div class="alert alert-danger py-2 small">{{ items.non_form_errors }}</div>
+            {% endif %}
+
+            <div id="bundle-items-container">
+              {% for f in items %}
+                <div class="card mb-2 bundle-item-card">
+                  <div class="card-body py-2 px-3">
+                    <div class="d-flex align-items-start">
+                      <span class="badge bg-primary me-2 mt-1 item-seq-badge">{{ forloop.counter }}</span>
+                      <div class="flex-grow-1">
+                        <div class="row g-2">
+                          <div class="col-md-5">
+                            <label class="form-label small mb-1">Store / Destination <span class="text-danger">*</span></label>
+                            {{ f.location }}
+                            <input type="text" name="{{ f.prefix }}-location_other"
+                                   class="form-control form-control-sm mt-1 item-location-other"
+                                   style="display:none;" placeholder="Enter other location">
+                          </div>
+                          <div class="col-md-3">
+                            <label class="form-label small mb-1">Goods Value <span class="text-danger">*</span></label>
+                            {{ f.goods_value }}
+                          </div>
+                          <div class="col-md-2">
+                            <label class="form-label small mb-1">Crates</label>
+                            {{ f.number_of_crates }}
+                          </div>
+                          <div class="col-md-2">
+                            <label class="form-label small mb-1">Sacs</label>
+                            {{ f.number_of_sac }}
+                          </div>
+                          <div class="col-md-12">
+                            <label class="form-label small mb-1">Description</label>
+                            {{ f.description }}
+                          </div>
+                        </div>
+                        {% for fld in f %}
+                          {% for err in fld.errors %}
+                            <div class="text-danger small mt-1">{{ fld.label }}: {{ err }}</div>
+                          {% endfor %}
+                        {% endfor %}
+                      </div>
+                      <div class="ms-2 d-flex flex-column align-items-end">
+                        <div class="form-check small mt-1" style="display:none;">{{ f.DELETE }}</div>
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-item-btn">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+
+            <template id="empty-item-template">
+              <div class="card mb-2 bundle-item-card">
+                <div class="card-body py-2 px-3">
+                  <div class="d-flex align-items-start">
+                    <span class="badge bg-primary me-2 mt-1 item-seq-badge">#</span>
+                    <div class="flex-grow-1">
+                      <div class="row g-2">
+                        <div class="col-md-5">
+                          <label class="form-label small mb-1">Store / Destination <span class="text-danger">*</span></label>
+                          {{ items.empty_form.location }}
+                          <input type="text" name="{{ items.empty_form.prefix }}-location_other"
+                                 class="form-control form-control-sm mt-1 item-location-other"
+                                 style="display:none;" placeholder="Enter other location">
+                        </div>
+                        <div class="col-md-3">
+                          <label class="form-label small mb-1">Goods Value <span class="text-danger">*</span></label>
+                          {{ items.empty_form.goods_value }}
+                        </div>
+                        <div class="col-md-2">
+                          <label class="form-label small mb-1">Crates</label>
+                          {{ items.empty_form.number_of_crates }}
+                        </div>
+                        <div class="col-md-2">
+                          <label class="form-label small mb-1">Sacs</label>
+                          {{ items.empty_form.number_of_sac }}
+                        </div>
+                        <div class="col-md-12">
+                          <label class="form-label small mb-1">Description</label>
+                          {{ items.empty_form.description }}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="ms-2">
+                      <button type="button" class="btn btn-sm btn-outline-danger remove-item-btn">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <div class="d-flex justify-content-end mt-3">
+              <button type="submit" class="btn btn-primary px-4">
+                <i class="fas fa-paper-plane me-1"></i> Create Bundle &amp; Notify Driver
+              </button>
+              <a href="{% url 'sor_list' %}" class="btn btn-outline-secondary ms-2">
+                <i class="fas fa-arrow-left me-1"></i> Cancel
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  function attachOthers(card) {
+    var sel = card.querySelector('select.bundle-item-location');
+    var other = card.querySelector('.item-location-other');
+    if (!sel || !other) return;
+    function sync() {
+      if (sel.value === 'Others') { other.style.display = 'block'; }
+      else { other.style.display = 'none'; other.value = ''; }
+    }
+    sel.addEventListener('change', sync); sync();
+  }
+  function attachRemove(card) {
+    var btn = card.querySelector('.remove-item-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      var del = card.querySelector('input[type="checkbox"][name$="-DELETE"]');
+      if (del) { del.checked = true; card.style.display = 'none'; }
+      else { card.remove(); }
+      renumber();
+    });
+  }
+  function renumber() {
+    var visible = 0;
+    document.querySelectorAll('#bundle-items-container .bundle-item-card').forEach(function(c) {
+      if (c.style.display === 'none') return;
+      visible++;
+      var b = c.querySelector('.item-seq-badge');
+      if (b) b.textContent = visible;
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Header pickup "Others"
+    var pickup = document.getElementById('id_from_location');
+    var pickupOther = document.getElementById('from_location_other');
+    if (pickup && pickupOther) {
+      function sp() {
+        if (pickup.value === 'Others') { pickupOther.style.display = 'block'; }
+        else { pickupOther.style.display = 'none'; pickupOther.value = ''; }
+      }
+      pickup.addEventListener('change', sp); sp();
+    }
+
+    document.querySelectorAll('#bundle-items-container .bundle-item-card').forEach(function(c) {
+      attachOthers(c); attachRemove(c);
+    });
+
+    var addBtn = document.getElementById('add-item-btn');
+    var container = document.getElementById('bundle-items-container');
+    var tpl = document.getElementById('empty-item-template');
+    var total = document.querySelector('input[name="items-TOTAL_FORMS"]');
+    if (addBtn && container && tpl && total) {
+      addBtn.addEventListener('click', function() {
+        var idx = parseInt(total.value, 10) || 0;
+        var html = tpl.innerHTML.replace(/__prefix__/g, idx);
+        var wrap = document.createElement('div');
+        wrap.innerHTML = html.trim();
+        var card = wrap.firstElementChild;
+        container.appendChild(card);
+        total.value = idx + 1;
+        attachOthers(card); attachRemove(card); renumber();
+      });
+    }
+    renumber();
+  });
+})();
+</script>
+{% endblock %}

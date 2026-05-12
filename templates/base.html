@@ -442,6 +442,9 @@
               <li>
                 <a href="{% url 'sor_create' %}" class="menu-item-enhanced">Create SOR Entry</a>
               </li>
+              <li>
+                <a href="{% url 'sor_bundle_create' %}" class="menu-item-enhanced">Bundle SOR</a>
+              </li>
             </ul>
           </li>
           
@@ -457,6 +460,9 @@
               </li>
               <li>
                 <a href="{% url 'sor_create' %}" class="menu-item-enhanced">Create SOR Entry</a>
+              </li>
+              <li>
+                <a href="{% url 'sor_bundle_create' %}" class="menu-item-enhanced">Bundle SOR</a>
               </li>
             </ul>
           </li>
@@ -1234,6 +1240,9 @@
               {% if request.user|has_permission:'sor,add' %}
               <li>
                 <a href="{% url 'sor_create' %}" class="menu-item-enhanced">Create SOR Entry</a>
+              </li>
+              <li>
+                <a href="{% url 'sor_bundle_create' %}" class="menu-item-enhanced">Bundle SOR</a>
               </li>
               {% endif %}
             </ul>

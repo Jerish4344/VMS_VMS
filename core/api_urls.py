@@ -51,6 +51,13 @@ urlpatterns = [
     path('sor/notifications/<int:pk>/read/', api_views.SORNotificationMarkReadView.as_view(), name='api-sor-notification-read'),
     path('sor/notifications/mark-all-read/', api_views.SORNotificationMarkAllReadView.as_view(), name='api-sor-notifications-mark-all-read'),
     
+    # SOR Bundle endpoints (mobile app: one trip, many SORs)
+    path('sor/bundle/my/', api_views.SORBundleListView.as_view(), name='api-sor-bundle-list'),
+    path('sor/bundle/create/', api_views.SORBundleCreateView.as_view(), name='api-sor-bundle-create'),
+    path('sor/bundle/<uuid:bundle_id>/', api_views.SORBundleDetailView.as_view(), name='api-sor-bundle-detail'),
+    path('sor/bundle/<uuid:bundle_id>/accept/', api_views.SORBundleAcceptView.as_view(), name='api-sor-bundle-accept'),
+    path('sor/bundle/<uuid:bundle_id>/sor/<int:sor_id>/complete/', api_views.SORBundleCompleteSORView.as_view(), name='api-sor-bundle-complete-sor'),
+    
     # Personal Vehicle Staff endpoints
     path('personal-vehicles/', api_views.PersonalVehicleListView.as_view(), name='api-personal-vehicles'),
     path('personal-vehicles/<int:pk>/', api_views.PersonalVehicleDetailView.as_view(), name='api-personal-vehicle-detail'),
