@@ -606,7 +606,8 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
             vehicle__in=personal_vehicles,
             start_time__gte=first_of_month,
             status='completed',
-            is_deleted=False
+            is_deleted=False,
+            approval_status__in=['not_required', 'approved'],
         )
         
         # Calculate monthly stats
@@ -625,6 +626,21 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
         context['monthly_distance'] = total_distance
         context['monthly_trips'] = trip_count
         context['monthly_reimbursement'] = total_reimbursement
+
+        # Personal Trip approval flow stats (effective 01-May-2026)
+        context['pending_approval_count'] = Trip.objects.filter(
+            driver=staff,
+            vehicle__in=personal_vehicles,
+            approval_status='pending',
+            is_deleted=False,
+        ).count()
+        context['rejected_approval_count'] = Trip.objects.filter(
+            driver=staff,
+            vehicle__in=personal_vehicles,
+            approval_status='rejected',
+            is_deleted=False,
+            start_time__gte=first_of_month,
+        ).count()
         
         # Calculate average reimbursement rate
         if total_distance > 0:
@@ -655,7 +671,8 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
                 start_time__gte=month_date,
                 start_time__lt=next_month,
                 status='completed',
-                is_deleted=False
+                is_deleted=False,
+                approval_status__in=['not_required', 'approved'],
             )
             
             # Calculate distance and reimbursement

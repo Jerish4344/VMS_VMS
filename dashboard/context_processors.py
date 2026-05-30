@@ -49,3 +49,35 @@ def notifications_processor(request):
         'notifications': [],
         'notifications_count': 0,
     }
+
+def pending_trip_approvals_processor(request):
+    """Expose count of trips awaiting the current user's approval (sidebar badge)."""
+    if not request.user.is_authenticated:
+        return {'pending_trip_approvals_count': 0}
+    cache_key = f'pending_trip_approvals_{request.user.pk}'
+    try:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return {'pending_trip_approvals_count': cached}
+    except Exception:
+        pass
+    try:
+        from trips.models import Trip
+        if getattr(request.user, 'user_type', '') == 'admin':
+            count = Trip.objects.filter(
+                approval_status='pending',
+                is_deleted=False,
+            ).count()
+        else:
+            count = Trip.objects.filter(
+                approval_manager=request.user,
+                approval_status='pending',
+                is_deleted=False,
+            ).count()
+    except Exception:
+        count = 0
+    try:
+        cache.set(cache_key, count, 30)
+    except Exception:
+        pass
+    return {'pending_trip_approvals_count': count}

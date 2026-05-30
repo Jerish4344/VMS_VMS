@@ -25,9 +25,10 @@ class CustomUserAdmin(DefaultUserAdmin):
     form = CustomUserChangeForm
     add_form = CustomUserCreationForm
     
-    list_display = ('username', 'email', 'first_name', 'last_name', 'user_type', 'access_type', 'department', 'is_active', 'approval_status', 'cached_password_status', 'hr_authenticated_at', 'get_assigned_stores_count')
+    list_display = ('username', 'email', 'first_name', 'last_name', 'user_type', 'access_type', 'department', 'reports_to', 'is_active', 'approval_status', 'cached_password_status', 'hr_authenticated_at', 'get_assigned_stores_count')
     list_filter = ('user_type', 'access_type', 'department', 'approval_status', 'is_active', 'is_staff', 'assigned_stores')
     search_fields = ('username', 'email', 'first_name', 'last_name')
+    autocomplete_fields = ('reports_to',)
     ordering = ('username',)
     filter_horizontal = ('assigned_stores',)  # Makes the many-to-many field easier to manage
     
@@ -63,7 +64,7 @@ class CustomUserAdmin(DefaultUserAdmin):
         (None, {'fields': ('username', 'password')}),
         (_('Personal info'), {'fields': ('first_name', 'last_name', 'email', 'phone_number', 'address', 'profile_picture')}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
-        (_('User Type & Department'), {'fields': ('user_type', 'access_type', 'department')}),
+        (_('User Type & Department'), {'fields': ('user_type', 'access_type', 'department', 'reports_to')}),
         (_('Driver Info'), {'fields': ('license_number', 'license_expiry')}),
         (_('Generator Access'), {'fields': ('assigned_stores',)}),
         (_('Approval System'), {'fields': ('approval_status', 'approved_by', 'approved_at', 'rejection_reason')}),

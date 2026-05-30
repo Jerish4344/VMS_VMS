@@ -28,10 +28,10 @@ class TripAdmin(admin.ModelAdmin):
     soft_delete_selected.short_description = "Soft delete selected trips (mark as deleted)"
     """Admin configuration for Trip model."""
     
-    list_display = ('id', 'vehicle', 'driver', 'get_route_summary', 'start_time', 'end_time', 'status', 'is_deleted', 'deleted_by', 'deleted_at', 'distance_traveled')
-    list_filter = ('status', 'vehicle', 'driver', 'start_time', 'is_deleted')
+    list_display = ('id', 'vehicle', 'driver', 'get_route_summary', 'start_time', 'end_time', 'status', 'approval_status', 'approval_manager', 'is_deleted', 'deleted_by', 'deleted_at', 'distance_traveled')
+    list_filter = ('status', 'approval_status', 'vehicle', 'driver', 'start_time', 'is_deleted')
     search_fields = ('vehicle__license_plate', 'driver__username', 'purpose', 'origin', 'destination')
-    readonly_fields = ('distance_traveled', 'duration', 'get_route_summary')
+    readonly_fields = ('distance_traveled', 'duration', 'get_route_summary', 'approval_submitted_at', 'approval_action_at', 'approval_action_by')
     
     fieldsets = (
         ('Trip Details', {
@@ -45,6 +45,14 @@ class TripAdmin(admin.ModelAdmin):
         }),
         ('Additional Information', {
             'fields': ('purpose', 'notes', 'duration'),
+        }),
+        ('Personal Trip Approval', {
+            'fields': (
+                'approval_status', 'approval_manager',
+                'approval_submitted_at', 'approval_action_at', 'approval_action_by',
+                'approval_remarks',
+            ),
+            'classes': ('collapse',),
         }),
     )
     

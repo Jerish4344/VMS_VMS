@@ -1,0 +1,298 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Pending Trip Approvals{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">
+      <i class="fas fa-hourglass-half text-warning me-2"></i>
+      {% if is_admin_view %}All Trip Approval Records{% else %}Pending Trip Approvals{% endif %}
+    </h2>
+    <span class="badge bg-warning text-dark fs-6">{{ paginator.count|default:pending_trips|length }} record{{ paginator.count|default:pending_trips|length|pluralize }}</span>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Status</label>
+          <select name="status" class="form-select form-select-sm">
+            <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Pending</option>
+            <option value="approved" {% if filter_status == 'approved' %}selected{% endif %}>Approved</option>
+            <option value="rejected" {% if filter_status == 'rejected' %}selected{% endif %}>Rejected</option>
+            <option value="all" {% if filter_status == 'all' %}selected{% endif %}>All (excl. not required)</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Driver</label>
+          <select name="driver" class="form-select form-select-sm">
+            <option value="">All drivers</option>
+            {% for d in drivers_list %}
+              <option value="{{ d.id }}" {% if filter_driver == d.id|stringformat:'s' %}selected{% endif %}>
+                {{ d.get_full_name|default:d.username }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if is_admin_view %}
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Approval Manager</label>
+          <select name="manager" class="form-select form-select-sm">
+            <option value="">All managers</option>
+            {% for m in managers_list %}
+              <option value="{{ m.id }}" {% if filter_manager == m.id|stringformat:'s' %}selected{% endif %}>
+                {{ m.get_full_name|default:m.username }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div class="col-md-3">
+          <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-filter me-1"></i>Apply</button>
+          <a href="{% url 'pending_trip_approvals' %}" class="btn btn-light btn-sm border">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header bg-light">
+      <strong>Trips waiting for your approval</strong>
+    </div>
+    <div class="card-body p-0">
+      {% if pending_trips %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Submitted</th>
+              <th>Driver</th>
+              <th>Vehicle</th>
+              <th>Date</th>
+              <th>Route</th>
+              <th>Distance</th>
+              <th>Reimbursement</th>
+              <th>Total</th>
+              <th>Purpose</th>
+              {% if is_admin_view %}<th>Status</th><th>Manager</th>{% endif %}
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for trip in pending_trips %}
+            <tr>
+              <td><small class="text-muted">{{ trip.approval_submitted_at|date:"d M, H:i" }}</small></td>
+              <td>
+                <strong>{{ trip.driver.get_full_name }}</strong><br>
+                <small class="text-muted">{{ trip.driver.email|default:trip.driver.username }}</small>
+              </td>
+              <td>
+                {{ trip.vehicle.license_plate }}<br>
+                <small class="text-muted">{{ trip.vehicle.make }} {{ trip.vehicle.model }}</small>
+              </td>
+              <td>{{ trip.start_time|date:"d M Y" }}</td>
+              <td>
+                <span class="text-truncate d-inline-block" style="max-width:220px;"
+                      title="{{ trip.origin }} → {{ trip.destination|default:'—' }}">
+                  {{ trip.origin|truncatechars:25 }} → {{ trip.destination|default:'—'|truncatechars:25 }}
+                </span>
+              </td>
+              <td><strong>{{ trip.distance_traveled }} km</strong></td>
+              <td>
+                {% if trip.vehicle.reimbursement_rate_per_km %}
+                  <span class="text-muted small">
+                    ₹{{ trip.vehicle.reimbursement_rate_per_km|floatformat:2 }} × {{ trip.distance_traveled }}
+                  </span>
+                {% else %}
+                  <span class="text-muted">Rate not set</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if trip.total_reimbursement %}
+                  <span class="text-success fw-bold">₹{{ trip.total_reimbursement|floatformat:2 }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>{{ trip.purpose|truncatechars:30 }}</td>
+              {% if is_admin_view %}
+              <td>
+                {% if trip.approval_status == 'pending' %}
+                  <span class="badge bg-warning text-dark"><i class="fas fa-hourglass-half me-1"></i>Pending</span>
+                {% elif trip.approval_status == 'approved' %}
+                  <span class="badge bg-success"><i class="fas fa-check me-1"></i>Approved</span>
+                {% elif trip.approval_status == 'rejected' %}
+                  <span class="badge bg-danger"><i class="fas fa-times me-1"></i>Rejected</span>
+                {% else %}
+                  <span class="badge bg-secondary">{{ trip.approval_status }}</span>
+                {% endif %}
+              </td>
+              <td><small>{{ trip.approval_manager.get_full_name|default:trip.approval_manager.username|default:'—' }}</small></td>
+              {% endif %}
+              <td class="text-end">
+                <a href="{% url 'trip_detail' trip.id %}" class="btn btn-sm btn-outline-info" title="View details">
+                  <i class="fas fa-eye"></i>
+                </a>
+                {% if trip.approval_status == 'pending' %}
+                <button type="button" class="btn btn-sm btn-success"
+                        data-bs-toggle="modal" data-bs-target="#approveModal{{ trip.pk }}"
+                        title="Approve">
+                  <i class="fas fa-check"></i> Approve
+                </button>
+                <button type="button" class="btn btn-sm btn-danger"
+                        data-bs-toggle="modal" data-bs-target="#rejectModal{{ trip.pk }}"
+                        title="Reject">
+                  <i class="fas fa-times"></i> Reject
+                </button>
+                {% endif %}
+              </td>
+            </tr>
+
+            <!-- Approve Modal -->
+            <div class="modal fade" id="approveModal{{ trip.pk }}" tabindex="-1" aria-hidden="true">
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <form method="post" action="{% url 'approve_pending_trip' trip.pk %}">
+                    {% csrf_token %}
+                    <div class="modal-header bg-success text-white">
+                      <h5 class="modal-title"><i class="fas fa-check me-2"></i>Approve Trip</h5>
+                      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                      <p class="mb-2">
+                        Approve <strong>{{ trip.driver.get_full_name }}</strong>'s trip on
+                        <strong>{{ trip.start_time|date:"d M Y" }}</strong>
+                        ({{ trip.distance_traveled }} km)?
+                      </p>
+                      <label for="remarksA{{ trip.pk }}" class="form-label small text-muted">
+                        Remarks (optional)
+                      </label>
+                      <textarea name="remarks" id="remarksA{{ trip.pk }}" class="form-control" rows="3"
+                                placeholder="Any note for the driver..."></textarea>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                      <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check me-1"></i>Confirm Approve
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+
+            <!-- Reject Modal -->
+            <div class="modal fade" id="rejectModal{{ trip.pk }}" tabindex="-1" aria-hidden="true">
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <form method="post" action="{% url 'reject_pending_trip' trip.pk %}">
+                    {% csrf_token %}
+                    <div class="modal-header bg-danger text-white">
+                      <h5 class="modal-title"><i class="fas fa-times me-2"></i>Reject Trip</h5>
+                      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                      <p class="mb-2">
+                        Reject <strong>{{ trip.driver.get_full_name }}</strong>'s trip on
+                        <strong>{{ trip.start_time|date:"d M Y" }}</strong>?
+                      </p>
+                      <label for="remarksR{{ trip.pk }}" class="form-label small text-muted">
+                        Reason for rejection <span class="text-danger">*</span>
+                      </label>
+                      <textarea name="remarks" id="remarksR{{ trip.pk }}" class="form-control" rows="3"
+                                required placeholder="Explain why you're rejecting this trip..."></textarea>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                      <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-times me-1"></i>Confirm Reject
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if is_paginated %}
+      <div class="card-footer">
+        <nav>
+          <ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}
+              <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+            {% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}
+              <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
+
+      {% else %}
+      <div class="text-center py-5">
+        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+        <h5 class="text-muted">No trips waiting for your approval.</h5>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if recent_decisions %}
+  <div class="card">
+    <div class="card-header bg-light">
+      <strong>Your recent decisions</strong>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Decision</th>
+              <th>Driver</th>
+              <th>Date</th>
+              <th>Distance</th>
+              <th>Remarks</th>
+              <th>Actioned</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for trip in recent_decisions %}
+            <tr>
+              <td>
+                {% if trip.approval_status == 'approved' %}
+                  <span class="badge bg-success"><i class="fas fa-check me-1"></i>Approved</span>
+                {% else %}
+                  <span class="badge bg-danger"><i class="fas fa-times me-1"></i>Rejected</span>
+                {% endif %}
+              </td>
+              <td>{{ trip.driver.get_full_name }}</td>
+              <td>{{ trip.start_time|date:"d M Y" }}</td>
+              <td>{{ trip.distance_traveled }} km</td>
+              <td><small>{{ trip.approval_remarks|default:'—'|truncatechars:60 }}</small></td>
+              <td><small class="text-muted">{{ trip.approval_action_at|date:"d M, H:i" }}</small></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -116,12 +116,71 @@ class Trip(models.Model):
         help_text="Number of passengers (applicable for Commercial Staff Bus)"
     )
 
+    # ------------------------------------------------------------------
+    # Personal Trip Approval Flow (effective 01-May-2026)
+    # ------------------------------------------------------------------
+    APPROVAL_STATUS_CHOICES = (
+        ('not_required', 'Not Required'),
+        ('pending', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    )
+
+    approval_status = models.CharField(
+        max_length=20,
+        choices=APPROVAL_STATUS_CHOICES,
+        default='not_required',
+        help_text="Approval state for personal-vehicle trips. Only 'not_required' or 'approved' trips count for reimbursement."
+    )
+    approval_manager = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='trips_to_approve',
+        help_text="Manager (driver.reports_to at submission time) responsible for approving this trip."
+    )
+    approval_submitted_at = models.DateTimeField(null=True, blank=True, help_text="When the trip was submitted for approval (= end_time at end-trip).")
+    approval_action_at = models.DateTimeField(null=True, blank=True, help_text="When the manager approved or rejected the trip.")
+    approval_action_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='trips_actioned',
+        help_text="User who approved or rejected the trip."
+    )
+    approval_remarks = models.TextField(blank=True, help_text="Manager's remarks for the approval decision.")
+
     @property
     def is_commercial_staff_bus(self):
         """Check if the trip's vehicle is a Commercial Staff Bus."""
         if self.vehicle and self.vehicle.vehicle_type:
             return self.vehicle.vehicle_type.name.strip().lower() == 'commercial staff bus'
         return False
+
+    @property
+    def counts_for_reimbursement(self):
+        """A trip counts for reimbursement only when it is not in the approval flow
+        ('not_required') or has been approved by the reporting manager."""
+        return self.approval_status in ('not_required', 'approved')
+
+    @property
+    def is_locked_for_edit(self):
+        """Pending and approved personal trips are locked from driver edits."""
+        return self.approval_status in ('pending', 'approved')
+
+    @property
+    def total_reimbursement(self):
+        """Total reimbursement = vehicle.reimbursement_rate_per_km * distance.
+        Returns 0 when the rate is not set."""
+        rate = getattr(self.vehicle, 'reimbursement_rate_per_km', None)
+        if not rate:
+            return 0
+        try:
+            return float(rate) * self.distance_traveled()
+        except (TypeError, ValueError):
+            return 0
 
     def soft_delete(self, user=None):
         """
@@ -149,8 +208,16 @@ class Trip(models.Model):
             models.Index(fields=['is_deleted', 'status']),
             models.Index(fields=['start_time']),
             models.Index(fields=['end_time']),
+            models.Index(fields=['approval_status']),
+            models.Index(fields=['approval_manager', 'approval_status']),
+            # Optimised for per-driver reimbursement / history views which
+            # filter on driver + is_deleted + status and order/group by start_time.
+            models.Index(
+                fields=['driver', 'is_deleted', 'status', 'start_time'],
+                name='trip_driver_status_time_idx',
+            ),
         ]
-    
+
     def __str__(self):
         destination = self.destination or "TBD"
         return f"{self.vehicle} driven by {self.driver.get_full_name()} from {self.origin} to {destination} on {self.start_time.date()}"

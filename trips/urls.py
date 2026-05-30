@@ -36,6 +36,13 @@ urlpatterns = [
     path('manual/create/', ManualTripCreateView.as_view(), name='manual_trip_create'),
     
     # ------------------------------------------------------------------
+    # Personal Trip Approval Flow
+    # ------------------------------------------------------------------
+    path('approvals/', views.PendingTripApprovalsView.as_view(), name='pending_trip_approvals'),
+    path('approvals/<int:pk>/approve/', views.approve_pending_trip, name='approve_pending_trip'),
+    path('approvals/<int:pk>/reject/', views.reject_pending_trip, name='reject_pending_trip'),
+    
+    # ------------------------------------------------------------------
     # Consultant Driver Rate URLs
     # ------------------------------------------------------------------
     path(

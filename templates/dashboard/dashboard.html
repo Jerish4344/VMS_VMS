@@ -393,6 +393,43 @@
         </div>
       </div>
     </div>
+
+    {% if pending_approval_count and pending_approval_count > 0 %}
+    <div class="col-lg-3 col-md-6">
+      <div class="card stats-card mb-4 border-warning">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="stats-title">Pending Approval</h6>
+              <h3 class="stats-number text-warning">{{ pending_approval_count }}</h3>
+              <small class="text-muted">Awaiting manager review</small>
+            </div>
+            <div class="stats-icon bg-warning">
+              <i class="fas fa-hourglass-half"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    {% if rejected_approval_count and rejected_approval_count > 0 %}
+    <div class="col-lg-3 col-md-6">
+      <div class="card stats-card mb-4 border-danger">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="stats-title">Rejected (this month)</h6>
+              <h3 class="stats-number text-danger">{{ rejected_approval_count }}</h3>
+              <small class="text-muted">Not counted for reimbursement</small>
+            </div>
+            <div class="stats-icon bg-danger">
+              <i class="fas fa-times-circle"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
     {% endif %}
   </div>
 
@@ -1455,6 +1492,7 @@
                   <th>DISTANCE</th>
                   <th>REIMBURSEMENT</th>
                   <th>STATUS</th>
+                  <th>APPROVAL</th>
                   <th>ACTIONS</th>
                 </tr>
               </thead>
@@ -1494,6 +1532,17 @@
                     {% endif %}
                   </td>
                   <td>
+                    {% if trip.approval_status == 'pending' %}
+                      <span class="badge bg-warning text-dark" title="Awaiting {{ trip.approval_manager.get_full_name }}'s approval"><i class="fas fa-hourglass-half me-1"></i>Pending</span>
+                    {% elif trip.approval_status == 'approved' %}
+                      <span class="badge bg-success" title="Approved by {{ trip.approval_action_by.get_full_name }}"><i class="fas fa-check me-1"></i>Approved</span>
+                    {% elif trip.approval_status == 'rejected' %}
+                      <span class="badge bg-danger" title="Rejected: {{ trip.approval_remarks }}"><i class="fas fa-times me-1"></i>Rejected</span>
+                    {% else %}
+                      <span class="text-muted small">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
                     <a href="{% url 'trip_detail' trip.id %}" class="btn btn-sm btn-info">
                       <i class="fas fa-info-circle"></i>
                     </a>
@@ -1506,7 +1555,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                  <td colspan="7" class="text-center">No trips yet. <a href="{% url 'start_trip' %}">Start your first trip</a></td>
+                  <td colspan="8" class="text-center">No trips yet. <a href="{% url 'start_trip' %}">Start your first trip</a></td>
                 </tr>
                 {% endfor %}
               </tbody>

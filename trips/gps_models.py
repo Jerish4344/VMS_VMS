@@ -25,6 +25,9 @@ class TripLocation(models.Model):
         ordering = ['timestamp']
         indexes = [
             models.Index(fields=['trip', 'timestamp']),
+            # Used by the purge_trip_locations management command which scans
+            # by timestamp across all trips.
+            models.Index(fields=['timestamp'], name='triploc_timestamp_idx'),
         ]
     
     def __str__(self):

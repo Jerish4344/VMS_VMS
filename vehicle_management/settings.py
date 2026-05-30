@@ -108,6 +108,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'dashboard.context_processors.notifications_processor',
+                'dashboard.context_processors.pending_trip_approvals_processor',
                 'accounts.context_processors.approval_notifications',  # Add this line
             ],
         },

@@ -333,6 +333,16 @@
           </a>
         </li>
         {% endif %}
+
+        <!-- Personal Trip Approvals (visible only when user has reports awaiting approval) -->
+        {% if pending_trip_approvals_count and pending_trip_approvals_count > 0 %}
+        <li {% if request.resolver_match.url_name == 'pending_trip_approvals' %}class="active"{% endif %}>
+          <a href="{% url 'pending_trip_approvals' %}" class="menu-item-enhanced">
+            <i class="fas fa-hourglass-half"></i> Trip Approvals
+            <span class="badge bg-warning text-dark ms-2">{{ pending_trip_approvals_count }}</span>
+          </a>
+        </li>
+        {% endif %}
         {% endif %}
         <!-- Show different menus based on user type -->
   {% if request.user.is_generator_user %}

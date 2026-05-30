@@ -1490,7 +1490,8 @@ class StaffReportView(ReportBaseView):
             status='completed',
             start_time__gte=start_datetime,
             end_time__lte=end_datetime,
-            is_deleted=False
+            is_deleted=False,
+            approval_status__in=['not_required', 'approved'],
         ).select_related('vehicle', 'vehicle__owned_by')
         
         # Process trip data and calculate reimbursements
@@ -1747,7 +1748,8 @@ class DepartmentReportView(ReportBaseView):
                 status='completed',
                 start_time__gte=start_datetime,
                 end_time__lte=end_datetime,
-                is_deleted=False
+                is_deleted=False,
+                approval_status__in=['not_required', 'approved'],
             ).select_related('vehicle')
             
             personal_trip_count = personal_trips.count()

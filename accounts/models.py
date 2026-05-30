@@ -116,6 +116,16 @@ class CustomUser(AbstractUser):
         help_text="Department this user belongs to (assigned by admin)"
     )
     
+    # Reporting manager (used for Personal Trip approval flow)
+    reports_to = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='direct_reports',
+        help_text="Manager this user reports to. Personal trips require this manager's approval before reimbursement."
+    )
+    
     # Generator user specific fields
     assigned_stores = models.ManyToManyField(
         'generators.Store',

@@ -694,6 +694,14 @@ class EndTripView(LoginRequiredMixin, UpdateView):
             if trip.distance_traveled() > 120:
                 send_trip_alert_email_async.delay(trip.pk)
 
+            # --- Personal Trip approval flow (effective 01-May-2026) ---
+            try:
+                from trips.approvals import submit_for_approval
+                submit_for_approval(trip)
+            except Exception as exc:
+                # Approval submission must never block trip closure.
+                logger.error("Failed to submit trip %s for approval: %s", trip.pk, exc)
+
             # Success message with role indication and GPS info
             user_role = self.request.user.get_user_type_display()
             ended_by = "you" if trip.driver == self.request.user else f"{user_role}"
@@ -2013,3 +2021,150 @@ class LiveTrackingDataView(LoginRequiredMixin, View):
             'count': len(vehicles_data),
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         })
+
+
+# =====================================================================
+# Personal Trip approval flow views (effective 01-May-2026)
+# =====================================================================
+
+class PendingTripApprovalsView(LoginRequiredMixin, ListView):
+    """List personal trips waiting for approval.
+
+    - Regular managers see only trips where they are the `approval_manager`.
+    - Admin users see ALL approval records and can filter by status, driver,
+      and approval_manager via GET params.
+    """
+
+    model = Trip
+    template_name = 'trips/pending_approvals.html'
+    context_object_name = 'pending_trips'
+    paginate_by = 25
+
+    def _is_admin(self):
+        return getattr(self.request.user, 'user_type', '') == 'admin'
+
+    def _base_queryset(self):
+        qs = (
+            Trip.objects
+            .filter(is_deleted=False)
+            .select_related('driver', 'vehicle', 'vehicle__vehicle_type', 'approval_manager', 'approval_action_by')
+        )
+        if not self._is_admin():
+            qs = qs.filter(approval_manager=self.request.user)
+        return qs
+
+    def get_queryset(self):
+        qs = self._base_queryset()
+        params = self.request.GET
+
+        # Status filter (admin can pick any; default = pending)
+        status = (params.get('status') or 'pending').strip()
+        if status and status != 'all':
+            qs = qs.filter(approval_status=status)
+        else:
+            # admin viewing "all" should still exclude not_required (legacy/free trips)
+            qs = qs.exclude(approval_status='not_required')
+
+        # Driver filter
+        driver_id = params.get('driver')
+        if driver_id:
+            qs = qs.filter(driver_id=driver_id)
+
+        # Manager filter (admin only)
+        if self._is_admin():
+            manager_id = params.get('manager')
+            if manager_id:
+                qs = qs.filter(approval_manager_id=manager_id)
+
+        return qs.order_by('-approval_submitted_at', '-end_time')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        is_admin = self._is_admin()
+        ctx['is_admin_view'] = is_admin
+        ctx['filter_status'] = (self.request.GET.get('status') or 'pending').strip()
+        ctx['filter_driver'] = self.request.GET.get('driver') or ''
+        ctx['filter_manager'] = self.request.GET.get('manager') or ''
+
+        # Drivers and managers list for filter dropdowns
+        from accounts.models import CustomUser
+        if is_admin:
+            ctx['drivers_list'] = (
+                CustomUser.objects
+                .filter(trips__approval_status__in=['pending', 'approved', 'rejected'])
+                .distinct()
+                .order_by('first_name', 'username')
+            )
+            ctx['managers_list'] = (
+                CustomUser.objects
+                .filter(trips_to_approve__isnull=False)
+                .distinct()
+                .order_by('first_name', 'username')
+            )
+        else:
+            # Non-admin managers can filter by users that report to them
+            ctx['drivers_list'] = (
+                CustomUser.objects
+                .filter(reports_to=self.request.user)
+                .order_by('first_name', 'username')
+            )
+            ctx['managers_list'] = []
+
+        # Recent decisions panel still scoped to the current user (or all for admin)
+        recent = self._base_queryset().filter(
+            approval_status__in=['approved', 'rejected'],
+        ).order_by('-approval_action_at')[:15]
+        ctx['recent_decisions'] = recent
+        return ctx
+
+
+def _can_action_trip(user, trip):
+    """An admin can action any pending trip; otherwise must be the assigned manager."""
+    if getattr(user, 'user_type', '') == 'admin':
+        return True
+    return trip.approval_manager_id == user.id
+
+
+@login_required
+@require_http_methods(["POST"])
+def approve_pending_trip(request, pk):
+    from trips.approvals import approve_trip
+    trip = get_object_or_404(
+        Trip,
+        pk=pk,
+        approval_status='pending',
+        is_deleted=False,
+    )
+    if not _can_action_trip(request.user, trip):
+        messages.error(request, "You are not authorised to approve this trip.")
+        return redirect('pending_trip_approvals')
+    remarks = (request.POST.get('remarks') or '').strip()
+    if approve_trip(trip, request.user, remarks=remarks):
+        messages.success(request, f"Trip approved for {trip.driver.get_full_name()}.")
+    else:
+        messages.warning(request, "Trip is no longer pending.")
+    return redirect('pending_trip_approvals')
+
+
+@login_required
+@require_http_methods(["POST"])
+def reject_pending_trip(request, pk):
+    from trips.approvals import reject_trip
+    trip = get_object_or_404(
+        Trip,
+        pk=pk,
+        approval_status='pending',
+        is_deleted=False,
+    )
+    if not _can_action_trip(request.user, trip):
+        messages.error(request, "You are not authorised to reject this trip.")
+        return redirect('pending_trip_approvals')
+    remarks = (request.POST.get('remarks') or '').strip()
+    if not remarks:
+        messages.error(request, "Please add remarks before rejecting a trip.")
+        return redirect('pending_trip_approvals')
+    if reject_trip(trip, request.user, remarks=remarks):
+        messages.success(request, f"Trip rejected for {trip.driver.get_full_name()}.")
+    else:
+        messages.warning(request, "Trip is no longer pending.")
+    return redirect('pending_trip_approvals')

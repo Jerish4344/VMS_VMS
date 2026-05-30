@@ -6,7 +6,11 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import ListView, DetailView, CreateView, UpdateView
 from django.contrib import messages
 from django.urls import reverse_lazy
-from django.db.models import Sum, Q, Count
+from django.db.models import (
+    Sum, Q, Count, F, Value, ExpressionWrapper,
+    DecimalField, IntegerField,
+)
+from django.db.models.functions import TruncMonth, Coalesce
 from django.utils import timezone
 from datetime import timedelta
 from django.http import HttpResponseRedirect
@@ -143,88 +147,118 @@ class MyReimbursementView(LoginRequiredMixin, PersonalVehicleStaffTestMixin, Lis
     template_name = 'vehicles/my_reimbursement.html'
     context_object_name = 'trips'
     paginate_by = 20
-    
+
+    # Reusable SQL expressions so distance / reimbursement are computed in the
+    # database instead of Python. This keeps memory flat regardless of the
+    # number of trips and lets pagination actually work.
+    _DISTANCE_EXPR = ExpressionWrapper(
+        F('end_odometer') - F('start_odometer'),
+        output_field=IntegerField(),
+    )
+    _REIMBURSEMENT_EXPR = ExpressionWrapper(
+        (F('end_odometer') - F('start_odometer')) *
+        Coalesce(
+            F('vehicle__reimbursement_rate_per_km'),
+            Value(0),
+            output_field=DecimalField(max_digits=12, decimal_places=2),
+        ),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+
     def get_queryset(self):
-        """Get completed trips for the user's personal vehicle."""
-        return Trip.objects.filter(
-            driver=self.request.user,
-            vehicle__ownership_type='personal',
-            vehicle__owned_by=self.request.user,
-            status='completed',
-            is_deleted=False
-        ).select_related('vehicle').order_by('-start_time')
-    
+        """Completed trips for the user's personal vehicles, with distance
+        and reimbursement annotated in the database."""
+        return (
+            Trip.objects.filter(
+                driver=self.request.user,
+                vehicle__ownership_type='personal',
+                vehicle__owned_by=self.request.user,
+                status='completed',
+                is_deleted=False,
+            )
+            .select_related('vehicle')
+            .annotate(
+                distance=self._DISTANCE_EXPR,
+                reimbursement=self._REIMBURSEMENT_EXPR,
+            )
+            .order_by('-start_time')
+        )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Get the user's personal vehicles
         vehicles = Vehicle.objects.filter(
             ownership_type='personal',
-            owned_by=self.request.user
+            owned_by=self.request.user,
         )
-        
-        if vehicles.exists():
-            context['vehicles'] = vehicles
-            context['has_vehicles'] = True
-            
-            # Calculate monthly reimbursements across all vehicles
-            trips = self.get_queryset()
-            
-            # Add distance and reimbursement to each trip
-            trips_list = list(trips)
-            for trip in trips_list:
-                if trip.end_odometer is not None and trip.start_odometer is not None:
-                    trip.distance = trip.end_odometer - trip.start_odometer
-                    if trip.vehicle.reimbursement_rate_per_km:
-                        trip.reimbursement = trip.distance * trip.vehicle.reimbursement_rate_per_km
-                    else:
-                        trip.reimbursement = 0
-                else:
-                    trip.distance = None
-                    trip.reimbursement = None
-            
-            # Override the trips in context with calculated trips
-            context['trips'] = trips_list
-            
-            # Group by month across all vehicles
-            monthly_data = []
-            current_date = timezone.now()
-            
-            for i in range(6):  # Last 6 months
-                month_start = (current_date - timedelta(days=30*i)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                if i == 0:
-                    month_end = current_date
-                else:
-                    month_end = month_start.replace(day=28) + timedelta(days=4)  # End of month
-                
-                month_trips = trips.filter(
-                    start_time__gte=month_start,
-                    start_time__lt=month_end
-                )
-                
-                total_distance = 0
-                total_reimbursement = 0
-                for trip in month_trips:
-                    if trip.end_odometer is not None and trip.start_odometer is not None:
-                        distance = trip.end_odometer - trip.start_odometer
-                        total_distance += distance
-                        
-                        if trip.vehicle.reimbursement_rate_per_km:
-                            total_reimbursement += distance * trip.vehicle.reimbursement_rate_per_km
-                
-                monthly_data.append({
-                    'month': month_start.strftime('%B %Y'),
-                    'trips_count': month_trips.count(),
-                    'distance': total_distance,
-                    'reimbursement': total_reimbursement
-                })
-            
-            context['monthly_data'] = monthly_data
-            
-        else:
+
+        if not vehicles.exists():
             context['vehicles'] = []
             context['has_vehicles'] = False
             context['monthly_data'] = []
-            messages.warning(self.request, "You don't have any personal vehicles registered yet.")
-        
+            messages.warning(
+                self.request,
+                "You don't have any personal vehicles registered yet.",
+            )
+            return context
+
+        context['vehicles'] = vehicles
+        context['has_vehicles'] = True
+
+        # Build the 6-month window. Use the first day of the month 5 months
+        # before the current month so we cover exactly 6 calendar months.
+        now = timezone.now()
+        current_month_start = now.replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0,
+        )
+        # Step back 5 months by repeatedly subtracting one day from the
+        # previous month start. Avoids the dateutil dependency.
+        window_start = current_month_start
+        for _ in range(5):
+            window_start = (window_start - timedelta(days=1)).replace(day=1)
+
+        # Single grouped query for all 6 months instead of 6 separate queries.
+        monthly_qs = (
+            Trip.objects.filter(
+                driver=self.request.user,
+                vehicle__ownership_type='personal',
+                vehicle__owned_by=self.request.user,
+                status='completed',
+                is_deleted=False,
+                start_odometer__isnull=False,
+                end_odometer__isnull=False,
+                approval_status__in=['not_required', 'approved'],
+                start_time__gte=window_start,
+            )
+            .annotate(month=TruncMonth('start_time'))
+            .values('month')
+            .annotate(
+                trips_count=Count('id'),
+                distance=Sum(self._DISTANCE_EXPR),
+                reimbursement=Sum(self._REIMBURSEMENT_EXPR),
+            )
+            .order_by('-month')
+        )
+
+        # Index aggregated rows by month so we can fill in months with no trips.
+        by_month = {row['month'].date().replace(day=1): row for row in monthly_qs}
+
+        monthly_data = []
+        cursor = current_month_start
+        for _ in range(6):
+            key = cursor.date().replace(day=1)
+            row = by_month.get(key)
+            monthly_data.append({
+                'month': cursor.strftime('%B %Y'),
+                'trips_count': row['trips_count'] if row else 0,
+                'distance': row['distance'] if row else 0,
+                'reimbursement': row['reimbursement'] if row else 0,
+            })
+            # Move cursor to first day of previous month.
+            cursor = (cursor - timedelta(days=1)).replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0,
+            )
+
+        context['monthly_data'] = monthly_data
         return context

@@ -719,6 +719,13 @@ class EndTripView(APIView):
             from trips.tasks import send_trip_alert_email_async
             send_trip_alert_email_async.delay(trip.pk)
         
+        # Personal Trip approval flow (effective 01-May-2026)
+        try:
+            from trips.approvals import submit_for_approval
+            submit_for_approval(trip)
+        except Exception:
+            pass
+        
         return Response(TripSerializer(trip).data)
 
 
