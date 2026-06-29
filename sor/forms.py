@@ -108,6 +108,7 @@ class SORForm(forms.ModelForm):
         ("Karakkamandapam", "Karakkamandapam"),
         ("Marthandam", "Marthandam"),
         ("Panachamoodu", "Panachamoodu"),
+        ("Papanamcode", "Papanamcode"),
         ("kattakada", "kattakada"),
         ("Kodapanamkunnu", "Kodapanamkunnu"),
         ("Kaval Kinaru", "Kaval Kinaru"),

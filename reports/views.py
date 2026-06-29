@@ -893,6 +893,10 @@ class FuelReportView(ReportBaseView):
         if vehicle_id:
             qs = qs.filter(vehicle_id=vehicle_id)
 
+        vehicle_type_id = self.request.GET.get('vehicle_type')
+        if vehicle_type_id:
+            qs = qs.filter(vehicle__vehicle_type_id=vehicle_type_id)
+
         fuel_type = self.request.GET.get('fuel_type')
         if fuel_type:
             qs = qs.filter(fuel_type=fuel_type)
@@ -950,6 +954,7 @@ class FuelReportView(ReportBaseView):
                     'start_date': request.GET.get('start_date', ''),
                     'end_date': request.GET.get('end_date', ''),
                     'vehicle': request.GET.get('vehicle', ''),
+                    'vehicle_type': request.GET.get('vehicle_type', ''),
                     'fuel_type': request.GET.get('fuel_type', ''),
                     'station': request.GET.get('station', '')
                 }
@@ -1181,6 +1186,7 @@ class FuelReportView(ReportBaseView):
         context['start_date'] = start_date
         context['end_date'] = end_date
         context['vehicles'] = Vehicle.objects.filter(ownership_type='company').only('id', 'license_plate', 'make', 'model')
+        context['vehicle_types'] = VehicleType.objects.all().only('id', 'name').order_by('name')
         # Dropdown filters scoped to the same date range (avoids full-table scan)
         context['fuel_types'] = fuel_transactions.values_list('fuel_type', flat=True).distinct()
         context['fuel_stations'] = fuel_transactions.values(
@@ -1210,7 +1216,7 @@ class FuelReportView(ReportBaseView):
         so the DB cursor streams rows without caching the full result set.
         """
         headers = [
-            'Date', 'Vehicle', 'Driver', 'Fuel Station', 'Fuel Type',
+            'Date', 'Vehicle', 'Vehicle Type', 'Driver', 'Fuel Station', 'Fuel Type',
             'Quantity (L)', 'Energy (kWh)', 'Cost per Liter', 'Cost per kWh',
             'Charging Duration (min)', 'Total Cost', 'Odometer Reading',
             'Company Invoice Number', 'Station Invoice Number', 'Type'
@@ -1220,13 +1226,14 @@ class FuelReportView(ReportBaseView):
 
         all_transactions = (
             qs
-            .select_related('vehicle', 'driver', 'fuel_station')
+            .select_related('vehicle', 'vehicle__vehicle_type', 'driver', 'fuel_station')
             .only(
                 'date', 'fuel_type', 'quantity', 'energy_consumed',
                 'cost_per_liter', 'cost_per_kwh', 'charging_duration_minutes',
                 'total_cost', 'odometer_reading',
                 'company_invoice_number', 'station_invoice_number',
                 'vehicle__license_plate', 'vehicle__make', 'vehicle__model',
+                'vehicle__vehicle_type__name',
                 'driver__first_name', 'driver__last_name',
                 'fuel_station__name',
             )
@@ -1239,6 +1246,7 @@ class FuelReportView(ReportBaseView):
             export_data.append({
                 'date': t.date.strftime('%Y-%m-%d') if t.date else '',
                 'vehicle': f"{t.vehicle.license_plate} ({t.vehicle.make} {t.vehicle.model})",
+                'vehicle_type': t.vehicle.vehicle_type.name if t.vehicle.vehicle_type else '',
                 'driver': t.driver.get_full_name() if t.driver else 'N/A',
                 'fuel_station': t.fuel_station.name if t.fuel_station else 'N/A',
                 'fuel_type': t.fuel_type or '',

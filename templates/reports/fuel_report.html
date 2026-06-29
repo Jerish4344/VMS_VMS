@@ -158,10 +158,10 @@
     <h1 class="h3 mb-0 text-gray-800">Fuel & Energy Report</h1>
     
     <div class="d-flex">
-      <a href="{% url 'fuel_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}export=excel" class="btn btn-sm btn-success shadow-sm btn-export">
+      <a href="{% url 'fuel_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.vehicle_type %}vehicle_type={{ request.GET.vehicle_type }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}export=excel" class="btn btn-sm btn-success shadow-sm btn-export">
         <i class="fas fa-file-excel fa-sm text-white-50"></i> Export to Excel
       </a>
-      <a href="{% url 'fuel_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}export=csv" class="btn btn-sm btn-primary shadow-sm btn-export">
+      <a href="{% url 'fuel_report' %}?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.vehicle_type %}vehicle_type={{ request.GET.vehicle_type }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}export=csv" class="btn btn-sm btn-primary shadow-sm btn-export">
         <i class="fas fa-file-csv fa-sm text-white-50"></i> Export to CSV
       </a>
     </div>
@@ -199,7 +199,21 @@
               </select>
             </div>
           </div>
-          
+
+          <div class="col-md-2">
+            <div class="mb-3">
+              <label for="vehicle-type-filter" class="form-label">Vehicle Type</label>
+              <select name="vehicle_type" id="vehicle-type-filter" class="form-select">
+                <option value="">All Types</option>
+                {% for vt in vehicle_types %}
+                  <option value="{{ vt.id }}" {% if request.GET.vehicle_type == vt.id|stringformat:"i" %}selected{% endif %}>
+                    {{ vt.name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
           <div class="col-md-2">
             <div class="mb-3">
               <label for="fuel-type-filter" class="form-label">Energy Type</label>
@@ -484,17 +498,17 @@
             <ul class="pagination pagination-sm mb-0">
               {% if fuel_report_page.has_previous %}
                 <li class="page-item">
-                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page=1" aria-label="First">
+                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.vehicle_type %}vehicle_type={{ request.GET.vehicle_type }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page=1" aria-label="First">
                     <span aria-hidden="true">&laquo;&laquo;</span>
                   </a>
                 </li>
                 <li class="page-item">
-                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ fuel_report_page.previous_page_number }}" aria-label="Previous">
+                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.vehicle_type %}vehicle_type={{ request.GET.vehicle_type }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ fuel_report_page.previous_page_number }}" aria-label="Previous">
                     <span aria-hidden="true">&laquo;</span>
                   </a>
                 </li>
               {% endif %}
-              
+
               {% for num in fuel_report_page.paginator.page_range %}
                 {% if fuel_report_page.number == num %}
                   <li class="page-item active">
@@ -502,19 +516,19 @@
                   </li>
                 {% elif num > fuel_report_page.number|add:'-3' and num < fuel_report_page.number|add:'3' %}
                   <li class="page-item">
-                    <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ num }}">{{ num }}</a>
+                    <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.vehicle_type %}vehicle_type={{ request.GET.vehicle_type }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ num }}">{{ num }}</a>
                   </li>
                 {% endif %}
               {% endfor %}
-              
+
               {% if fuel_report_page.has_next %}
                 <li class="page-item">
-                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ fuel_report_page.next_page_number }}" aria-label="Next">
+                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.vehicle_type %}vehicle_type={{ request.GET.vehicle_type }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ fuel_report_page.next_page_number }}" aria-label="Next">
                     <span aria-hidden="true">&raquo;</span>
                   </a>
                 </li>
                 <li class="page-item">
-                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ paginator.num_pages }}" aria-label="Last">
+                  <a class="page-link" href="?{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.vehicle %}vehicle={{ request.GET.vehicle }}&{% endif %}{% if request.GET.vehicle_type %}vehicle_type={{ request.GET.vehicle_type }}&{% endif %}{% if request.GET.fuel_type %}fuel_type={{ request.GET.fuel_type }}&{% endif %}{% if request.GET.station %}station={{ request.GET.station }}&{% endif %}{% if page_size %}page_size={{ page_size }}&{% endif %}page={{ paginator.num_pages }}" aria-label="Last">
                     <span aria-hidden="true">&raquo;&raquo;</span>
                   </a>
                 </li>
