@@ -72,8 +72,8 @@ class VMSChatbot {
             });
         });
         
-        // Load chat history on open
-        this.loadHistory();
+        // History is loaded lazily the first time the chat panel is opened.
+        this._historyLoaded = false;
     }
     
     getCSRFToken() {
@@ -96,6 +96,10 @@ class VMSChatbot {
         if (this.isOpen) {
             this.input.focus();
             this.scrollToBottom();
+            if (!this._historyLoaded) {
+                this._historyLoaded = true;
+                this.loadHistory();
+            }
         }
     }
     

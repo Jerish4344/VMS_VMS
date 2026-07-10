@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models import Q
 from .models import SOR
 from vehicles.models import Vehicle
 from django.contrib.auth import get_user_model
@@ -125,9 +126,14 @@ class SORForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Only commercial vehicles that are not currently on an ongoing trip
-        ongoing_vehicle_ids = Trip.objects.filter(status='ongoing').values_list('vehicle_id', flat=True)
-        self.fields['vehicle'].queryset = Vehicle.objects.filter(vehicle_type__category='commercial').exclude(id__in=ongoing_vehicle_ids)
+        # Commercial vehicles + any Centaur Foods variant, excluding only those
+        # whose status is explicitly 'in_use' (set by the trips module when a
+        # real-time trip is active).  Using the vehicle's own status field is
+        # more reliable than a Trip subquery, which can include stale records.
+        self.fields['vehicle'].queryset = Vehicle.objects.filter(
+            Q(vehicle_type__category='commercial') |
+            Q(vehicle_type__name__icontains='Centaur Foods')
+        ).exclude(status='in_use')
         self.fields['vehicle'].widget.attrs.update({'class': 'form-select form-select-sm'})
         User = get_user_model()
         self.fields['driver'].queryset = User.objects.filter(user_type='driver', is_active=True)
@@ -343,10 +349,10 @@ class SORBundleHeaderForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        ongoing_vehicle_ids = Trip.objects.filter(status='ongoing').values_list('vehicle_id', flat=True)
         self.fields['vehicle'].queryset = Vehicle.objects.filter(
-            vehicle_type__category='commercial'
-        ).exclude(id__in=ongoing_vehicle_ids)
+            Q(vehicle_type__category='commercial') |
+            Q(vehicle_type__name__icontains='Centaur Foods')
+        ).exclude(status='in_use')
         User = get_user_model()
         self.fields['driver'].queryset = User.objects.filter(user_type='driver', is_active=True)
 

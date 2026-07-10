@@ -210,7 +210,14 @@ class Trip(models.Model):
             models.Index(fields=['end_time']),
             models.Index(fields=['approval_status']),
             models.Index(fields=['approval_manager', 'approval_status']),
-            # Optimised for per-driver reimbursement / history views which
+            models.Index(
+                fields=['is_deleted', 'approval_status', 'approval_submitted_at', 'end_time'],
+                name='trip_approval_list_idx',
+            ),            # Optimised for the recent-decisions panel (order by approval_action_at)
+            models.Index(
+                fields=['is_deleted', 'approval_status', 'approval_action_at'],
+                name='trip_approval_action_idx',
+            ),            # Optimised for per-driver reimbursement / history views which
             # filter on driver + is_deleted + status and order/group by start_time.
             models.Index(
                 fields=['driver', 'is_deleted', 'status', 'start_time'],

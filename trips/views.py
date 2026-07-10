@@ -2048,6 +2048,41 @@ class PendingTripApprovalsView(LoginRequiredMixin, ListView):
             Trip.objects
             .filter(is_deleted=False)
             .select_related('driver', 'vehicle', 'vehicle__vehicle_type', 'approval_manager', 'approval_action_by')
+            .only(
+                'id',
+                'driver_id',
+                'vehicle_id',
+                'approval_manager_id',
+                'approval_action_by_id',
+                'approval_status',
+                'approval_submitted_at',
+                'approval_action_at',
+                'approval_remarks',
+                'start_time',
+                'end_time',
+                'start_odometer',
+                'end_odometer',
+                'origin',
+                'destination',
+                'purpose',
+                'driver__id',
+                'driver__first_name',
+                'driver__last_name',
+                'driver__username',
+                'driver__email',
+                'vehicle__id',
+                'vehicle__license_plate',
+                'vehicle__make',
+                'vehicle__model',
+                'vehicle__reimbursement_rate_per_km',
+                'vehicle__vehicle_type_id',
+                'vehicle__vehicle_type__id',
+                'vehicle__vehicle_type__name',
+                'approval_manager__id',
+                'approval_manager__first_name',
+                'approval_manager__last_name',
+                'approval_manager__username',
+            )
         )
         if not self._is_admin():
             qs = qs.filter(approval_manager=self.request.user)
@@ -2086,19 +2121,31 @@ class PendingTripApprovalsView(LoginRequiredMixin, ListView):
         ctx['filter_driver'] = self.request.GET.get('driver') or ''
         ctx['filter_manager'] = self.request.GET.get('manager') or ''
 
-        # Drivers and managers list for filter dropdowns
+        # Drivers and managers list for filter dropdowns.
+        # Use subquery-based IN lookup instead of a DISTINCT JOIN, which is
+        # much cheaper on large trips tables.
         from accounts.models import CustomUser
         if is_admin:
+            driver_ids = (
+                Trip.objects
+                .filter(approval_status__in=['pending', 'approved', 'rejected'], is_deleted=False)
+                .values_list('driver_id', flat=True)
+                .distinct()
+            )
             ctx['drivers_list'] = (
                 CustomUser.objects
-                .filter(trips__approval_status__in=['pending', 'approved', 'rejected'])
-                .distinct()
+                .filter(id__in=driver_ids)
                 .order_by('first_name', 'username')
+            )
+            manager_ids = (
+                Trip.objects
+                .filter(approval_manager__isnull=False, is_deleted=False)
+                .values_list('approval_manager_id', flat=True)
+                .distinct()
             )
             ctx['managers_list'] = (
                 CustomUser.objects
-                .filter(trips_to_approve__isnull=False)
-                .distinct()
+                .filter(id__in=manager_ids)
                 .order_by('first_name', 'username')
             )
         else:
@@ -2110,8 +2157,23 @@ class PendingTripApprovalsView(LoginRequiredMixin, ListView):
             )
             ctx['managers_list'] = []
 
-        # Recent decisions panel still scoped to the current user (or all for admin)
-        recent = self._base_queryset().filter(
+        # Keep recent decisions lightweight: no vehicle/manager joins needed here.
+        recent_qs = Trip.objects.filter(is_deleted=False)
+        if not is_admin:
+            recent_qs = recent_qs.filter(approval_manager=self.request.user)
+        recent = recent_qs.select_related('driver').only(
+            'id',
+            'approval_status',
+            'approval_action_at',
+            'approval_remarks',
+            'start_time',
+            'start_odometer',
+            'end_odometer',
+            'driver__id',
+            'driver__first_name',
+            'driver__last_name',
+            'driver__username',
+        ).filter(
             approval_status__in=['approved', 'rejected'],
         ).order_by('-approval_action_at')[:15]
         ctx['recent_decisions'] = recent
@@ -2123,6 +2185,15 @@ def _can_action_trip(user, trip):
     if getattr(user, 'user_type', '') == 'admin':
         return True
     return trip.approval_manager_id == user.id
+
+
+def _redirect_back_to_approvals(request):
+    """Return to the same filtered approvals URL, with safe fallback."""
+    fallback = reverse('pending_trip_approvals')
+    return_to = (request.POST.get('return_to') or '').strip()
+    if return_to.startswith('/') and not return_to.startswith('//'):
+        return redirect(return_to)
+    return redirect(fallback)
 
 
 @login_required
@@ -2137,13 +2208,13 @@ def approve_pending_trip(request, pk):
     )
     if not _can_action_trip(request.user, trip):
         messages.error(request, "You are not authorised to approve this trip.")
-        return redirect('pending_trip_approvals')
+        return _redirect_back_to_approvals(request)
     remarks = (request.POST.get('remarks') or '').strip()
     if approve_trip(trip, request.user, remarks=remarks):
         messages.success(request, f"Trip approved for {trip.driver.get_full_name()}.")
     else:
         messages.warning(request, "Trip is no longer pending.")
-    return redirect('pending_trip_approvals')
+    return _redirect_back_to_approvals(request)
 
 
 @login_required
@@ -2158,13 +2229,13 @@ def reject_pending_trip(request, pk):
     )
     if not _can_action_trip(request.user, trip):
         messages.error(request, "You are not authorised to reject this trip.")
-        return redirect('pending_trip_approvals')
+        return _redirect_back_to_approvals(request)
     remarks = (request.POST.get('remarks') or '').strip()
     if not remarks:
         messages.error(request, "Please add remarks before rejecting a trip.")
-        return redirect('pending_trip_approvals')
+        return _redirect_back_to_approvals(request)
     if reject_trip(trip, request.user, remarks=remarks):
         messages.success(request, f"Trip rejected for {trip.driver.get_full_name()}.")
     else:
         messages.warning(request, "Trip is no longer pending.")
-    return redirect('pending_trip_approvals')
+    return _redirect_back_to_approvals(request)
