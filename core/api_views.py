@@ -1257,7 +1257,9 @@ class GPSRecordLocationView(APIView):
         try:
             trip = Trip.objects.get(id=trip_id, driver=request.user, status='ongoing')
         except Trip.DoesNotExist:
-            return Response({'error': 'Trip not found or not accessible'}, status=status.HTTP_404_NOT_FOUND)
+            # Return 200 with stop_tracking flag so the mobile app stops its GPS loop.
+            # Using 404 here caused misleading "Not Found" warnings in production logs.
+            return Response({'success': False, 'stop_tracking': True, 'reason': 'trip_not_active'}, status=status.HTTP_200_OK)
         
         # Get or create GPS session
         gps_session, created = GPSTrackingSession.objects.get_or_create(
@@ -1345,7 +1347,7 @@ class GPSBatchRecordView(APIView):
         try:
             trip = Trip.objects.get(id=trip_id, driver=request.user)
         except Trip.DoesNotExist:
-            return Response({'error': 'Trip not found or not accessible'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'success': False, 'stop_tracking': True, 'reason': 'trip_not_found'}, status=status.HTTP_200_OK)
         
         # Get or create GPS session
         gps_session, created = GPSTrackingSession.objects.get_or_create(

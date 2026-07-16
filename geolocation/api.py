@@ -95,6 +95,7 @@ class VehicleLocationGeoJsonSerializer(serializers.ModelSerializer):
     
     def get_geojson(self, obj):
         """Convert location to GeoJSON format"""
+        speed = float(obj.speed) if obj.speed else 0
         return {
             "type": "Feature",
             "geometry": {
@@ -107,12 +108,12 @@ class VehicleLocationGeoJsonSerializer(serializers.ModelSerializer):
                 "license_plate": obj.vehicle.license_plate,
                 "make": obj.vehicle.make,
                 "model": obj.vehicle.model,
-                "speed": float(obj.speed) if obj.speed else 0,
+                "speed": speed,
                 "course": float(obj.course) if obj.course else 0,
                 "time": obj.device_time.isoformat(),
                 "ignition": obj.ignition,
                 "valid": obj.valid,
-                "status": "active" if float(obj.speed) > 5 else ("idle" if obj.ignition else "inactive")
+                "status": "active" if speed > 5 else ("idle" if obj.ignition else "inactive")
             }
         }
 

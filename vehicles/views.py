@@ -203,7 +203,7 @@ class ImportVehiclesView(AdminRequiredMixin, FormView):
                 html_table = preview_data.to_html(
                     classes='table table-striped table-bordered',
                     table_id='preview-table',
-                    escape=False,
+                    escape=True,
                     index=False
                 )
                 

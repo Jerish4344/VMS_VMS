@@ -638,7 +638,6 @@ REQUESTS_VERIFY_SSL = True  # Set to False only for development with self-signed
 
 # Notification settings
 DRIVER_APPROVAL_NOTIFICATIONS = True
-DEFAULT_FROM_EMAIL = 'noreply@yourvms.com'
 
 # Bulk upload settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB (was 100MB — prevents memory abuse)

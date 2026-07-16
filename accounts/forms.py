@@ -1,7 +1,17 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, UserChangeForm
 from django.contrib.auth import authenticate
+from django.core.cache import cache
 from .models import CustomUser
+
+LOGIN_ATTEMPT_LIMIT = 5
+LOGIN_ATTEMPT_WINDOW = 15 * 60  # seconds
+
+
+def login_attempts_cache_key(username):
+    """Shared with accounts.admin so the unlock action clears the same key this form sets."""
+    return f'login_attempts:{username.strip().lower()}'
+
 
 class ApprovalAuthenticationForm(AuthenticationForm):
     """
@@ -29,22 +39,34 @@ class ApprovalAuthenticationForm(AuthenticationForm):
     def clean(self):
         username = self.cleaned_data.get('username')
         password = self.cleaned_data.get('password')
-        
+
         if username is not None and password:
+            cache_key = login_attempts_cache_key(username)
+            attempts = cache.get(cache_key, 0)
+
+            if attempts >= LOGIN_ATTEMPT_LIMIT:
+                raise forms.ValidationError(
+                    'Too many failed login attempts for this account. '
+                    'Please wait 15 minutes and try again.',
+                    code='locked_out'
+                )
+
             self.user_cache = authenticate(
                 self.request,
                 username=username,
                 password=password
             )
-            
+
             if self.user_cache is None:
+                cache.set(cache_key, attempts + 1, LOGIN_ATTEMPT_WINDOW)
                 raise forms.ValidationError(
                     'Invalid credentials. Please check your username/password.',
                     code='invalid_login'
                 )
             else:
+                cache.delete(cache_key)
                 self.confirm_login_allowed(self.user_cache)
-        
+
         return self.cleaned_data
     
     def confirm_login_allowed(self, user):

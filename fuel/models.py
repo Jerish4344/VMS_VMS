@@ -137,17 +137,34 @@ class FuelTransaction(models.Model):
             )
 
     def save(self, *args, **kwargs):
-        # Auto-calculate total cost if not provided
-        if not self.total_cost or self.total_cost <= 0:
-            if self.is_electric_transaction():
-                if self.energy_consumed and self.cost_per_kwh:
-                    self.total_cost = self.energy_consumed * self.cost_per_kwh
-            else:
-                if self.quantity and self.cost_per_liter:
-                    self.total_cost = self.quantity * self.cost_per_liter
-        
+        # Auto-calculate total cost if not provided, or if it's gone stale.
+        # total_cost is also an intentionally user-editable field (e.g. to
+        # account for taxes/rounding on the actual receipt), so this only
+        # recomputes when the underlying inputs changed without the user
+        # also explicitly updating total_cost — an explicit override wins.
+        previous = None
+        if self.pk:
+            previous = FuelTransaction.objects.filter(pk=self.pk).values(
+                'quantity', 'cost_per_liter', 'energy_consumed', 'cost_per_kwh', 'total_cost'
+            ).first()
+
+        if self.is_electric_transaction():
+            rate_fields = (self.energy_consumed, self.cost_per_kwh)
+            prev_rate_fields = (previous['energy_consumed'], previous['cost_per_kwh']) if previous else None
+            computed = self.energy_consumed * self.cost_per_kwh if self.energy_consumed and self.cost_per_kwh else None
+        else:
+            rate_fields = (self.quantity, self.cost_per_liter)
+            prev_rate_fields = (previous['quantity'], previous['cost_per_liter']) if previous else None
+            computed = self.quantity * self.cost_per_liter if self.quantity and self.cost_per_liter else None
+
+        if computed is not None:
+            rate_fields_changed = previous is None or rate_fields != prev_rate_fields
+            total_cost_untouched = previous is not None and previous['total_cost'] == self.total_cost
+            if not self.total_cost or self.total_cost <= 0 or (rate_fields_changed and total_cost_untouched):
+                self.total_cost = computed
+
         # Ensure fuel_type is set for electric vehicles
         if self.is_electric_transaction() and not self.fuel_type:
             self.fuel_type = 'Electric'
-        
+
         super().save(*args, **kwargs)

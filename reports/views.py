@@ -1497,7 +1497,7 @@ class StaffReportView(ReportBaseView):
             vehicle__in=personal_vehicles,
             status='completed',
             start_time__gte=start_datetime,
-            end_time__lte=end_datetime,
+            start_time__lte=end_datetime,
             is_deleted=False,
             approval_status__in=['not_required', 'approved'],
         ).select_related('vehicle', 'vehicle__owned_by')
@@ -1727,7 +1727,7 @@ class DepartmentReportView(ReportBaseView):
                 vehicle_id__in=company_vehicle_ids,
                 status='completed',
                 start_time__gte=start_datetime,
-                end_time__lte=end_datetime,
+                start_time__lte=end_datetime,
                 is_deleted=False
             ).select_related('vehicle')
             
@@ -1755,7 +1755,7 @@ class DepartmentReportView(ReportBaseView):
                 vehicle_id__in=personal_vehicle_ids,
                 status='completed',
                 start_time__gte=start_datetime,
-                end_time__lte=end_datetime,
+                start_time__lte=end_datetime,
                 is_deleted=False,
                 approval_status__in=['not_required', 'approved'],
             ).select_related('vehicle')

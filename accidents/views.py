@@ -195,19 +195,19 @@ class AccidentUpdateView(VehicleManagerRequiredMixin, UpdateView):
         if image_formset.is_valid():
             self.object = form.save()
             
-            # Handle status changes affecting vehicle
+            # Vehicle status on resolve/re-open is handled by Accident.save()
+            # (recalculate_status(), which checks for other unresolved
+            # accidents/maintenance/trips) — no separate handling needed here.
             old_status = form.initial.get('status')
             new_status = form.cleaned_data.get('status')
-            
+
             if old_status != new_status:
                 vehicle = self.object.vehicle
-                
-                if new_status == 'resolved' and vehicle.status == 'maintenance':
-                    # If accident is resolved, set vehicle to available
-                    vehicle.status = 'available'
-                    vehicle.save()
-                elif new_status in ['repair_scheduled', 'repair_in_progress'] and vehicle.status != 'maintenance':
-                    # If accident is being repaired, set vehicle to maintenance
+
+                if new_status in ['repair_scheduled', 'repair_in_progress'] and vehicle.status != 'maintenance':
+                    # Defensive: an accident entering repair should always keep
+                    # the vehicle in maintenance, even if it somehow drifted
+                    # to another status out of band.
                     vehicle.status = 'maintenance'
                     vehicle.save()
             

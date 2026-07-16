@@ -9,8 +9,11 @@ from datetime import date, datetime
 import logging
 
 from django.conf import settings
+from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
+
+from .models import Trip
 
 logger = logging.getLogger(__name__)
 
@@ -61,34 +64,43 @@ def submit_for_approval(trip):
 
 
 def approve_trip(trip, manager_user, remarks=''):
-    """Manager approves the trip. Returns True on state change."""
-    if trip.approval_status != 'pending':
-        return False
-    trip.approval_status = 'approved'
-    trip.approval_action_at = timezone.now()
-    trip.approval_action_by = manager_user
-    trip.approval_remarks = remarks or ''
-    trip.save(update_fields=[
-        'approval_status', 'approval_action_at', 'approval_action_by',
-        'approval_remarks', 'updated_at'
-    ])
-    _notify_driver_decision(trip, approved=True)
+    """Manager approves the trip. Returns True on state change.
+
+    Re-fetches and locks the row inside a transaction before checking status,
+    so two near-simultaneous approve/reject clicks (e.g. a double-click) can't
+    both pass the pending check before either one commits.
+    """
+    with transaction.atomic():
+        locked_trip = Trip.objects.select_for_update().get(pk=trip.pk)
+        if locked_trip.approval_status != 'pending':
+            return False
+        locked_trip.approval_status = 'approved'
+        locked_trip.approval_action_at = timezone.now()
+        locked_trip.approval_action_by = manager_user
+        locked_trip.approval_remarks = remarks or ''
+        locked_trip.save(update_fields=[
+            'approval_status', 'approval_action_at', 'approval_action_by',
+            'approval_remarks', 'updated_at'
+        ])
+    _notify_driver_decision(locked_trip, approved=True)
     return True
 
 
 def reject_trip(trip, manager_user, remarks=''):
-    """Manager rejects the trip."""
-    if trip.approval_status != 'pending':
-        return False
-    trip.approval_status = 'rejected'
-    trip.approval_action_at = timezone.now()
-    trip.approval_action_by = manager_user
-    trip.approval_remarks = remarks or ''
-    trip.save(update_fields=[
-        'approval_status', 'approval_action_at', 'approval_action_by',
-        'approval_remarks', 'updated_at'
-    ])
-    _notify_driver_decision(trip, approved=False)
+    """Manager rejects the trip. Same locking pattern as approve_trip."""
+    with transaction.atomic():
+        locked_trip = Trip.objects.select_for_update().get(pk=trip.pk)
+        if locked_trip.approval_status != 'pending':
+            return False
+        locked_trip.approval_status = 'rejected'
+        locked_trip.approval_action_at = timezone.now()
+        locked_trip.approval_action_by = manager_user
+        locked_trip.approval_remarks = remarks or ''
+        locked_trip.save(update_fields=[
+            'approval_status', 'approval_action_at', 'approval_action_by',
+            'approval_remarks', 'updated_at'
+        ])
+    _notify_driver_decision(locked_trip, approved=False)
     return True
 
 

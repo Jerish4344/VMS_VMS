@@ -24,7 +24,12 @@ def send_trip_alert_email_async(self, trip_id):
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=30)
 def send_overnight_trip_alert_async(self):
-    """Send alert for trips started yesterday that are still ongoing."""
+    """Alert for any trip still ongoing past TRIP_END_AUTO_TIMEOUT hours.
+
+    Uses a rolling cutoff re-evaluated on every run, rather than a fixed
+    "yesterday" window, so a trip stuck ongoing for multiple days keeps
+    getting flagged each day instead of only the day after it started.
+    """
     try:
         from trips.models import Trip
         from trips.zeptomail_utils import send_overnight_trip_alert_email
@@ -32,14 +37,12 @@ def send_overnight_trip_alert_async(self):
         from django.utils import timezone
         from datetime import timedelta
 
-        now = timezone.localtime()
-        yesterday_start = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        yesterday_end = yesterday_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+        timeout_hours = getattr(settings, 'TRIP_END_AUTO_TIMEOUT', 12)
+        cutoff = timezone.localtime() - timedelta(hours=timeout_hours)
 
         ongoing_trips = Trip.objects.filter(
             status='ongoing',
-            start_time__gte=yesterday_start,
-            start_time__lte=yesterday_end,
+            start_time__lte=cutoff,
         ).select_related('driver', 'vehicle')
 
         if ongoing_trips.exists():

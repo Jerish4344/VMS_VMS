@@ -77,7 +77,7 @@ class ConsultantReportView(ReportBaseView):
             driver__in=consultant_drivers,
             status='completed',
             start_time__gte=start_datetime,
-            end_time__lte=end_datetime,
+            start_time__lte=end_datetime,
             is_deleted=False
         ).select_related('driver', 'vehicle').prefetch_related('sor_entry')
         

@@ -564,13 +564,27 @@ class StartTripView(LoginRequiredMixin, CanDriveVehicleMixin, CreateView):
         else:
             print("GPS Debug - No starting coordinates provided (location permission denied or unavailable)")
         
-        # Update vehicle status to 'in_use'
-        vehicle = form.instance.vehicle
-        vehicle.status = 'in_use'
-        vehicle.save()
+        # Lock the vehicle row and re-check availability inside the transaction.
+        # The form's queryset check (TripForm.__init__) ran earlier in the request
+        # and can go stale if another driver starts a trip on the same vehicle in
+        # the gap between that check and this write — select_for_update() closes it.
+        with transaction.atomic():
+            vehicle = Vehicle.objects.select_for_update().get(pk=form.instance.vehicle_id)
 
-        # Save the trip first to get the trip ID
-        response = super().form_valid(form)
+            if vehicle.status != 'available':
+                messages.error(
+                    self.request,
+                    f'{vehicle} is no longer available — another driver may have just started a trip with it. '
+                    'Please choose a different vehicle.'
+                )
+                return self.form_invalid(form)
+
+            vehicle.status = 'in_use'
+            vehicle.save()
+            form.instance.vehicle = vehicle
+
+            # Save the trip first to get the trip ID
+            response = super().form_valid(form)
         
         # Create GPS tracking session if GPS is enabled
         if form.instance.gps_tracking_enabled:
@@ -999,8 +1013,14 @@ def trip_edit(request, pk):
                 trip.destination = request.POST.get('destination', trip.destination).strip()
                 trip.purpose = request.POST.get('purpose', trip.purpose).strip()
                 trip.notes = request.POST.get('notes', trip.notes).strip()
-                trip.status = request.POST.get('status', trip.status)
-                
+
+                new_status = request.POST.get('status', trip.status)
+                valid_statuses = dict(Trip.STATUS_CHOICES)
+                if new_status not in valid_statuses:
+                    messages.error(request, f'Invalid trip status: {new_status}')
+                    return render(request, 'trips/trip_edit.html', get_edit_context(trip))
+                trip.status = new_status
+
                 # Validate required fields
                 if not trip.origin or not trip.destination or not trip.purpose:
                     messages.error(request, 'Origin, destination, and purpose are required.')

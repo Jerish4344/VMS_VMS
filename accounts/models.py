@@ -361,10 +361,11 @@ class CustomUser(AbstractUser):
             'personal_vehicle_staff': 'is_default_for_personal_vehicle_staff',
             'generator_user': 'is_default_for_generator_user',
             'sor_team': 'is_default_for_sor_team',
+            'sor_head': 'is_default_for_sor_head',
         }
-        
+
         role_field = role_field_map.get(self.user_type)
-        
+
         # Single query: fetch all permissions with their module names
         all_permissions = Permission.objects.select_related('module').values_list(
             'module__name', 'action', 'id',
@@ -372,6 +373,7 @@ class CustomUser(AbstractUser):
             'is_default_for_vehicle_manager', 'is_default_for_driver',
             'is_default_for_company_vehicle_staff', 'is_default_for_personal_vehicle_staff',
             'is_default_for_generator_user', 'is_default_for_sor_team',
+            'is_default_for_sor_head',
         )
         
         # Single query: fetch all explicit user overrides
@@ -391,6 +393,7 @@ class CustomUser(AbstractUser):
             'is_default_for_personal_vehicle_staff': 8,
             'is_default_for_generator_user': 9,
             'is_default_for_sor_team': 10,
+            'is_default_for_sor_head': 11,
         }
         
         permissions_map = {}
@@ -571,6 +574,7 @@ class Permission(models.Model):
     is_default_for_personal_vehicle_staff = models.BooleanField(default=False, help_text="Default permission for personal vehicle staff role")
     is_default_for_generator_user = models.BooleanField(default=False, help_text="Default permission for generator user role")
     is_default_for_sor_team = models.BooleanField(default=False, help_text="Default permission for SOR team role")
+    is_default_for_sor_head = models.BooleanField(default=False, help_text="Default permission for SOR Head role")
     
     class Meta:
         unique_together = ['module', 'action']

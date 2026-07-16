@@ -116,11 +116,15 @@ class MaintenanceUpdateView(VehicleManagerRequiredMixin, UpdateView):
         
         if old_status != new_status:
             vehicle = form.instance.vehicle
-            
+
             if new_status == 'in_progress':
                 vehicle.status = 'maintenance'
                 vehicle.save()
-            elif new_status in ['completed', 'cancelled']:
+            else:
+                # 'scheduled' (reverted from in_progress), 'completed', or
+                # 'cancelled' all mean this record no longer actively blocks
+                # the vehicle — recalculate_status() re-checks other
+                # maintenance/accidents/trips before releasing it.
                 vehicle.recalculate_status()
                 vehicle.save()
         

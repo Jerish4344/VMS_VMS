@@ -402,26 +402,37 @@ class Trip(models.Model):
     def end_trip(self, destination, end_odometer, notes=None):
         """
         Safely end a trip with proper validation.
+
+        Locks the row and re-checks status inside the transaction, so two
+        near-simultaneous "End Trip" submissions (e.g. a double-submit from a
+        flaky mobile connection) can't both pass the ongoing check before
+        either one commits.
         """
-        if self.status != 'ongoing':
-            raise ValidationError("Can only end ongoing trips")
-        
         if not destination or len(destination.strip()) < 3:
             raise ValidationError("Destination is required to end the trip")
-        
+
         if not end_odometer or end_odometer <= self.start_odometer:
             raise ValidationError(f"End odometer ({end_odometer}) must be greater than start odometer ({self.start_odometer})")
-        
-        self.destination = destination.strip()
-        self.end_odometer = end_odometer
-        self.end_time = timezone.now()
-        self.status = 'completed'
-        
-        if notes:
-            self.notes = notes
-        
-        # The save method will handle vehicle updates
-        self.save()
+
+        with transaction.atomic():
+            locked = Trip.objects.select_for_update().get(pk=self.pk)
+            if locked.status != 'ongoing':
+                raise ValidationError("Can only end ongoing trips")
+
+            locked.destination = destination.strip()
+            locked.end_odometer = end_odometer
+            locked.end_time = timezone.now()
+            locked.status = 'completed'
+
+            if notes:
+                locked.notes = notes
+
+            # The save method will handle vehicle updates
+            locked.save()
+
+        # Keep this instance in sync so callers reading `self` afterwards
+        # (view code, email alerts, SOR completion) see the committed values.
+        self.__dict__.update(locked.__dict__)
     
     def cancel_trip(self, reason=None):
         """

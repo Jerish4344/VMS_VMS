@@ -5,7 +5,9 @@ from django.utils.html import format_html
 from django.utils import timezone
 from datetime import timedelta
 from django.utils.html import format_html
+from django.core.cache import cache
 from .models import CustomUser, Module, Permission, UserPermission, UserRole, Department, AuditLog
+from .forms import login_attempts_cache_key
 from django.contrib.auth.forms import UserChangeForm, UserCreationForm
 
 # Should match the value in backends.py
@@ -31,7 +33,15 @@ class CustomUserAdmin(DefaultUserAdmin):
     autocomplete_fields = ('reports_to',)
     ordering = ('username',)
     filter_horizontal = ('assigned_stores',)  # Makes the many-to-many field easier to manage
-    
+    actions = ['unlock_login_attempts']
+
+    def unlock_login_attempts(self, request, queryset):
+        """Clear the login-lockout counter for selected users (support/manager self-service unlock)."""
+        for user in queryset:
+            cache.delete(login_attempts_cache_key(user.username))
+        self.message_user(request, f'Cleared login lockout for {queryset.count()} user(s).')
+    unlock_login_attempts.short_description = 'Unlock login (clear failed-attempt lockout)'
+
     def get_assigned_stores_count(self, obj):
         return obj.assigned_stores.count()
     get_assigned_stores_count.short_description = 'Assigned Stores'
@@ -106,12 +116,12 @@ class ModuleAdmin(admin.ModelAdmin):
 
 @admin.register(Permission)
 class PermissionAdmin(admin.ModelAdmin):
-    list_display = ('name', 'module', 'action', 'is_default_for_admin', 'is_default_for_manager', 
-                     'is_default_for_vehicle_manager', 'is_default_for_driver', 
-                     'is_default_for_generator_user', 'is_default_for_sor_team')
-    list_filter = ('module', 'action', 'is_default_for_admin', 'is_default_for_manager', 
-                   'is_default_for_vehicle_manager', 'is_default_for_driver', 
-                   'is_default_for_generator_user', 'is_default_for_sor_team')
+    list_display = ('name', 'module', 'action', 'is_default_for_admin', 'is_default_for_manager',
+                     'is_default_for_vehicle_manager', 'is_default_for_driver',
+                     'is_default_for_generator_user', 'is_default_for_sor_team', 'is_default_for_sor_head')
+    list_filter = ('module', 'action', 'is_default_for_admin', 'is_default_for_manager',
+                   'is_default_for_vehicle_manager', 'is_default_for_driver',
+                   'is_default_for_generator_user', 'is_default_for_sor_team', 'is_default_for_sor_head')
     search_fields = ('name', 'action', 'description')
     ordering = ('module__order', 'action')
     
@@ -126,7 +136,8 @@ class PermissionAdmin(admin.ModelAdmin):
                 'is_default_for_vehicle_manager',
                 'is_default_for_driver',
                 'is_default_for_generator_user',
-                'is_default_for_sor_team'
+                'is_default_for_sor_team',
+                'is_default_for_sor_head',
             ),
             'classes': ('wide',),
             'description': 'Set which user types should have this permission by default.'

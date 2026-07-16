@@ -45,65 +45,94 @@ class AiroTrackAPI:
         self.auth = (self.USERNAME, self.PASSWORD)
         self.session = requests.Session()
         self.session.auth = self.auth
-        # Disable SSL verification because the AiroTrack server currently
-        # presents a certificate that cannot be verified by the default
-        # certificate authorities bundled with Python.  NOTE: Disabling SSL
-        # verification reduces transport-level security and should only be
-        # used when you fully trust the remote host (e.g., internal network)
-        # or have no other option.  A proper solution is to install the
-        # correct CA certificate and re-enable verification.
-        self.session.verify = False
 
-        # Silence the urllib3 warning about insecure HTTPS requests so logs
-        # don’t get flooded.  We still keep our own explicit warning.
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        # SSL verification is controlled by AIROTRACK_SSL_CA_BUNDLE:
+        #   unset/empty     -> verify against the system's default CA bundle (secure default)
+        #   a filesystem path -> verify against that custom CA bundle
+        #   'DISABLE'       -> explicit, logged opt-out for local dev only — never set this in production
+        if self.SSL_CA_BUNDLE == 'DISABLE':
+            self.session.verify = False
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            logger.warning(
+                "SSL certificate verification is DISABLED for AiroTrack API requests "
+                "(AIROTRACK_SSL_CA_BUNDLE=DISABLE). This must not be set in production."
+            )
+        elif self.SSL_CA_BUNDLE:
+            self.session.verify = self.SSL_CA_BUNDLE
+        else:
+            self.session.verify = True
 
-        logger.warning(
-            "SSL certificate verification is DISABLED for AiroTrack API "
-            "requests.  This should only be used in development or when the "
-            "server’s certificate cannot be validated.  Consider supplying a "
-            "valid CA bundle and removing this override for production."
-        )
         self.last_sync_time = None
     
-    def _make_request(self, endpoint, params=None, method="GET", data=None, timeout=10):
+    def _make_request(self, endpoint, params=None, method="GET", data=None, timeout=10, max_retries=2):
         """
         Make an HTTP request to the AiroTrack API.
-        
+
+        Retries transient failures (connection errors, timeouts, 429 rate
+        limits, 5xx server errors) with exponential backoff — honoring the
+        Retry-After header when the API sends one. 401/403 auth failures are
+        raised immediately without retrying, since retrying with the same
+        credentials can't fix a bad login.
+
         Args:
             endpoint (str): API endpoint path
             params (dict, optional): Query parameters
             method (str, optional): HTTP method (GET, POST, etc.)
             data (dict, optional): Request body for POST requests
             timeout (int, optional): Request timeout in seconds
-            
+            max_retries (int, optional): Max retry attempts for transient failures
+
         Returns:
             dict: JSON response from the API
-            
+
         Raises:
-            requests.RequestException: If the request fails
+            requests.RequestException: If the request fails after all retries
         """
         url = f"{self.BASE_URL}{endpoint}"
         request_params = self.DEFAULT_PARAMS.copy()
-        
+
         if params:
             request_params.update(params)
-            
-        try:
-            if method.upper() == "GET":
-                response = self.session.get(url, params=request_params, timeout=timeout)
-            elif method.upper() == "POST":
-                response = self.session.post(url, params=request_params, json=data, timeout=timeout)
-            else:
-                raise ValueError(f"Unsupported HTTP method: {method}")
-            
+
+        for attempt in range(max_retries + 1):
+            try:
+                if method.upper() == "GET":
+                    response = self.session.get(url, params=request_params, timeout=timeout)
+                elif method.upper() == "POST":
+                    response = self.session.post(url, params=request_params, json=data, timeout=timeout)
+                else:
+                    raise ValueError(f"Unsupported HTTP method: {method}")
+            except requests.RequestException as e:
+                if attempt >= max_retries:
+                    logger.error(f"AiroTrack API request failed after {attempt + 1} attempt(s): {str(e)}")
+                    raise requests.RequestException(f"AiroTrack API request failed: {str(e)}")
+                wait = 2 ** attempt
+                logger.warning(
+                    "AiroTrack API request error for %s, retrying in %.1fs (attempt %d/%d): %s",
+                    endpoint, wait, attempt + 1, max_retries, e
+                )
+                time.sleep(wait)
+                continue
+
+            if response.status_code in (401, 403):
+                # Auth failure — retrying with the same credentials won't help.
+                logger.error(f"AiroTrack API auth failed for {endpoint}: HTTP {response.status_code}")
+                response.raise_for_status()
+
+            if response.status_code == 429 or response.status_code >= 500:
+                if attempt >= max_retries:
+                    response.raise_for_status()
+                retry_after = response.headers.get('Retry-After')
+                wait = float(retry_after) if retry_after else (2 ** attempt)
+                logger.warning(
+                    "AiroTrack API returned %s for %s, retrying in %.1fs (attempt %d/%d)",
+                    response.status_code, endpoint, wait, attempt + 1, max_retries
+                )
+                time.sleep(wait)
+                continue
+
             response.raise_for_status()
             return response.json()
-            
-        except requests.RequestException as e:
-            logger.error(f"AiroTrack API request failed: {str(e)}")
-            # Re-raise with more context
-            raise requests.RequestException(f"AiroTrack API request failed: {str(e)}")
     
     def get_positions(self, device_ids=None, from_time=None, to_time=None):
         """
@@ -175,16 +204,43 @@ class AiroTrackAPI:
     def get_devices(self):
         """
         Get all devices registered with AiroTrack.
-        
+
+        The API caps each response to DEFAULT_PARAMS['limit'] devices, so this
+        pages through with increasing offsets until a page comes back with
+        fewer devices than requested (or fails), instead of silently dropping
+        every device past the first page.
+
         Returns:
             list: List of device data dictionaries
         """
-        try:
-            response = self._make_request(self.DEVICES_ENDPOINT)
-            return response
-        except requests.RequestException as e:
-            logger.error(f"Failed to get devices: {str(e)}")
-            return []
+        all_devices = []
+        limit = self.DEFAULT_PARAMS.get('limit', 80)
+        offset = 0
+        max_pages = 50  # safety cap — 50 * limit devices, well beyond any real fleet size
+
+        for _ in range(max_pages):
+            try:
+                page = self._make_request(self.DEVICES_ENDPOINT, {'limit': limit, 'offset': offset})
+            except requests.RequestException as e:
+                logger.error(f"Failed to get devices (offset={offset}): {str(e)}")
+                break
+
+            if not isinstance(page, list) or not page:
+                break
+
+            all_devices.extend(page)
+
+            if len(page) < limit:
+                break
+
+            offset += limit
+        else:
+            logger.warning(
+                "get_devices() hit the %s-page safety cap — there may be more "
+                "devices than were fetched.", max_pages
+            )
+
+        return all_devices
     
     def get_device_info(self, device_id):
         """
@@ -241,6 +297,17 @@ class AiroTrackAPI:
                 logger.warning(f"Position data for device {device_id} missing coordinates")
                 return None
             
+            # fix_time is parsed separately so a malformed value only drops
+            # this one field, not the whole position fix (device_id,
+            # coordinates, and device_time are all still valid at this point).
+            fix_time_str = position_data.get('fixTime')
+            fix_time = None
+            if fix_time_str:
+                try:
+                    fix_time = datetime.fromisoformat(fix_time_str.replace('Z', '+00:00'))
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid fixTime format for device {device_id}: {fix_time_str}")
+
             # Create parsed data dictionary with all available fields
             parsed_data = {
                 'device_id': device_id,
@@ -251,14 +318,14 @@ class AiroTrackAPI:
                 'course': position_data.get('course'),
                 'device_time': device_time,
                 'server_time': timezone.now(),
-                'fix_time': datetime.fromisoformat(position_data.get('fixTime').replace('Z', '+00:00')) if position_data.get('fixTime') else None,
+                'fix_time': fix_time,
                 'valid': position_data.get('valid', True),
                 'address': position_data.get('address'),
                 'ignition': position_data.get('ignition', False),
                 'battery_level': position_data.get('batteryLevel'),
                 'raw_data': position_data
             }
-            
+
             return parsed_data
             
         except Exception as e:
