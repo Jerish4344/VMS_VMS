@@ -80,6 +80,15 @@ class TripForm(forms.ModelForm):
 
 class EndTripForm(forms.ModelForm):
     """Form for ending a trip."""
+
+    # Corrected start odometer – surfaced in the ODO verification modal only.
+    # Not rendered in the main form body; the template uses a hidden input.
+    start_odometer = forms.IntegerField(
+        min_value=0,
+        required=True,
+        widget=forms.HiddenInput(attrs={'id': 'id_start_odometer'}),
+        help_text="Verify or correct the odometer reading at trip start",
+    )
     
     class Meta:
         model = Trip
@@ -111,6 +120,11 @@ class EndTripForm(forms.ModelForm):
         # Add custom help text
         self.fields['end_odometer'].help_text = "Current odometer reading in kilometers"
         self.fields['destination'].help_text = "Enter your final destination"
+
+        # Pre-fill start_odometer with current trip value so it round-trips
+        # unchanged when the driver confirms without editing it.
+        if self.instance and self.instance.pk:
+            self.fields['start_odometer'].initial = self.instance.start_odometer
         
         # Set minimum value for end_odometer
         if self.instance and self.instance.start_odometer:
@@ -124,17 +138,22 @@ class EndTripForm(forms.ModelForm):
             # Hide passenger_count for non-staff-bus vehicles
             del self.fields['passenger_count']
     
-    def clean_end_odometer(self):
-        """Validate end odometer is greater than start odometer."""
-        end_odometer = self.cleaned_data.get('end_odometer')
-        
-        if self.instance and self.instance.start_odometer:
-            if end_odometer < self.instance.start_odometer:
+    def clean(self):
+        """Cross-field validation: end odometer must exceed (corrected) start odometer."""
+        cleaned = super().clean()
+        end_odometer = cleaned.get('end_odometer')
+        # Use the driver-verified start odometer if provided, else the stored value.
+        start_odometer = cleaned.get('start_odometer') or (
+            self.instance.start_odometer if self.instance else None
+        )
+
+        if end_odometer is not None and start_odometer is not None:
+            if end_odometer <= start_odometer:
                 raise forms.ValidationError(
-                    f"End odometer cannot be less than start odometer ({self.instance.start_odometer} km)."
+                    f"End odometer ({end_odometer} km) must be greater than "
+                    f"start odometer ({start_odometer} km)."
                 )
-        
-        return end_odometer
+        return cleaned
     
     def clean_destination(self):
         """Validate destination field."""

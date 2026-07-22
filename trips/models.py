@@ -399,7 +399,7 @@ class Trip(models.Model):
         destination = self.destination or "TBD"
         return f"{self.origin} → {destination}"
     
-    def end_trip(self, destination, end_odometer, notes=None):
+    def end_trip(self, destination, end_odometer, notes=None, start_odometer=None):
         """
         Safely end a trip with proper validation.
 
@@ -407,17 +407,26 @@ class Trip(models.Model):
         near-simultaneous "End Trip" submissions (e.g. a double-submit from a
         flaky mobile connection) can't both pass the ongoing check before
         either one commits.
+
+        Optional ``start_odometer`` allows correcting a wrong start reading
+        at the time of trip closure (verified by the driver via the ODO
+        verification step before submitting).
         """
         if not destination or len(destination.strip()) < 3:
             raise ValidationError("Destination is required to end the trip")
 
-        if not end_odometer or end_odometer <= self.start_odometer:
-            raise ValidationError(f"End odometer ({end_odometer}) must be greater than start odometer ({self.start_odometer})")
+        effective_start = start_odometer if start_odometer is not None else self.start_odometer
+
+        if not end_odometer or end_odometer <= effective_start:
+            raise ValidationError(f"End odometer ({end_odometer}) must be greater than start odometer ({effective_start})")
 
         with transaction.atomic():
             locked = Trip.objects.select_for_update().get(pk=self.pk)
             if locked.status != 'ongoing':
                 raise ValidationError("Can only end ongoing trips")
+
+            if start_odometer is not None and start_odometer != locked.start_odometer:
+                locked.start_odometer = start_odometer
 
             locked.destination = destination.strip()
             locked.end_odometer = end_odometer

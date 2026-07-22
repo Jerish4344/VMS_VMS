@@ -359,15 +359,17 @@
             </div>
         </div>
         
-        <!-- Hidden GPS coordinate fields -->
+        <!-- Hidden fields -->
+        {{ form.start_odometer }}
         {% if trip.gps_tracking_enabled %}
         <input type="hidden" name="gps_end_lat" id="gps_end_lat">
         <input type="hidden" name="gps_end_lon" id="gps_end_lon">
         {% endif %}
         
-        <!-- Submit button -->
+        <!-- Submit button – opens ODO verification modal first -->
         <div class="form-actions mt-4">
-            <button type="submit" class="btn btn-danger btn-lg" id="end-trip-btn">
+            <button type="button" class="btn btn-danger btn-lg" id="end-trip-btn"
+                    data-bs-toggle="modal" data-bs-target="#odoVerifyModal">
                 <i class="fas fa-stop-circle me-1"></i> End Trip
             </button>
             <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-secondary btn-lg ms-2">
@@ -379,64 +381,87 @@
   </div>
 </div>
 
-<!-- Confirmation Modal -->
-<div class="modal fade" id="confirmEndModal" tabindex="-1" aria-labelledby="confirmEndModalLabel" aria-hidden="true">
+<!-- ODO Verification Modal -->
+<div class="modal fade" id="odoVerifyModal" tabindex="-1" aria-labelledby="odoVerifyModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="confirmEndModalLabel">Confirm End Trip</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title text-dark" id="odoVerifyModalLabel">
+          <i class="fas fa-tachometer-alt me-2"></i>Verify Odometer Readings
+        </h5>
       </div>
       <div class="modal-body">
-        <p>Are you sure you want to end this trip? Please review the details below:</p>
-        
-        <!-- Trip Summary in Modal -->
-        <div class="card mb-3">
-          <div class="card-header">
-            <h6 class="mb-0"><i class="fas fa-route me-1"></i>Complete Route</h6>
+        <div class="alert alert-warning mb-3">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <strong>Please verify your odometer readings before ending the trip.</strong>
+          If the values are wrong, correct them here — this updates the vehicle's odometer record.
+        </div>
+
+        <div class="row g-3 mb-3">
+          <!-- Start ODO -->
+          <div class="col-md-6">
+            <label class="form-label fw-bold">
+              <i class="fas fa-play-circle text-success me-1"></i>Start Odometer (km)
+            </label>
+            <input type="number" id="verify-start-odo" class="form-control form-control-lg"
+                   min="0" placeholder="Start reading" />
+            <small class="text-muted">
+              Recorded at trip start &mdash;
+              <strong class="text-success">{{ trip.start_odometer }} km</strong>
+            </small>
           </div>
-          <div class="card-body">
-            <div class="d-flex align-items-center justify-content-center">
+
+          <!-- End ODO -->
+          <div class="col-md-6">
+            <label class="form-label fw-bold">
+              <i class="fas fa-stop-circle text-danger me-1"></i>End Odometer (km)
+            </label>
+            <input type="number" id="verify-end-odo" class="form-control form-control-lg"
+                   min="0" placeholder="Current reading" />
+            <small class="text-muted" id="verify-end-odo-hint">
+              Enter current reading
+              {% if trip.vehicle.current_odometer %}
+              &mdash; <strong class="text-primary">Last known: {{ trip.vehicle.current_odometer }} km</strong>
+              {% endif %}
+            </small>
+          </div>
+        </div>
+
+        <!-- Distance preview -->
+        <div id="verify-distance-preview" class="card border-success mt-2" style="display:none;">
+          <div class="card-body py-2">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
               <div class="text-center">
-                <i class="fas fa-map-marker-alt text-success fa-lg"></i>
-                <div class="mt-1">
-                  <strong class="text-success">{{ trip.origin }}</strong>
-                </div>
-                <small class="text-muted">Starting Point</small>
+                <div class="text-muted" style="font-size:0.78rem;">START ODO</div>
+                <div class="fw-bold text-success fs-6" id="verify-calc-start">—</div>
+                <div class="text-muted" style="font-size:0.75rem;">km</div>
               </div>
-              <div class="mx-4">
-                <i class="fas fa-long-arrow-alt-right text-primary fa-2x"></i>
-              </div>
+              <div class="text-muted fs-5"><i class="fas fa-long-arrow-alt-right"></i></div>
               <div class="text-center">
-                <i class="fas fa-map-marker-alt text-danger fa-lg"></i>
-                <div class="mt-1">
-                  <strong class="text-danger" id="modal-destination">-</strong>
-                </div>
-                <small class="text-muted">Final Destination</small>
+                <div class="text-muted" style="font-size:0.78rem;">END ODO</div>
+                <div class="fw-bold text-danger fs-6" id="verify-calc-end">—</div>
+                <div class="text-muted" style="font-size:0.75rem;">km</div>
+              </div>
+              <div class="text-muted fs-5">=</div>
+              <div class="text-center">
+                <div class="text-muted" style="font-size:0.78rem;">TOTAL KMS</div>
+                <div class="fw-bold text-primary fs-5" id="verify-distance-value">—</div>
+                <div class="text-muted" style="font-size:0.75rem;">km</div>
               </div>
             </div>
           </div>
         </div>
-
-        <div class="alert alert-info">
-          <div class="row">
-            <div class="col-md-6">
-              <strong>Distance:</strong> <span id="modal-distance"></span> km<br>
-              <strong>Duration:</strong> <span id="modal-duration"></span>
-            </div>
-            <div class="col-md-6">
-              <strong>End Odometer:</strong> <span id="modal-odometer"></span> km<br>
-              <strong>Vehicle:</strong> {{ trip.vehicle.license_plate }}
-            </div>
-          </div>
+        <div id="verify-distance-error" class="alert alert-danger text-center" style="display:none;">
+          <i class="fas fa-exclamation-circle me-2"></i>
+          <span id="verify-distance-error-msg"></span>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-          <i class="fas fa-arrow-left me-1"></i>Cancel
+          <i class="fas fa-arrow-left me-1"></i> Back — Make Changes
         </button>
-        <button type="button" class="btn btn-danger" id="confirm-end-btn">
-          <i class="fas fa-stop-circle me-1"></i> End Trip
+        <button type="button" class="btn btn-danger btn-lg" id="odo-verify-confirm-btn" disabled>
+          <i class="fas fa-check-circle me-1"></i> Confirm &amp; End Trip
         </button>
       </div>
     </div>
@@ -494,11 +519,93 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
+    // ---------------------------------------------------------------
+    // ODO Verification Modal
+    // ---------------------------------------------------------------
+    const odoModal       = document.getElementById('odoVerifyModal');
+    const verifyStartOdo = document.getElementById('verify-start-odo');
+    const verifyEndOdo   = document.getElementById('verify-end-odo');
+    const distPreview    = document.getElementById('verify-distance-preview');
+    const distValue      = document.getElementById('verify-distance-value');
+    const distError      = document.getElementById('verify-distance-error');
+    const distErrorMsg   = document.getElementById('verify-distance-error-msg');
+    const confirmBtn     = document.getElementById('odo-verify-confirm-btn');
+
+    // Populate modal fields when it opens
+    if (odoModal) {
+        odoModal.addEventListener('show.bs.modal', function () {
+            const currentStartOdo = parseInt(document.getElementById('id_start_odometer').value) || {{ trip.start_odometer }};
+            const currentEndOdo   = parseInt(endOdometerInput ? endOdometerInput.value : '') || '';
+            verifyStartOdo.value  = currentStartOdo;
+            verifyEndOdo.value    = currentEndOdo;
+            updateVerifyDistance();
+        });
+    }
+
+    function updateVerifyDistance() {
+        const s = parseInt(verifyStartOdo.value);
+        const e = parseInt(verifyEndOdo.value);
+        distPreview.style.display = 'none';
+        distError.style.display   = 'none';
+        confirmBtn.disabled = true;
+
+        if (!verifyStartOdo.value || !verifyEndOdo.value) {
+            distErrorMsg.textContent = 'Please enter both Start and End odometer readings.';
+            distError.style.display  = 'block';
+            return;
+        }
+        if (isNaN(s) || isNaN(e)) {
+            distErrorMsg.textContent = 'Odometer values must be valid numbers.';
+            distError.style.display  = 'block';
+            return;
+        }
+        if (e <= s) {
+            distErrorMsg.textContent = `End odometer (${e} km) must be greater than start odometer (${s} km).`;
+            distError.style.display  = 'block';
+            return;
+        }
+        const dist = e - s;
+        document.getElementById('verify-calc-start').textContent = s;
+        document.getElementById('verify-calc-end').textContent = e;
+        distValue.textContent    = dist + ' km';
+        distPreview.style.display = 'block';
+        confirmBtn.disabled = false;
+    }
+
+    if (verifyStartOdo) verifyStartOdo.addEventListener('input', updateVerifyDistance);
+    if (verifyEndOdo)   verifyEndOdo.addEventListener('input', updateVerifyDistance);
+
+    // On confirm: push verified values back to the main form, then submit
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', function () {
+            const correctedStart = parseInt(verifyStartOdo.value);
+            const correctedEnd   = parseInt(verifyEndOdo.value);
+
+            // Update hidden start_odometer field
+            document.getElementById('id_start_odometer').value = correctedStart;
+            // Update visible end_odometer field
+            if (endOdometerInput) endOdometerInput.value = correctedEnd;
+
+            // Close modal, then submit
+            const bsModal = bootstrap.Modal.getInstance(odoModal);
+            if (bsModal) bsModal.hide();
+
+            // Small delay so modal dismiss animation completes
+            setTimeout(() => {
+                {% if trip.gps_tracking_enabled %}
+                // For GPS trips, fire the submit event so the GPS handler runs
+                document.getElementById('end-trip-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                {% else %}
+                document.getElementById('end-trip-form').submit();
+                {% endif %}
+            }, 300);
+        });
+    }
+
     {% if trip.gps_tracking_enabled %}
     // GPS Tracking Finalization
     const endTripForm = document.getElementById('end-trip-form');
-    const endTripBtn = document.getElementById('end-trip-btn');
     let gpsFinalized = false;
     
     // Set the trip ID on the GPS tracker
@@ -513,9 +620,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         e.preventDefault();
         
-        // Disable submit button and show loading
-        endTripBtn.disabled = true;
-        endTripBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing GPS Data...';
+        // Disable confirm button and show loading
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing GPS Data...';
+        }
         
         try {
             // Stop GPS tracking
@@ -603,13 +712,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Mark as finalized and submit
             gpsFinalized = true;
-            endTripBtn.disabled = false;
-            endTripBtn.innerHTML = '<i class="fas fa-stop-circle me-1"></i> Confirm End Trip';
-            
-            // Auto-submit after 2 seconds or wait for user confirmation
-            setTimeout(() => {
-                endTripForm.submit();
-            }, 2000);
+            endTripForm.submit();
             
         } catch (error) {
             console.error('GPS finalization error:', error);
@@ -619,8 +722,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 gpsFinalized = true;
                 endTripForm.submit();
             } else {
-                endTripBtn.disabled = false;
-                endTripBtn.innerHTML = '<i class="fas fa-stop-circle me-1"></i> End Trip';
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<i class="fas fa-check-circle me-1"></i> Confirm &amp; End Trip';
+                }
             }
         }
     });

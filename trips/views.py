@@ -688,10 +688,12 @@ class EndTripView(LoginRequiredMixin, UpdateView):
 
         try:
             # Use the model's end_trip method
+            corrected_start_odo = form.cleaned_data.get('start_odometer')
             trip.end_trip(
                 destination=destination,
-                end_odometer=end_odometer, 
-                notes=form.cleaned_data.get('notes')
+                end_odometer=end_odometer,
+                notes=form.cleaned_data.get('notes'),
+                start_odometer=corrected_start_odo,
             )
             # Update SOR status if this trip is linked to a SOR
             from sor.models import SOR
