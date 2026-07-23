@@ -1,0 +1,379 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ page_title }} | {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+<style>
+  .detail-header {
+    background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 20px 25px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .detail-header h1 {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+  }
+  .detail-header .sub {
+    font-size: 0.9rem;
+    opacity: 0.85;
+    margin-top: 4px;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+  }
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #28a745;
+    animation: blink 1.4s infinite;
+  }
+  .status-dot.offline { background: #dc3545; animation: none; }
+  .status-dot.idle    { background: #ffc107; animation: none; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* Stats row */
+  .stats-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+  .stat-card {
+    flex: 1;
+    min-width: 160px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    padding: 18px 20px;
+    text-align: center;
+  }
+  .stat-icon { font-size: 1.6rem; margin-bottom: 8px; }
+  .stat-value { font-size: 1.7rem; font-weight: 700; color: #4e73df; }
+  .stat-label { font-size: 0.8rem; color: #6c757d; font-weight: 600; text-transform: uppercase; margin-top: 2px; }
+
+  /* Main layout */
+  .content-row { display: flex; gap: 20px; flex-wrap: wrap; }
+  .map-col { flex: 2; min-width: 340px; }
+  .side-col { flex: 1; min-width: 300px; }
+
+  /* Map */
+  #vehicleMap {
+    height: 420px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+  }
+  .map-card, .info-card {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .card-header-custom {
+    padding: 14px 18px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #5a5c69;
+    border-bottom: 1px solid #e3e6f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-body-custom { padding: 18px; }
+
+  /* Info table */
+  .info-table { width: 100%; border-collapse: collapse; }
+  .info-table tr td { padding: 9px 4px; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem; }
+  .info-table tr:last-child td { border-bottom: none; }
+  .info-table td:first-child { color: #6c757d; font-weight: 600; width: 45%; }
+  .info-table td:last-child { color: #3a3b45; font-weight: 500; }
+
+  /* History table */
+  .history-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .history-table th { background: #f8f9fc; color: #5a5c69; font-weight: 700; padding: 10px 12px; text-align: left; border-bottom: 2px solid #e3e6f0; }
+  .history-table td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  .history-table tr:hover td { background: #f8f9fc; }
+  .table-wrap { max-height: 320px; overflow-y: auto; }
+
+  /* No data */
+  .no-data { text-align: center; padding: 40px 20px; color: #6c757d; }
+  .no-data i { font-size: 2.5rem; margin-bottom: 12px; opacity: .4; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3">
+
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'tracking_dashboard' %}">Tracking</a></li>
+      <li class="breadcrumb-item active">{{ vehicle.license_plate }}</li>
+    </ol>
+  </nav>
+
+  <!-- Header -->
+  <div class="detail-header">
+    <div>
+      <h1><i class="fas fa-car me-2"></i>{{ vehicle.license_plate }}</h1>
+      <div class="sub">{{ vehicle.make }} {{ vehicle.model }} &mdash; {{ device.name|default:device.device_id }}</div>
+    </div>
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <span class="status-pill">
+        <span class="status-dot {% if status.status == 'idle' %}idle{% elif status.status != 'active' %}offline{% endif %}"></span>
+        {{ status.display }}
+      </span>
+      <a href="{% url 'tracking_dashboard' %}" class="btn btn-outline-light btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Back
+      </a>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-icon text-primary"><i class="fas fa-tachometer-alt"></i></div>
+      <div class="stat-value">{{ location.speed|default:"0"|floatformat:0 }}</div>
+      <div class="stat-label">Current Speed (km/h)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon text-warning"><i class="fas fa-bolt"></i></div>
+      <div class="stat-value">{{ max_speed|floatformat:0 }}</div>
+      <div class="stat-label">Max Speed Today (km/h)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon text-success"><i class="fas fa-road"></i></div>
+      <div class="stat-value">{{ avg_speed|floatformat:0 }}</div>
+      <div class="stat-label">Avg Speed Today (km/h)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon text-info"><i class="fas fa-map-marker-alt"></i></div>
+      <div class="stat-value">{{ history|length }}</div>
+      <div class="stat-label">Location Points Today</div>
+    </div>
+    {% if location.battery_level %}
+    <div class="stat-card">
+      <div class="stat-icon text-{% if location.battery_level > 50 %}success{% elif location.battery_level > 20 %}warning{% else %}danger{% endif %}">
+        <i class="fas fa-battery-{% if location.battery_level > 75 %}full{% elif location.battery_level > 50 %}three-quarters{% elif location.battery_level > 25 %}half{% else %}quarter{% endif %}"></i>
+      </div>
+      <div class="stat-value">{{ location.battery_level|floatformat:0 }}%</div>
+      <div class="stat-label">Battery</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Content -->
+  <div class="content-row">
+
+    <!-- Map -->
+    <div class="map-col">
+      <div class="map-card">
+        <div class="card-header-custom">
+          <i class="fas fa-map text-primary"></i> Live Location
+          {% if location %}
+          <small class="ms-auto text-muted fw-normal">
+            Last update: {{ location.last_update|timesince }} ago
+          </small>
+          {% endif %}
+        </div>
+        <div class="card-body-custom p-0">
+          {% if location %}
+            <div id="vehicleMap"></div>
+          {% else %}
+            <div class="no-data">
+              <div><i class="fas fa-satellite-dish d-block"></i></div>
+              <p class="mb-0 mt-2">No live location data available.<br>
+              <small>The device may be offline or out of signal range.</small></p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Side info -->
+    <div class="side-col">
+
+      <!-- Current Location Info -->
+      <div class="info-card">
+        <div class="card-header-custom">
+          <i class="fas fa-info-circle text-primary"></i> Current Status
+        </div>
+        <div class="card-body-custom">
+          {% if location %}
+          <table class="info-table">
+            <tr><td>Address</td><td>{{ location.address }}</td></tr>
+            <tr><td>Coordinates</td><td>{{ location.latitude|floatformat:5 }}, {{ location.longitude|floatformat:5 }}</td></tr>
+            <tr><td>Speed</td><td>{{ location.speed|floatformat:1 }} km/h</td></tr>
+            <tr><td>Heading</td><td>{{ location.course|floatformat:0 }}&deg;</td></tr>
+            <tr><td>Altitude</td><td>{{ location.altitude|floatformat:0 }} m</td></tr>
+            <tr><td>Ignition</td>
+              <td>
+                {% if location.ignition %}
+                  <span class="badge bg-success">ON</span>
+                {% else %}
+                  <span class="badge bg-secondary">OFF</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr><td>Last Update</td><td>{{ location.last_update|date:"d M Y H:i" }}</td></tr>
+          </table>
+          {% else %}
+          <div class="no-data py-3">
+            <i class="fas fa-question-circle d-block mb-2" style="font-size:1.5rem;opacity:.4"></i>
+            No location data available.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Device Info -->
+      <div class="info-card">
+        <div class="card-header-custom">
+          <i class="fas fa-satellite text-info"></i> Device Info
+        </div>
+        <div class="card-body-custom">
+          <table class="info-table">
+            <tr><td>Device ID</td><td><code>{{ device.device_id }}</code></td></tr>
+            <tr><td>Device Name</td><td>{{ device.name|default:"—" }}</td></tr>
+            <tr><td>Status</td>
+              <td>
+                <span class="badge bg-{% if device.status == 'online' %}success{% elif device.status == 'offline' %}danger{% else %}secondary{% endif %}">
+                  {{ device.get_status_display }}
+                </span>
+              </td>
+            </tr>
+            <tr><td>Last Sync</td><td>{{ device.last_update|date:"d M Y H:i"|default:"Never" }}</td></tr>
+            <tr><td>Vehicle</td><td>{{ vehicle.license_plate }}</td></tr>
+            <tr><td>Make/Model</td><td>{{ vehicle.make }} {{ vehicle.model }}</td></tr>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Today's History Table -->
+  <div class="info-card">
+    <div class="card-header-custom">
+      <i class="fas fa-clock text-warning"></i> Today's Location History
+      <small class="ms-auto text-muted fw-normal">{{ start_time|date:"d M H:i" }} – {{ end_time|date:"H:i" }}</small>
+    </div>
+    <div class="card-body-custom p-0">
+      {% if history %}
+      <div class="table-wrap">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Time</th>
+              <th>Coordinates</th>
+              <th>Speed (km/h)</th>
+              <th>Ignition</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for point in history %}
+            <tr>
+              <td class="text-muted">{{ forloop.counter }}</td>
+              <td>{{ point.device_time|date:"H:i:s" }}</td>
+              <td>
+                <a href="https://maps.google.com/?q={{ point.latitude }},{{ point.longitude }}" target="_blank" class="text-decoration-none" title="Open in Google Maps">
+                  {{ point.latitude|floatformat:4 }}, {{ point.longitude|floatformat:4 }}
+                  <i class="fas fa-external-link-alt ms-1" style="font-size:.7rem;opacity:.6"></i>
+                </a>
+              </td>
+              <td>
+                {% if point.speed %}
+                  <span class="{% if point.speed > 80 %}text-danger fw-bold{% elif point.speed > 40 %}text-warning{% else %}text-success{% endif %}">
+                    {{ point.speed|floatformat:1 }}
+                  </span>
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if point.ignition %}
+                  <span class="badge bg-success">ON</span>
+                {% else %}
+                  <span class="badge bg-secondary">OFF</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="no-data">
+        <div><i class="fas fa-map-marked-alt d-block"></i></div>
+        <p class="mb-0 mt-2">No location history recorded today.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if location %}
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<script>
+(function () {
+  const lat = {{ location.latitude }};
+  const lng = {{ location.longitude }};
+  const speed = {{ location.speed|default:0 }};
+  const ignition = {{ location.ignition|yesno:"true,false" }};
+
+  const map = L.map('vehicleMap').setView([lat, lng], 15);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Vehicle marker
+  const iconHtml = `<div style="background:${ignition ? '#28a745' : '#6c757d'};
+    width:36px;height:36px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;color:#fff;font-size:16px;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);border:3px solid #fff;">
+    <i class="fas fa-car"></i></div>`;
+
+  const vehicleIcon = L.divIcon({ html: iconHtml, iconSize: [36, 36], iconAnchor: [18, 18], className: '' });
+
+  const marker = L.marker([lat, lng], { icon: vehicleIcon }).addTo(map);
+  marker.bindPopup(`
+    <strong>{{ vehicle.license_plate }}</strong><br>
+    Speed: ${speed} km/h<br>
+    Ignition: ${ignition ? '<span style="color:green">ON</span>' : '<span style="color:gray">OFF</span>'}<br>
+    <small>{{ location.last_update|date:"d M Y H:i" }}</small>
+  `).openPopup();
+
+  // Draw today's route if history exists
+  const routePoints = [
+    {% for point in history reversed %}
+      [{{ point.latitude }}, {{ point.longitude }}],
+    {% endfor %}
+  ];
+
+  if (routePoints.length > 1) {
+    L.polyline(routePoints, { color: '#4e73df', weight: 3, opacity: 0.7 }).addTo(map);
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

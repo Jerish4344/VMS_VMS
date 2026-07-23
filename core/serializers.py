@@ -139,15 +139,20 @@ class TripCreateSerializer(serializers.ModelSerializer):
 class TripEndSerializer(serializers.Serializer):
     destination = serializers.CharField(max_length=255)
     end_odometer = serializers.IntegerField()
+    start_odometer = serializers.IntegerField(required=False, allow_null=True)
     notes = serializers.CharField(required=False, allow_blank=True)
     end_odometer_image = serializers.ImageField(required=False, allow_null=True)
     
-    def validate_end_odometer(self, value):
-        if self.instance and value <= self.instance.start_odometer:
+    def validate(self, data):
+        # Use the corrected start_odometer (if provided) for cross-field validation.
+        effective_start = data.get('start_odometer') or (
+            self.instance.start_odometer if self.instance else None
+        )
+        if effective_start is not None and data['end_odometer'] <= effective_start:
             raise serializers.ValidationError(
-                f'End odometer must be greater than start odometer ({self.instance.start_odometer})'
+                {'end_odometer': f'End odometer must be greater than start odometer ({effective_start})'}
             )
-        return value
+        return data
 
 
 class MaintenanceTypeSerializer(serializers.ModelSerializer):

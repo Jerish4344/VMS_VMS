@@ -202,8 +202,8 @@ CELERY_BEAT_SCHEDULE = {
     },
     'archive-location-history': {
         'task': 'core.tasks.run_management_command',
-        'schedule': crontab(hour=2, minute=0, day_of_month=1),  # 1st of every month at 2 AM
-        'args': ('archive_location_history', '--days', '90', '--execute'),
+        'schedule': crontab(hour=2, minute=0),  # Daily at 2 AM — keep only today's AiroTrack history
+        'args': ('archive_location_history', '--days', '1', '--execute'),
     },
     'overnight-trip-alert': {
         'task': 'trips.tasks.send_overnight_trip_alert_async',
@@ -222,7 +222,7 @@ CELERY_BEAT_SCHEDULE = {
     'purge-trip-locations': {
         'task': 'core.tasks.run_management_command',
         'schedule': crontab(hour=3, minute=30, day_of_week=0),  # Weekly Sunday 3:30 AM
-        'args': ('purge_trip_locations', '--days', '90'),
+        'args': ('purge_trip_locations', '--days', '30'),
     },
     'downsample-trip-locations': {
         'task': 'core.tasks.run_management_command',

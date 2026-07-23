@@ -365,7 +365,11 @@ def vehicle_tracking_history(request, vehicle_id):
                     # Only count stops longer than 5 minutes
                     duration = current_stop['end_time'] - current_stop['start_time']
                     if duration.total_seconds() > 300:
+                        total_secs = int(duration.total_seconds())
+                        h, rem = divmod(total_secs, 3600)
+                        m = rem // 60
                         current_stop['duration'] = duration
+                        current_stop['duration_str'] = f"{h}h {m}m" if h else f"{m}m"
                         stops.append(current_stop)
                     current_stop = None
         
@@ -373,7 +377,11 @@ def vehicle_tracking_history(request, vehicle_id):
         if current_stop is not None:
             duration = current_stop['end_time'] - current_stop['start_time']
             if duration.total_seconds() > 300:
+                total_secs = int(duration.total_seconds())
+                h, rem = divmod(total_secs, 3600)
+                m = rem // 60
                 current_stop['duration'] = duration
+                current_stop['duration_str'] = f"{h}h {m}m" if h else f"{m}m"
                 stops.append(current_stop)
     else:
         max_speed = avg_speed = 0
@@ -392,7 +400,8 @@ def vehicle_tracking_history(request, vehicle_id):
         'start_date': start_time.strftime('%Y-%m-%d'),
         'end_date': end_time.strftime('%Y-%m-%d'),
         'page_title': f'History: {vehicle.license_plate}',
-        'is_tracking_page': True
+        'is_tracking_page': True,
+        'google_maps_api_key': settings.GOOGLE_MAPS_API_KEY,
     }
     
     return render(request, 'geolocation/vehicle_tracking_history.html', context)
@@ -784,6 +793,127 @@ def ajax_vehicle_locations(request):
     }
     
     return JsonResponse(geojson)
+
+
+@login_required
+@require_GET
+def vehicle_road_route(request, vehicle_id):
+    """
+    Return a Google Directions road-snapped route for a vehicle's location history.
+    Query params: start_date, end_date (YYYY-MM-DD)
+    Falls back to raw GPS points if Directions API fails or is not configured.
+    """
+    import requests as http_requests
+
+    if not has_tracking_permission(request.user):
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+
+    vehicle = get_object_or_404(Vehicle, pk=vehicle_id)
+
+    # Parse date range
+    try:
+        end_date_str = request.GET.get('end_date')
+        start_date_str = request.GET.get('start_date')
+        end_time = (
+            timezone.make_aware(datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59))
+            if end_date_str else timezone.now()
+        )
+        start_time = (
+            timezone.make_aware(datetime.strptime(start_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0))
+            if start_date_str else end_time - timedelta(days=1)
+        )
+    except (ValueError, TypeError):
+        end_time = timezone.now()
+        start_time = end_time - timedelta(days=1)
+
+    history = LocationHistory.objects.filter(
+        vehicle=vehicle,
+        device_time__gte=start_time,
+        device_time__lte=end_time,
+    ).order_by('device_time').values('latitude', 'longitude')
+
+    points = list(history)
+    if not points:
+        return JsonResponse({'success': False, 'error': 'No location data for this period'}, status=404)
+
+    def _raw_response(pts):
+        return JsonResponse({
+            'success': True,
+            'fallback': True,
+            'route_points': [{'lat': float(p['latitude']), 'lng': float(p['longitude'])} for p in pts],
+        })
+
+    api_key = getattr(settings, 'GOOGLE_MAPS_API_KEY', '')
+    if not api_key:
+        return _raw_response(points)
+
+    # Sample up to 25 waypoints from intermediate points
+    origin = f"{points[0]['latitude']},{points[0]['longitude']}"
+    destination = f"{points[-1]['latitude']},{points[-1]['longitude']}"
+    waypoints = []
+    if len(points) > 2:
+        step = max(1, (len(points) - 2) // 23)
+        intermediates = points[1:-1:step][:23]
+        waypoints = [f"{p['latitude']},{p['longitude']}" for p in intermediates]
+
+    params = {
+        'origin': origin,
+        'destination': destination,
+        'key': api_key,
+        'mode': 'driving',
+    }
+    if waypoints:
+        params['waypoints'] = '|'.join(waypoints)
+
+    try:
+        resp = http_requests.get(
+            'https://maps.googleapis.com/maps/api/directions/json',
+            params=params,
+            timeout=15,
+        )
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("Google Directions API error for vehicle %s: %s", vehicle_id, exc)
+        return _raw_response(points)
+
+    if data.get('status') != 'OK':
+        logger.warning("Google Directions status %s for vehicle %s", data.get('status'), vehicle_id)
+        return _raw_response(points)
+
+    # Decode the overview polyline
+    encoded = data['routes'][0].get('overview_polyline', {}).get('points', '')
+    decoded = []
+    if encoded:
+        idx, lat, lng = 0, 0, 0
+        while idx < len(encoded):
+            for coord in ('lat', 'lng'):
+                shift = result = 0
+                while True:
+                    b = ord(encoded[idx]) - 63
+                    idx += 1
+                    result |= (b & 0x1f) << shift
+                    shift += 5
+                    if b < 0x20:
+                        break
+                delta = ~(result >> 1) if result & 1 else result >> 1
+                if coord == 'lat':
+                    lat += delta
+                else:
+                    lng += delta
+            decoded.append({'lat': lat / 1e5, 'lng': lng / 1e5})
+
+    legs = data['routes'][0]['legs']
+    total_distance_m = sum(leg['distance']['value'] for leg in legs)
+    total_duration_s = sum(leg['duration']['value'] for leg in legs)
+
+    return JsonResponse({
+        'success': True,
+        'fallback': False,
+        'route_points': decoded,
+        'distance_km': round(total_distance_m / 1000, 2),
+        'duration_minutes': round(total_duration_s / 60, 1),
+    })
+
 
 @login_required
 @require_GET

@@ -16,6 +16,7 @@ urlpatterns = [
     # Vehicle-specific tracking
     path('tracking/vehicle/<int:vehicle_id>/', views.vehicle_tracking_detail, name='vehicle_tracking_detail'),
     path('tracking/vehicle/<int:vehicle_id>/history/', views.vehicle_tracking_history, name='vehicle_tracking_history'),
+    path('tracking/vehicle/<int:vehicle_id>/road-route/', views.vehicle_road_route, name='vehicle_road_route'),
     
     # Map views
     path('map/', views.map_view, name='map_view'),

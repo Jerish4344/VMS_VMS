@@ -11,7 +11,7 @@ class GPSTracker {
     this.tripId = null;
     this.locationCount = 0;
     this.lastLocation = null;
-    this.trackingIntervalSeconds = 20; // Send GPS data every 20 seconds
+    this.trackingIntervalSeconds = 60; // Send GPS data every 20 seconds
     this.permissionGranted = false;
   }
 

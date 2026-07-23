@@ -692,6 +692,10 @@ class EndTripView(APIView):
         
         trip.destination = serializer.validated_data['destination']
         trip.end_odometer = serializer.validated_data['end_odometer']
+        # Apply corrected start odometer if the driver changed it during verification
+        corrected_start = serializer.validated_data.get('start_odometer')
+        if corrected_start is not None:
+            trip.start_odometer = corrected_start
         trip.end_time = timezone.now()
         trip.status = 'completed'
         trip.notes = serializer.validated_data.get('notes', trip.notes)
