@@ -221,6 +221,7 @@ class MyReimbursementView(LoginRequiredMixin, PersonalVehicleStaffTestMixin, Lis
         # Single grouped query for all 6 months instead of 6 separate queries.
         monthly_qs = (
             Trip.objects.filter(
+                Trip.reimbursement_eligible_q(),
                 driver=self.request.user,
                 vehicle__ownership_type='personal',
                 vehicle__owned_by=self.request.user,
@@ -228,7 +229,6 @@ class MyReimbursementView(LoginRequiredMixin, PersonalVehicleStaffTestMixin, Lis
                 is_deleted=False,
                 start_odometer__isnull=False,
                 end_odometer__isnull=False,
-                approval_status__in=['not_required', 'approved'],
                 start_time__gte=window_start,
             )
             .annotate(month=TruncMonth('start_time'))

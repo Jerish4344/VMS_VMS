@@ -49,6 +49,27 @@ class SOR(models.Model):
     bundle_sequence = models.PositiveIntegerField(null=True, blank=True,
                                                   help_text='Order of this SOR within its bundle (1, 2, 3 ...).')
 
+    # Vehicle IN/OUT timestamps for P2P integration
+    dispatched_at = models.DateTimeField(null=True, blank=True, help_text='When the vehicle left (status → in_progress).')
+    delivered_at = models.DateTimeField(null=True, blank=True, help_text='When the vehicle arrived/goods delivered (status → completed).')
+
+    def save(self, *args, **kwargs):
+        from django.utils import timezone as tz
+        if self.pk:
+            try:
+                prev = SOR.objects.only('status').get(pk=self.pk)
+                if prev.status != 'in_progress' and self.status == 'in_progress' and not self.dispatched_at:
+                    self.dispatched_at = tz.now()
+                if prev.status != 'completed' and self.status == 'completed' and not self.delivered_at:
+                    self.delivered_at = tz.now()
+            except SOR.DoesNotExist:
+                pass
+        else:
+            # New record created directly as completed (outsourced manual)
+            if self.status == 'completed' and not self.delivered_at:
+                self.delivered_at = tz.now()
+        super().save(*args, **kwargs)
+
     def transport_cost(self):
         if self.distance_km:
             if self.source_type == 'outsourced_manual' and self.outsourced_rate_per_km:

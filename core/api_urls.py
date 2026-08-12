@@ -77,6 +77,10 @@ urlpatterns = [
     path('p2p/sor/<int:pk>/', api_views.P2PSORDetailView.as_view(), name='api-p2p-sor-detail'),
     path('p2p/sor/<int:pk>/confirm-receipt/', api_views.P2PSORConfirmReceiptView.as_view(), name='api-p2p-sor-confirm-receipt'),
     
+    # ===== Appointment System Integration Endpoints =====
+    # For the external Appointment System to confirm a Store Visit token
+    path('store-visits/<int:token_id>/confirm/', api_views.StoreVisitTokenConfirmView.as_view(), name='api-store-visit-confirm'),
+    
     # Router URLs (ViewSets) - must be last to not override specific paths
     path('', include(router.urls)),
 ]

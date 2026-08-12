@@ -55,6 +55,7 @@ class CustomUser(AbstractUser):
 	    ('sor_team', 'SOR Team'),  # SOR team role
 	    ('sor_head', 'SOR Head'),  # SOR Head - full access to all SOR entries
 	    ('p2p_service', 'P2P Service Account'),  # External P2P system integration
+	    ('appointment_service', 'Appointment System Service Account'),  # External Appointment System (Store Visit) integration
     )
     
     APPROVAL_STATUS = (

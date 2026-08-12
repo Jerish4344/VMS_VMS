@@ -14,7 +14,7 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 from vehicles.models import Vehicle, VehicleType
-from trips.models import Trip
+from trips.models import Trip, StoreVisitToken
 from trips.gps_models import TripLocation, GPSTrackingSession
 from maintenance.models import Maintenance, MaintenanceType, MaintenanceProvider
 from fuel.models import FuelTransaction, FuelStation
@@ -729,7 +729,14 @@ class EndTripView(APIView):
             submit_for_approval(trip)
         except Exception:
             pass
-        
+
+        # Store Visit token (Appointment System integration)
+        try:
+            from trips.store_visit import issue_token
+            issue_token(trip)
+        except Exception:
+            pass
+
         return Response(TripSerializer(trip).data)
 
 
@@ -1724,6 +1731,56 @@ class P2PSORConfirmReceiptView(APIView):
             'sor_id': sor.id,
             'sir_reference': sir_reference,
             'status': sor.status,
+        })
+
+
+# ============================================================================
+# Appointment System Integration API (Store Visit tokens)
+# These endpoints are for the external Appointment System to confirm that a
+# personal-vehicle-staff driver's Store Visit token was entered against
+# their Store Visit record. Confirming a token is what makes the underlying
+# trip eligible for reimbursement — see Trip.counts_for_reimbursement.
+# ============================================================================
+
+class IsAppointmentServiceAccount(permissions.BasePermission):
+    """Permission class that allows only Appointment System service accounts.
+    The Appointment System authenticates with a token linked to a user with
+    user_type='appointment_service'. Also allows admin users for testing/debugging."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.user_type in ['appointment_service', 'admin']
+
+
+class StoreVisitTokenConfirmView(APIView):
+    """Appointment System calls this once the driver has entered the token
+    against their Store Visit record. Idempotent — confirming an
+    already-confirmed token just returns success again without changing
+    confirmed_at."""
+    permission_classes = [IsAuthenticated, IsAppointmentServiceAccount]
+
+    def post(self, request, token_id):
+        try:
+            token = StoreVisitToken.objects.select_related('trip__driver').get(pk=token_id)
+        except StoreVisitToken.DoesNotExist:
+            return Response({'detail': 'Unknown store visit token.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not token.is_confirmed:
+            token.confirmed_at = timezone.now()
+            token.confirmed_payload = request.data
+            token.save(update_fields=['confirmed_at', 'confirmed_payload'])
+
+            try:
+                from trips.store_visit import notify_driver_token_confirmed
+                notify_driver_token_confirmed(token.trip)
+            except Exception:
+                pass
+
+        return Response({
+            'detail': 'confirmed',
+            'trip_id': token.trip_id,
+            'confirmed_at': token.confirmed_at,
         })
 
 

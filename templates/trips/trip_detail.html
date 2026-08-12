@@ -360,6 +360,26 @@
             </span>
           </div>
           {% endif %}
+          {% if trip.store_visit_token %}
+          <div class="detail-row">
+            <span class="detail-label"><i class="fas fa-key me-1"></i>Store Visit Token:</span>
+            <span class="detail-value">
+              <span class="badge bg-secondary">#{{ trip.store_visit_token.id }}</span>
+              {% if trip.store_visit_token.is_confirmed %}
+                <span class="badge bg-success ms-1"><i class="fas fa-check-circle me-1"></i>Confirmed</span>
+              {% else %}
+                <span class="badge bg-warning text-dark ms-1"><i class="fas fa-hourglass-half me-1"></i>Awaiting confirmation</span>
+              {% endif %}
+            </span>
+          </div>
+          {% if not trip.store_visit_token.is_confirmed %}
+          <div class="detail-row">
+            <span class="detail-value text-muted small">
+              Enter this token in the Appointment System's Store Visit record to confirm your visit. Reimbursement for this trip is on hold until it's confirmed.
+            </span>
+          </div>
+          {% endif %}
+          {% endif %}
         </div>
       </div>
 

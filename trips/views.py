@@ -718,11 +718,26 @@ class EndTripView(LoginRequiredMixin, UpdateView):
                 # Approval submission must never block trip closure.
                 logger.error("Failed to submit trip %s for approval: %s", trip.pk, exc)
 
+            # --- Store Visit token (Appointment System integration) ---
+            store_visit_token = None
+            try:
+                from trips.store_visit import issue_token
+                store_visit_token = issue_token(trip)
+            except Exception as exc:
+                # Token issuance must never block trip closure.
+                logger.error("Failed to issue store visit token for trip %s: %s", trip.pk, exc)
+
             # Success message with role indication and GPS info
             user_role = self.request.user.get_user_type_display()
             ended_by = "you" if trip.driver == self.request.user else f"{user_role}"
             success_msg = f'Trip ended successfully by {ended_by}! Distance: {trip.distance_traveled()} km'
-            
+
+            if store_visit_token is not None:
+                success_msg += (
+                    f' — Store Visit token: {store_visit_token.pk}. '
+                    f'Enter this in the Appointment System to confirm your visit.'
+                )
+
             # Add GPS tracking info if enabled
             if trip.gps_tracking_enabled:
                 try:

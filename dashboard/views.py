@@ -602,12 +602,12 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
         # Staff's total distance and reimbursement this month
         first_of_month = timezone.now().date().replace(day=1)
         monthly_trips = Trip.objects.filter(
+            Trip.reimbursement_eligible_q(),
             driver=staff,
             vehicle__in=personal_vehicles,
             start_time__gte=first_of_month,
             status='completed',
             is_deleted=False,
-            approval_status__in=['not_required', 'approved'],
         )
         
         # Calculate monthly stats
@@ -666,13 +666,13 @@ class DashboardView(CompanyDashboardPermissionMixin, LoginRequiredMixin, Templat
             
             # Get trips for this month across all personal vehicles
             month_trips = Trip.objects.filter(
+                Trip.reimbursement_eligible_q(),
                 driver=staff,
                 vehicle__in=vehicles,
                 start_time__gte=month_date,
                 start_time__lt=next_month,
                 status='completed',
                 is_deleted=False,
-                approval_status__in=['not_required', 'approved'],
             )
             
             # Calculate distance and reimbursement

@@ -1,6 +1,6 @@
 from django import forms
 from django.utils import timezone
-from .models import Trip
+from .models import Trip, PERSONAL_STAFF_PURPOSE_CHOICES
 from .consultant_models import ConsultantRate
 from vehicles.models import Vehicle
 from django.contrib.auth import get_user_model
@@ -33,6 +33,15 @@ class TripForm(forms.ModelForm):
                     ownership_type='personal',
                     owned_by=user,
                     status='available'
+                )
+                # Restrict purpose to a fixed dropdown so "Store Visit" can be
+                # matched on reliably (see trips/store_visit.py). Other user
+                # types keep the free-text purpose field.
+                self.fields['purpose'] = forms.ChoiceField(
+                    choices=PERSONAL_STAFF_PURPOSE_CHOICES,
+                    widget=forms.Select(attrs={'class': 'form-select'}),
+                    help_text="Choose 'Store Visit' if this trip is for a store visit — "
+                              "you'll get a token to confirm the visit in the Appointment System.",
                 )
             else:
                 # Check if driver has active consultant rate assignments

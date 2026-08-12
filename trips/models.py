@@ -1,3 +1,4 @@
+from datetime import date as _date, datetime as _datetime
 from django.db import models, transaction
 from django.utils import timezone
 from vehicles.models import Vehicle
@@ -10,6 +11,31 @@ from .gps_models import TripLocation, GPSTrackingSession
 # Lazy reference to ConsultantRate to prevent circular-import issues.
 # Will be resolved the first time it's actually needed.
 ConsultantRate = None
+
+# Store Visit / Appointment System integration (see trips/store_visit.py).
+# Canonical purpose string — must match exactly what the purpose dropdown
+# writes for personal_vehicle_staff, since it's matched on directly.
+STORE_VISIT_PURPOSE = 'Store Visit'
+PERSONAL_STAFF_PURPOSE_CHOICES = (
+    (STORE_VISIT_PURPOSE, STORE_VISIT_PURPOSE),
+    ('Client Meeting', 'Client Meeting'),
+    ('Delivery', 'Delivery'),
+    ('Other', 'Other'),
+)
+
+# The token requirement only applies to trips starting on/after this date.
+# Trips before it (including old free-text trips whose purpose happened to
+# be typed as "Store Visit" pre-dropdown) are never gated on a token, since
+# no token could possibly exist for them.
+STORE_VISIT_TOKEN_EFFECTIVE_DATE = _date(2026, 8, 1)
+
+
+def _trip_start_date(start_time):
+    """Normalize a Trip.start_time value to a plain date for comparing
+    against STORE_VISIT_TOKEN_EFFECTIVE_DATE."""
+    if isinstance(start_time, _datetime):
+        return timezone.localtime(start_time).date() if timezone.is_aware(start_time) else start_time.date()
+    return start_time
 
 class Trip(models.Model):
     """Record of a vehicle trip."""
@@ -159,11 +185,47 @@ class Trip(models.Model):
             return self.vehicle.vehicle_type.name.strip().lower() == 'commercial staff bus'
         return False
 
+    @staticmethod
+    def reimbursement_eligible_q():
+        """Queryset version of `counts_for_reimbursement` — keep the two in sync.
+
+        A trip counts for reimbursement once it's cleared the manager-approval
+        flow ('not_required' or 'approved'), AND — for Store Visit trips
+        starting on/after STORE_VISIT_TOKEN_EFFECTIVE_DATE — once the
+        Appointment System has confirmed the staff member's store-visit token
+        (see trips/store_visit.py). Trips before that date are never gated on
+        a token, even if their purpose text happens to say "Store Visit"
+        (typed pre-dropdown, before a token could exist). Every reimbursement
+        total in the app should filter through this rather than re-inlining
+        the approval_status check.
+        """
+        requires_token = (
+            models.Q(purpose=STORE_VISIT_PURPOSE)
+            & models.Q(start_time__date__gte=STORE_VISIT_TOKEN_EFFECTIVE_DATE)
+        )
+        return (
+            models.Q(approval_status__in=['not_required', 'approved'])
+            & (~requires_token | models.Q(store_visit_token__confirmed_at__isnull=False))
+        )
+
     @property
     def counts_for_reimbursement(self):
         """A trip counts for reimbursement only when it is not in the approval flow
-        ('not_required') or has been approved by the reporting manager."""
-        return self.approval_status in ('not_required', 'approved')
+        ('not_required') or has been approved by the reporting manager, and —
+        for Store Visit trips starting on/after STORE_VISIT_TOKEN_EFFECTIVE_DATE
+        — once the Appointment System has confirmed the token. Mirrors
+        `reimbursement_eligible_q` above."""
+        if self.approval_status not in ('not_required', 'approved'):
+            return False
+        requires_token = (
+            self.purpose == STORE_VISIT_PURPOSE
+            and self.start_time is not None
+            and _trip_start_date(self.start_time) >= STORE_VISIT_TOKEN_EFFECTIVE_DATE
+        )
+        if requires_token:
+            token = getattr(self, 'store_visit_token', None)
+            return bool(token and token.is_confirmed)
+        return True
 
     @property
     def is_locked_for_edit(self):
@@ -485,3 +547,38 @@ class Trip(models.Model):
         if not rate_obj:
             return 0
         return rate_obj.calculate_payment(self.distance_traveled())
+
+
+class StoreVisitToken(models.Model):
+    """Token handed to a personal-vehicle-staff driver when they end a trip
+    whose purpose is 'Store Visit'. The driver types this token's `id` into
+    the third-party Appointment System's Store Visit record; that system
+    then calls back to confirm it, which is what actually makes the trip
+    eligible for reimbursement (see Trip.counts_for_reimbursement).
+
+    The token number is just this row's auto-incrementing primary key —
+    the database guarantees it's unique and sequential (starting at 1) even
+    under concurrent trip-ends, so there's no manual counter to maintain.
+    """
+    trip = models.OneToOneField(
+        Trip,
+        on_delete=models.CASCADE,
+        related_name='store_visit_token',
+    )
+    issued_at = models.DateTimeField(auto_now_add=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    confirmed_payload = models.JSONField(
+        null=True, blank=True,
+        help_text="Raw confirmation payload received from the Appointment System, kept for audit.",
+    )
+
+    class Meta:
+        ordering = ['id']
+
+    @property
+    def is_confirmed(self):
+        return self.confirmed_at is not None
+
+    def __str__(self):
+        status = 'confirmed' if self.is_confirmed else 'pending'
+        return f"Store Visit Token #{self.pk} ({status}) — Trip #{self.trip_id}"

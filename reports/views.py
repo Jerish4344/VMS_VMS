@@ -1494,12 +1494,12 @@ class StaffReportView(ReportBaseView):
         
         # Get all completed trips for these vehicles within date range
         trips = Trip.objects.filter(
+            Trip.reimbursement_eligible_q(),
             vehicle__in=personal_vehicles,
             status='completed',
             start_time__gte=start_datetime,
             start_time__lte=end_datetime,
             is_deleted=False,
-            approval_status__in=['not_required', 'approved'],
         ).select_related('vehicle', 'vehicle__owned_by')
         
         # Process trip data and calculate reimbursements
@@ -1752,12 +1752,12 @@ class DepartmentReportView(ReportBaseView):
             # ========== PERSONAL VEHICLE STATS ==========
             # Get trips using personal vehicles
             personal_trips = Trip.objects.filter(
+                Trip.reimbursement_eligible_q(),
                 vehicle_id__in=personal_vehicle_ids,
                 status='completed',
                 start_time__gte=start_datetime,
                 start_time__lte=end_datetime,
                 is_deleted=False,
-                approval_status__in=['not_required', 'approved'],
             ).select_related('vehicle')
             
             personal_trip_count = personal_trips.count()

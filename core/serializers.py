@@ -66,7 +66,9 @@ class TripSerializer(serializers.ModelSerializer):
     bundle_id = serializers.SerializerMethodField()
     is_bundle_trip = serializers.SerializerMethodField()
     bundle_size = serializers.SerializerMethodField()
-    
+    store_visit_token = serializers.SerializerMethodField()
+    store_visit_confirmed = serializers.SerializerMethodField()
+
     class Meta:
         model = Trip
         fields = [
@@ -76,13 +78,22 @@ class TripSerializer(serializers.ModelSerializer):
             'gps_tracking_enabled', 'created_at', 'updated_at',
             'start_odometer_image', 'end_odometer_image',
             'bundle_id', 'is_bundle_trip', 'bundle_size',
+            'store_visit_token', 'store_visit_confirmed',
         ]
-    
+
     def get_distance(self, obj):
         return obj.distance_traveled()
-    
+
     def get_duration(self, obj):
         return obj.duration()
+
+    def get_store_visit_token(self, obj):
+        token = getattr(obj, 'store_visit_token', None)
+        return token.pk if token else None
+
+    def get_store_visit_confirmed(self, obj):
+        token = getattr(obj, 'store_visit_token', None)
+        return token.is_confirmed if token else None
 
     def _bundle_sor(self, obj):
         return obj.sor_entry.exclude(bundle_id__isnull=True).first()
@@ -381,6 +392,7 @@ class P2PSORSerializer(serializers.ModelSerializer):
             'vendor_name', 'start_odometer', 'end_odometer', 'outsourced_rate_per_km',
             'number_of_crates', 'number_of_sac', 'description',
             'transport_cost',
+            'dispatched_at', 'delivered_at',
             'created_at', 'updated_at',
         ]
         read_only_fields = fields  # Entirely read-only

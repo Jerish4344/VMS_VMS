@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 # Import Trip from the main trips.models module
-from .models import Trip
+from .models import Trip, StoreVisitToken
 
 # Import ConsultantRate directly from consultant_models to avoid
 # relying on re-export behaviour in trips.__init__, which can lead
@@ -75,6 +75,29 @@ class TripAdmin(admin.ModelAdmin):
             minutes = (duration.seconds % 3600) // 60
             return f"{hours}h {minutes}m"
         return "In progress"
+
+
+# ------------------------------------------------------------------
+# Store Visit token admin (Appointment System integration)
+# ------------------------------------------------------------------
+
+@admin.register(StoreVisitToken)
+class StoreVisitTokenAdmin(admin.ModelAdmin):
+    """Lets admins/managers see and chase up trips waiting on Appointment
+    System confirmation."""
+
+    list_display = ('id', 'trip', 'get_driver', 'issued_at', 'confirmed_at', 'is_confirmed')
+    list_filter = (('confirmed_at', admin.EmptyFieldListFilter),)
+    search_fields = ('trip__driver__username', 'trip__driver__first_name', 'trip__driver__last_name', 'id')
+    readonly_fields = ('trip', 'issued_at', 'confirmed_at', 'confirmed_payload')
+
+    def get_driver(self, obj):
+        return obj.trip.driver
+    get_driver.short_description = 'Driver'
+
+    def is_confirmed(self, obj):
+        return obj.is_confirmed
+    is_confirmed.boolean = True
 
 
 # ------------------------------------------------------------------
