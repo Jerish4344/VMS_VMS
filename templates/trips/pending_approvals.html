@@ -16,7 +16,7 @@
   <div class="card mb-3">
     <div class="card-body py-2">
       <form method="get" class="row g-2 align-items-end">
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label small mb-1">Status</label>
           <select name="status" class="form-select form-select-sm">
             <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Pending</option>
@@ -25,7 +25,7 @@
             <option value="all" {% if filter_status == 'all' %}selected{% endif %}>All (excl. not required)</option>
           </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label small mb-1">Driver</label>
           <select name="driver" class="form-select form-select-sm">
             <option value="">All drivers</option>
@@ -37,7 +37,7 @@
           </select>
         </div>
         {% if is_admin_view %}
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label small mb-1">Approval Manager</label>
           <select name="manager" class="form-select form-select-sm">
             <option value="">All managers</option>
@@ -49,7 +49,15 @@
           </select>
         </div>
         {% endif %}
-        <div class="col-md-3">
+        <div class="col-md-2">
+          <label class="form-label small mb-1">Date From</label>
+          <input type="date" name="date_from" class="form-control form-control-sm" value="{{ filter_date_from }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">Date To</label>
+          <input type="date" name="date_to" class="form-control form-control-sm" value="{{ filter_date_to }}">
+        </div>
+        <div class="col-md-2">
           <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-filter me-1"></i>Apply</button>
           <a href="{% url 'pending_trip_approvals' %}" class="btn btn-light btn-sm border">Reset</a>
         </div>
@@ -188,11 +196,11 @@
         <nav>
           <ul class="pagination justify-content-center mb-0">
             {% if page_obj.has_previous %}
-              <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+              <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a></li>
             {% endif %}
             <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ paginator.num_pages }}</span></li>
             {% if page_obj.has_next %}
-              <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
+              <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a></li>
             {% endif %}
           </ul>
         </nav>

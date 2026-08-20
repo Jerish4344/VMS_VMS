@@ -2142,6 +2142,23 @@ class PendingTripApprovalsView(LoginRequiredMixin, ListView):
         if driver_id:
             qs = qs.filter(driver_id=driver_id)
 
+        # Trip date range filter
+        date_from = (params.get('date_from') or '').strip()
+        if date_from:
+            try:
+                date_from_value = datetime.strptime(date_from, '%Y-%m-%d').date()
+                qs = qs.filter(start_time__date__gte=date_from_value)
+            except ValueError:
+                pass
+
+        date_to = (params.get('date_to') or '').strip()
+        if date_to:
+            try:
+                date_to_value = datetime.strptime(date_to, '%Y-%m-%d').date()
+                qs = qs.filter(start_time__date__lte=date_to_value)
+            except ValueError:
+                pass
+
         # Manager filter (admin only)
         if self._is_admin():
             manager_id = params.get('manager')
@@ -2157,6 +2174,8 @@ class PendingTripApprovalsView(LoginRequiredMixin, ListView):
         ctx['filter_status'] = (self.request.GET.get('status') or 'pending').strip()
         ctx['filter_driver'] = self.request.GET.get('driver') or ''
         ctx['filter_manager'] = self.request.GET.get('manager') or ''
+        ctx['filter_date_from'] = self.request.GET.get('date_from') or ''
+        ctx['filter_date_to'] = self.request.GET.get('date_to') or ''
 
         # Drivers and managers list for filter dropdowns.
         # Use subquery-based IN lookup instead of a DISTINCT JOIN, which is
