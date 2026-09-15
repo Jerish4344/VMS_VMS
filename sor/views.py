@@ -532,8 +532,12 @@ def sor_export(request):
     
     # Ensure export uses SOR ID ascending order regardless of current sort
     # Get all SOR data for export (no pagination)
-    sors_data = sors.order_by('id').select_related('vehicle', 'driver', 'created_by')
-    
+    sors_data = sors.order_by('id')
+
+    # Limit export to prevent server overload (same as trip export)
+    MAX_EXPORT_ROWS = 50000
+    sors_data = sors_data[:MAX_EXPORT_ROWS]
+
     if export_format == 'csv':
         return _export_csv(sors_data)
     elif export_format == 'excel':
@@ -544,10 +548,75 @@ def sor_export(request):
         messages.error(request, 'Invalid export format.')
         return redirect('sor_list')
 
+
+# .values() fields used by all export formats (avoids model instantiation, same as trip export)
+SOR_EXPORT_FIELDS = [
+    'id', 'source_type', 'goods_value', 'created_at', 'from_location', 'to_location',
+    'distance_km', 'status', 'outsourced_vehicle_text', 'outsourced_driver_text',
+    'outsourced_rate_per_km', 'vehicle_id', 'vehicle__make', 'vehicle__model',
+    'vehicle__license_plate', 'vehicle__rate_per_km',
+    'driver_id', 'driver__first_name', 'driver__last_name', 'driver__username', 'driver__user_type',
+    'created_by_id', 'created_by__first_name', 'created_by__last_name', 'created_by__username',
+]
+
+_SOURCE_TYPE_MAP = dict(SOR.SOURCE_TYPE_CHOICES)
+_STATUS_MAP = dict(SOR.STATUS_CHOICES)
+_USER_TYPE_MAP = dict(User._meta.get_field('user_type').choices)
+
+
+def _sor_display(row):
+    """Build display values for one .values() row, matching model __str__ output."""
+    if row['vehicle_id']:
+        vehicle = f"{row['vehicle__make']} {row['vehicle__model']} ({row['vehicle__license_plate']})"
+    else:
+        vehicle = row['outsourced_vehicle_text'] or '--'
+
+    if row['driver_id']:
+        full_name = f"{row['driver__first_name'] or ''} {row['driver__last_name'] or ''}".strip() or row['driver__username']
+        user_type = _USER_TYPE_MAP.get(row['driver__user_type'], row['driver__user_type'])
+        driver = f"{full_name} ({user_type})"
+    else:
+        driver = row['outsourced_driver_text'] or '--'
+
+    if row['created_by_id']:
+        created_by = (f"{row['created_by__first_name'] or ''} {row['created_by__last_name'] or ''}".strip()
+                      or row['created_by__username'])
+    else:
+        created_by = '--'
+
+    rate = row['vehicle__rate_per_km']
+    distance = row['distance_km']
+    goods = row['goods_value']
+    transport_cost = ''
+    transport_pct = None
+    if distance and row['vehicle_id'] and rate:
+        transport_cost = f"{distance * rate:.2f}"
+        if goods and goods > 0:
+            transport_pct = distance * rate / goods * 100
+
+    if rate is not None and row['vehicle_id']:
+        rate_display = rate
+    elif row['outsourced_rate_per_km'] is not None:
+        rate_display = row['outsourced_rate_per_km']
+    else:
+        rate_display = '--'
+
+    return {
+        'source_type': _SOURCE_TYPE_MAP.get(row['source_type'], row['source_type']),
+        'status': _STATUS_MAP.get(row['status'], row['status']),
+        'vehicle': vehicle,
+        'driver': driver,
+        'created_by': created_by,
+        'rate': rate_display,
+        'transport_cost': transport_cost,
+        'transport_pct': transport_pct,
+    }
+
 def _export_csv(sors_data):
     """Export SOR data as CSV"""
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = f'attachment; filename="sor_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+    response['X-Accel-Buffering'] = 'no'
     
     writer = csv.writer(response)
     
@@ -560,31 +629,24 @@ def _export_csv(sors_data):
     writer.writerow(headers)
     
     # Write data with serial numbers
-    for index, sor in enumerate(sors_data, 1):
-        transport_cost = ''
-        transport_percentage = ''
-        
-        if sor.distance_km and sor.vehicle and sor.vehicle.rate_per_km:
-            transport_cost = f"{sor.distance_km * sor.vehicle.rate_per_km:.2f}"
-            if sor.goods_value and sor.goods_value > 0:
-                transport_percentage = f"{(sor.distance_km * sor.vehicle.rate_per_km / sor.goods_value * 100):.2f}%"
-        
+    for index, sor in enumerate(sors_data.values(*SOR_EXPORT_FIELDS).iterator(), 1):
+        d = _sor_display(sor)
         row = [
             index,  # Serial number
-            sor.id,  # Original SOR ID
-            sor.get_source_type_display(),
-            sor.goods_value,
-            sor.created_by.get_full_name() if sor.created_by else '--',
-            sor.created_at.strftime('%d %b %Y, %H:%M') if sor.created_at else '--',
-            sor.from_location,
-            sor.to_location,
-            str(sor.vehicle) if sor.vehicle else (sor.outsourced_vehicle_text or '--'),
-            sor.vehicle.rate_per_km if sor.vehicle and sor.vehicle.rate_per_km is not None else (sor.outsourced_rate_per_km if sor.outsourced_rate_per_km is not None else '--'),
-            f"{sor.distance_km:.2f}" if sor.distance_km else '--',
-            transport_cost or '--',
-            transport_percentage or '--',
-            str(sor.driver) if sor.driver else (sor.outsourced_driver_text or '--'),
-            sor.get_status_display()
+            sor['id'],  # Original SOR ID
+            d['source_type'],
+            sor['goods_value'],
+            d['created_by'],
+            sor['created_at'].strftime('%d %b %Y, %H:%M') if sor['created_at'] else '--',
+            sor['from_location'],
+            sor['to_location'],
+            d['vehicle'],
+            d['rate'],
+            f"{sor['distance_km']:.2f}" if sor['distance_km'] else '--',
+            d['transport_cost'] or '--',
+            f"{d['transport_pct']:.2f}%" if d['transport_pct'] is not None else '--',
+            d['driver'],
+            d['status'],
         ]
         writer.writerow(row)
     
@@ -594,10 +656,11 @@ def _export_excel(sors_data):
     """Export SOR data as Excel"""
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename="sor_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+    response['X-Accel-Buffering'] = 'no'
     
-    workbook = openpyxl.Workbook()
-    worksheet = workbook.active
-    worksheet.title = 'SOR Export'
+    # write_only mode streams rows and keeps memory constant (like trips' constant_memory)
+    workbook = openpyxl.Workbook(write_only=True)
+    worksheet = workbook.create_sheet('SOR Export')
     
     # Define styles
     header_font = Font(bold=True, color='FFFFFF')
@@ -611,56 +674,42 @@ def _export_excel(sors_data):
         'Driver', 'Status'
     ]
     
+    # Fixed column widths (auto-fit requires a second pass over all cells, too slow for big exports)
+    from openpyxl.utils import get_column_letter
+    for col in range(1, len(headers) + 1):
+        worksheet.column_dimensions[get_column_letter(col)].width = 18
+    
     # Write headers with styling
-    for col, header in enumerate(headers, 1):
-        cell = worksheet.cell(row=1, column=col, value=header)
+    from openpyxl.cell import WriteOnlyCell
+    header_row = []
+    for header in headers:
+        cell = WriteOnlyCell(worksheet, value=header)
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = header_alignment
+        header_row.append(cell)
+    worksheet.append(header_row)
     
     # Write data with serial numbers
-    for row_num, sor in enumerate(sors_data, 2):
-        transport_cost = ''
-        transport_percentage = ''
-        
-        if sor.distance_km and sor.vehicle and sor.vehicle.rate_per_km:
-            transport_cost = f"{sor.distance_km * sor.vehicle.rate_per_km:.2f}"
-            if sor.goods_value and sor.goods_value > 0:
-                transport_percentage = f"{(sor.distance_km * sor.vehicle.rate_per_km / sor.goods_value * 100):.2f}%"
-        
-        data = [
-            row_num - 1,  # Serial number (row_num starts from 2, so subtract 1)
-            sor.id,  # Original SOR ID
-            sor.get_source_type_display(),
-            sor.goods_value,
-            sor.created_by.get_full_name() if sor.created_by else '--',
-            sor.created_at.strftime('%d %b %Y, %H:%M') if sor.created_at else '--',
-            sor.from_location,
-            sor.to_location,
-            str(sor.vehicle) if sor.vehicle else (sor.outsourced_vehicle_text or '--'),
-            sor.vehicle.rate_per_km if sor.vehicle and sor.vehicle.rate_per_km is not None else (sor.outsourced_rate_per_km if sor.outsourced_rate_per_km is not None else '--'),
-            f"{sor.distance_km:.2f}" if sor.distance_km else '--',
-            transport_cost or '--',
-            transport_percentage or '--',
-            str(sor.driver) if sor.driver else (sor.outsourced_driver_text or '--'),
-            sor.get_status_display()
-        ]
-        
-        for col, value in enumerate(data, 1):
-            worksheet.cell(row=row_num, column=col, value=value)
-    
-    # Auto-adjust column widths
-    for column in worksheet.columns:
-        max_length = 0
-        column_letter = column[0].column_letter
-        for cell in column:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except:
-                pass
-        adjusted_width = min(max_length + 2, 50)
-        worksheet.column_dimensions[column_letter].width = adjusted_width
+    for index, sor in enumerate(sors_data.values(*SOR_EXPORT_FIELDS).iterator(), 1):
+        d = _sor_display(sor)
+        worksheet.append([
+            index,  # Serial number
+            sor['id'],  # Original SOR ID
+            d['source_type'],
+            sor['goods_value'],
+            d['created_by'],
+            sor['created_at'].strftime('%d %b %Y, %H:%M') if sor['created_at'] else '--',
+            sor['from_location'],
+            sor['to_location'],
+            d['vehicle'],
+            d['rate'],
+            f"{sor['distance_km']:.2f}" if sor['distance_km'] else '--',
+            d['transport_cost'] or '--',
+            f"{d['transport_pct']:.2f}%" if d['transport_pct'] is not None else '--',
+            d['driver'],
+            d['status'],
+        ])
     
     workbook.save(response)
     return response
@@ -669,6 +718,7 @@ def _export_pdf(sors_data):
     """Export SOR data as PDF"""
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="sor_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+    response['X-Accel-Buffering'] = 'no'
     
     doc = SimpleDocTemplate(response, pagesize=landscape(letter), topMargin=0.5*inch)
     elements = []
@@ -688,30 +738,26 @@ def _export_pdf(sors_data):
     
     table_data = [headers]
     
-    for index, sor in enumerate(sors_data, 1):
-        transport_cost = ''
-        transport_percentage = ''
-        
-        if sor.distance_km and sor.vehicle and sor.vehicle.rate_per_km:
-            transport_cost = f"{sor.distance_km * sor.vehicle.rate_per_km:.2f}"
-            if sor.goods_value and sor.goods_value > 0:
-                transport_percentage = f"{(sor.distance_km * sor.vehicle.rate_per_km / sor.goods_value * 100):.1f}%"
-        
+    def _truncate(text, limit):
+        return text[:limit] + '...' if text and len(text) > limit else (text or '--')
+    
+    for index, sor in enumerate(sors_data.values(*SOR_EXPORT_FIELDS).iterator(), 1):
+        d = _sor_display(sor)
         row = [
             str(index),  # Serial number
-            str(sor.id),  # Original SOR ID
-            sor.get_source_type_display(),
-            str(sor.goods_value),
-            sor.created_at.strftime('%d/%m/%Y') if sor.created_at else '--',
-            sor.from_location[:15] + '...' if len(sor.from_location) > 15 else sor.from_location,
-            sor.to_location[:15] + '...' if len(sor.to_location) > 15 else sor.to_location,
-            (str(sor.vehicle)[:12] + '...' if sor.vehicle and len(str(sor.vehicle)) > 12 else str(sor.vehicle)) if sor.vehicle else (sor.outsourced_vehicle_text[:12] + '...' if sor.outsourced_vehicle_text and len(sor.outsourced_vehicle_text) > 12 else (sor.outsourced_vehicle_text or '--')),
-            str(sor.vehicle.rate_per_km) if sor.vehicle and sor.vehicle.rate_per_km is not None else '--',
-            f"{sor.distance_km:.1f}" if sor.distance_km else '--',
-            transport_cost or '--',
-            transport_percentage or '--',
-            (str(sor.driver)[:12] + '...' if sor.driver and len(str(sor.driver)) > 12 else str(sor.driver)) if sor.driver else (sor.outsourced_driver_text[:12] + '...' if sor.outsourced_driver_text and len(sor.outsourced_driver_text) > 12 else (sor.outsourced_driver_text or '--')),
-            sor.get_status_display()[:8] + '...' if len(sor.get_status_display()) > 8 else sor.get_status_display()
+            str(sor['id']),  # Original SOR ID
+            d['source_type'],
+            str(sor['goods_value']),
+            sor['created_at'].strftime('%d/%m/%Y') if sor['created_at'] else '--',
+            _truncate(sor['from_location'], 15),
+            _truncate(sor['to_location'], 15),
+            _truncate(d['vehicle'] if d['vehicle'] != '--' else None, 12),
+            str(d['rate']) if sor['vehicle_id'] and sor['vehicle__rate_per_km'] is not None else '--',
+            f"{sor['distance_km']:.1f}" if sor['distance_km'] else '--',
+            d['transport_cost'] or '--',
+            f"{d['transport_pct']:.1f}%" if d['transport_pct'] is not None else '--',
+            _truncate(d['driver'] if d['driver'] != '--' else None, 12),
+            _truncate(d['status'], 8),
         ]
         table_data.append(row)
     

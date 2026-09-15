@@ -27,7 +27,7 @@ PERSONAL_STAFF_PURPOSE_CHOICES = (
 # Trips before it (including old free-text trips whose purpose happened to
 # be typed as "Store Visit" pre-dropdown) are never gated on a token, since
 # no token could possibly exist for them.
-STORE_VISIT_TOKEN_EFFECTIVE_DATE = _date(2026, 8, 1)
+STORE_VISIT_TOKEN_EFFECTIVE_DATE = _date(2026, 10, 1)
 
 
 def _trip_start_date(start_time):

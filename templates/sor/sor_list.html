@@ -17,17 +17,17 @@
               </button>
               <ul class="dropdown-menu dropdown-menu-end">
                 <li>
-                  <a class="dropdown-item" href="#" onclick="exportData('csv')">
+                  <a class="dropdown-item" href="#" onclick="exportData('csv'); return false;">
                     <i class="fas fa-file-csv me-2 text-success"></i> CSV
                   </a>
                 </li>
                 <li>
-                  <a class="dropdown-item" href="#" onclick="exportData('excel')">
+                  <a class="dropdown-item" href="#" onclick="exportData('excel'); return false;">
                     <i class="fas fa-file-excel me-2 text-success"></i> Excel
                   </a>
                 </li>
                 <li>
-                  <a class="dropdown-item" href="#" onclick="exportData('pdf')">
+                  <a class="dropdown-item" href="#" onclick="exportData('pdf'); return false;">
                     <i class="fas fa-file-pdf me-2 text-danger"></i> PDF
                   </a>
                 </li>
@@ -437,8 +437,8 @@ function exportData(format) {
   // Create export URL
   const exportUrl = '{% url "sor_export" %}?' + urlParams.toString();
   
-  // Open in new tab for download
-  window.open(exportUrl, '_blank');
+  // Trigger download in the same tab to match trip export behavior
+  window.location.href = exportUrl;
 }
 </script>
 {% endblock %}
