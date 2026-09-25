@@ -128,14 +128,14 @@ class SORForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Commercial vehicles + any Centaur Foods variant, excluding only those
-        # whose status is explicitly 'in_use' (set by the trips module when a
-        # real-time trip is active).  Using the vehicle's own status field is
+        # Commercial vehicles + any Centaur Foods variant, excluding those
+        # in use (set by the trips module when a real-time trip is active)
+        # and retired vehicles.  Using the vehicle's own status field is
         # more reliable than a Trip subquery, which can include stale records.
         self.fields['vehicle'].queryset = Vehicle.objects.filter(
             Q(vehicle_type__category='commercial') |
             Q(vehicle_type__name__icontains='Centaur Foods')
-        ).exclude(status='in_use')
+        ).exclude(status__in=['in_use', 'retired'])
         self.fields['vehicle'].widget.attrs.update({'class': 'form-select form-select-sm'})
         User = get_user_model()
         self.fields['driver'].queryset = User.objects.filter(user_type='driver', is_active=True)
@@ -356,7 +356,7 @@ class SORBundleHeaderForm(forms.Form):
         self.fields['vehicle'].queryset = Vehicle.objects.filter(
             Q(vehicle_type__category='commercial') |
             Q(vehicle_type__name__icontains='Centaur Foods')
-        ).exclude(status='in_use')
+        ).exclude(status__in=['in_use', 'retired'])
         User = get_user_model()
         self.fields['driver'].queryset = User.objects.filter(user_type='driver', is_active=True)
 
